@@ -101,6 +101,23 @@ messages or API keys. Unit tests enforce this.
 |---|---|---|---|---|
 | M-L1 | Log contents after real use | Start Naad, do one dictation (M-S2) and one focus-change test (M-S4), exit from the tray, then open `naad.log` in Notepad. | You see `AppStarted`, the dictation events with numbers, `PasteSkippedFocusChanged` and `AppStopped`. No words you said appear anywhere in the file. | Partly. The harness checked start, stop, second-instance and missing-key runs against the real log file. Dictation events need physical keys. |
 
+## Settings (P6): M-C1 to M-C4
+
+Settings live in `%APPDATA%\Naad\settings.json`. [settings.md](settings.md)
+describes the format, the versioning policy and every recovery case. Close
+Naad before editing the file, and keep a copy if your file matters to you.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-C1 | First run creates settings | Rename `%APPDATA%\Naad` if it exists, then start Naad. | `settings.json` appears with `"version": 1` and `"fileLogging": true`. The log shows `SettingsCreated`. | Yes. The P6 harness ran it against the real exe. |
+| M-C2 | Turning off file logging | Set `"fileLogging": false`, start Naad, then exit. | `naad.log` gets no new lines. The terminal (with `dotnet run`) still shows `SettingsLoaded` and `AppStarted`. | Yes. |
+| M-C3 | Corrupt file recovery | Replace the file's contents with `{ this is not json`, then start Naad. | Naad starts normally. The original is kept as `settings.json.corrupt-<time>.bak`, `settings.json` holds the defaults again, and the log shows `WARN SettingsCorrupt`. | Yes. |
+| M-C4 | Newer version is preserved | Set `"version": 99`, then start Naad. | Naad starts with defaults. The file is unchanged and no backup is made. The log shows `WARN SettingsFutureVersion file_version=99 supported_version=1`. | Yes. |
+
+The harness restored the real `%APPDATA%\Naad` afterwards: it removed the
+folder, because the folder had not existed before the run. Unit tests use
+temporary folders only.
+
 ## Known limits of the slice
 
 These are fixed in later phases:
