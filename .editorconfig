@@ -43,8 +43,8 @@ dotnet_style_qualification_for_property = false:warning
 dotnet_style_qualification_for_method = false:warning
 
 # Naming: PascalCase types and members, IPascalCase interfaces,
-# _camelCase private fields, PascalCase constants. Locals and parameters are
-# camelCase by convention (not enforced).
+# _camelCase private fields, PascalCase constants and static readonly fields.
+# Locals and parameters are camelCase by convention (not enforced).
 dotnet_naming_symbols.types_and_members.applicable_kinds = class, struct, enum, delegate, interface, method, property, event
 dotnet_naming_style.pascal.capitalization = pascal_case
 dotnet_naming_rule.types_pascal.symbols = types_and_members
@@ -65,6 +65,12 @@ dotnet_naming_style.underscore_camel.capitalization = camel_case
 dotnet_naming_rule.private_fields_underscore.symbols = private_fields
 dotnet_naming_rule.private_fields_underscore.style = underscore_camel
 dotnet_naming_rule.private_fields_underscore.severity = warning
+
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+dotnet_naming_rule.static_readonly_pascal.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_pascal.style = pascal
+dotnet_naming_rule.static_readonly_pascal.severity = warning
 
 dotnet_naming_symbols.constants.applicable_kinds = field, local
 dotnet_naming_symbols.constants.required_modifiers = const
