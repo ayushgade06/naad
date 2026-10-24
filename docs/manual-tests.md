@@ -28,7 +28,9 @@ results.
    ```
 
 4. From the repository root, run `dotnet run --project src/Naad`. Leave the
-   window open: it shows what Naad is doing. Press Ctrl+C there to quit.
+   window open: it shows what Naad is doing. Since P4, Naad runs in the
+   notification area. Quit it with **right-click the tray icon > Exit**;
+   Ctrl+C in the terminal no longer stops it.
 
 ## Vertical slice: M-S1 to M-S5
 
@@ -39,6 +41,39 @@ results.
 | M-S3 | Ctrl shortcuts keep working | 1. In Notepad, use **Left** Ctrl+C and Ctrl+V. 2. Select text and press **Right** Ctrl+C, then paste with Ctrl+V. 3. Tap Right Ctrl as quickly as possible, 5 times, waiting 3 s between taps. | 1. Copy and paste work, and nothing is recorded. 2. Copy works, the console shows `Cancelled`, and nothing is inserted. 3. Recording starts on key-down, so each tap prints `Recording (microphone opened in N ms)...` and then, on release, `Ignored: held for N ms.` Nothing is inserted. A tap must never leave a recording running; the next press always starts a new one. |
 | M-S4 | Focus change blocks the paste | In Notepad, hold Right Ctrl and speak. **While still holding it**, click the console window with the mouse, then release. | The console shows `Focus changed while transcribing: not pasted`. No text is inserted anywhere. Pressing Ctrl+V in Notepad afterwards pastes the transcript. |
 | M-S5 | Microphone blocked | 1. In Settings > Privacy & security > Microphone, turn off **Let desktop apps access your microphone**. 2. Hold Right Ctrl, speak, release. 3. Turn the setting back on. | Naad does not crash. Note which happened: `Microphone unavailable`, or a recording of silence. With silence, Whisper may invent a phrase such as "Thank you." and Naad will paste it; note that too. P10 and P11 must handle the silent case. |
+
+## Tray app and lifecycle (P4): M-T1 to M-T6
+
+Since P4, Naad is a windowless tray app. Launch it either way:
+
+- From a terminal: `dotnet run --project src/Naad`. Status lines and errors
+  appear in that terminal.
+- Directly: double-click `src\Naad\bin\<Debug|Release>\net10.0-windows\Naad.exe`.
+  No window opens, and nothing is printed anywhere. `NAAD_GROQ_API_KEY` must be
+  set in your user environment for this route.
+
+**Diagnosing a failed start.** If Naad can't start (the API key is missing,
+or the keyboard hook can't be installed), it shows an error dialog titled
+**Naad** that explains why. The same text goes to the terminal when you
+started it with `dotnet run`. API keys are never shown in these messages.
+
+**Single instance.** Only one Naad runs per Windows session. It holds the
+named mutex `Local\Naad.SingleInstance.A5F2782B-067F-4CFB-8471-B110B09BBBEF`.
+A second launch exits at once without installing another keyboard hook or
+tray icon.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-T1 | Starts in the tray, no window | Launch Naad either way. Look in the notification area; Windows 11 may hide new icons behind the **^** (show hidden icons) button. | A teal icon with white sound-wave bars appears, with the tooltip "Naad: hold Right Ctrl to dictate". No console or other window opens. | Yes. The P4 UI Automation harness checks the process has no window and finds the icon by name. |
+| M-T2 | Exit from the tray | Right-click the icon > **Exit**. | The icon disappears, `Naad.exe` is gone from Task Manager, and `dotnet run` returns. | Yes. The harness opens the menu with a synthetic mouse right-click, invokes **Exit** through UI Automation, and checks exit code 0 and that the icon is gone. |
+| M-T3 | Second launch | While Naad runs, launch it again. | No second icon appears. From a terminal it prints `Naad is already running.` and exits with code 0. The first instance keeps working. | Yes. The harness checks exit code 0, the message, and that the first instance is still alive. |
+| M-T4 | Missing key | Launch with `NAAD_GROQ_API_KEY` unset. | A **Naad** error dialog explains how to set the key. **OK** exits with code 1. No key is shown. | Yes. The harness reads the dialog through UI Automation and presses OK. |
+| M-T5 | Dictation still works in the tray build | With Naad in the tray, repeat M-S2 (one dictation into Notepad) and M-S3(c) (quick taps). | Same results as P3. | **No.** It needs physical keys; injected keys are ignored by design. |
+| M-T6 | Exit during a dictation | Hold Right Ctrl, speak a long sentence, release, then immediately choose tray > **Exit**. | Naad exits. Nothing is pasted after you chose Exit. | **No.** It needs physical keys. |
+
+Automated checks drive only processes the harness started itself (tracked by
+PID). They use a fake API key behind a dead local proxy, so no audio or
+request can leave the machine. They never use the microphone.
 
 ## Known limits of the slice
 

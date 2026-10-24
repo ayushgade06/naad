@@ -183,18 +183,28 @@ production-quality code, and keeps the slice working at every commit.
 
 - **Goal:** a proper background app.
 - **In:**
-  - Switch to a `WinExe` WinForms message loop.
+  - Switch to a `WinExe` WinForms message loop, with no console window.
+  - An original Naad icon (`Assets/naad.ico`), used for the exe and the tray.
   - `Tray/TrayIcon.cs` with an Exit menu item.
-  - A named mutex for a single instance.
-  - Clean disposal of the hook and audio on exit.
-- **Out:** state icons (P16), settings (P17).
+  - `SingleInstanceGuard`: a named `Local\` mutex acquired before any hook or
+    microphone work. A second launch exits with code 0. An abandoned mutex is
+    taken over.
+  - `StartupError`: fatal startup errors are shown in a dialog, with the API
+    key redacted.
+  - Clean shutdown in a fixed order: controller (stop triggers, cancel the
+    transcription in flight), hook, recorder, HTTP client, tray, then mutex.
+- **Out:** state icons (P16), settings (P17), start at login (P21).
 - **Needs:** P3.
 - **Done when:**
   - The app starts without a console window.
-  - A second launch exits immediately.
-  - Exit leaves no `Naad.exe` process running.
-- **Verify:** manual checks M-T1 to M-T3; `dotnet test`.
-- **Commits:** 7.
+  - A second launch exits immediately without a second hook or icon.
+  - Exit leaves no `Naad.exe` process and no tray icon behind.
+  - Startup failures are visible and contain no secrets.
+- **Verify:**
+  - `dotnet test`: guard, redaction and icon tests.
+  - UI Automation harness for M-T1 to M-T4.
+  - Manual checks M-T5 and M-T6, which need physical keys.
+- **Commits:** 6.
 
 ### P5: Logging
 
@@ -528,7 +538,7 @@ production-quality code, and keeps the slice working at every commit.
 |---|---|---|
 | Foundation | P1–P2 | 15 |
 | Vertical slice | P3 | 10 |
-| MVP hardening | P4–P16 | 108 |
+| MVP hardening | P4–P16 | 107 |
 | Usable app | P17–P19 | 35 |
 | Toward 1.0 | P20–P24 | 54 |
-| **Total** | | **≈222** |
+| **Total** | | **≈221** |

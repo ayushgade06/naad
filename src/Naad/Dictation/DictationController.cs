@@ -17,11 +17,12 @@ namespace Naad.Dictation;
 internal sealed class DictationController(
     KeyboardHook hook,
     AudioRecorder recorder,
-    OpenAiCompatibleTranscriber transcriber)
+    OpenAiCompatibleTranscriber transcriber) : IDisposable
 {
     // Shorter holds are taps or Right Ctrl shortcuts; Whisper tends to invent text for them.
     private static readonly TimeSpan MinimumHold = TimeSpan.FromMilliseconds(300);
 
+    private readonly CancellationTokenSource _shutdown = new();
     private Task<bool>? _starting;
     private nint _targetWindow;
     private long _pressedAt;
@@ -34,6 +35,19 @@ internal sealed class DictationController(
         hook.TriggerPressed += OnPressed;
         hook.OtherKeyPressed += OnOtherKeyPressed;
         hook.TriggerReleased += OnReleased;
+    }
+
+    /// <summary>
+    /// Stops accepting new dictations and cancels a transcription in flight, so nothing is
+    /// pasted once shutdown starts. Dispose before the hook and recorder it uses.
+    /// </summary>
+    public void Dispose()
+    {
+        hook.TriggerPressed -= OnPressed;
+        hook.OtherKeyPressed -= OnOtherKeyPressed;
+        hook.TriggerReleased -= OnReleased;
+        _shutdown.Cancel();
+        _shutdown.Dispose();
     }
 
     private static void Report(string message) =>
@@ -94,6 +108,8 @@ internal sealed class DictationController(
 
     private async Task FinishAsync(long releasedAt)
     {
+        // Read before the first await: Dispose may dispose the source later.
+        var shutdown = _shutdown.Token;
         try
         {
             var held = Stopwatch.GetElapsedTime(_pressedAt, releasedAt);
@@ -119,7 +135,7 @@ internal sealed class DictationController(
             Report($"Recorded {held.TotalSeconds:F1} s ({wav.Length:N0} bytes). Transcribing...");
 
             var requestStart = Stopwatch.GetTimestamp();
-            var text = await transcriber.TranscribeAsync(wav, CancellationToken.None);
+            var text = await transcriber.TranscribeAsync(wav, shutdown);
             var requestTime = Stopwatch.GetElapsedTime(requestStart);
             Report($"Transcribed {text.Length} characters in {requestTime.TotalMilliseconds:F0} ms.");
             if (text.Length == 0)
@@ -128,7 +144,13 @@ internal sealed class DictationController(
                 return;
             }
 
-            Insert(text, await TextInserter.WaitForModifiersReleasedAsync());
+            var modifiersReleased = await TextInserter.WaitForModifiersReleasedAsync();
+            if (shutdown.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Insert(text, modifiersReleased);
             Report($"Release to text: {Stopwatch.GetElapsedTime(releasedAt).TotalMilliseconds:F0} ms.");
         }
         catch (HttpRequestException e)
@@ -136,6 +158,10 @@ internal sealed class DictationController(
             Report(e.StatusCode is { } status
                 ? $"Transcription failed: HTTP {(int)status}."
                 : $"Transcription failed: network error ({e.HttpRequestError}).");
+        }
+        catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
+        {
+            Report("Cancelled: Naad is shutting down.");
         }
         catch (OperationCanceledException)
         {
