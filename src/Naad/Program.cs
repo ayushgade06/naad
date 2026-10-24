@@ -2,6 +2,7 @@ using Naad.Audio;
 using Naad.Dictation;
 using Naad.Hotkey;
 using Naad.Transcription;
+using Naad.Tray;
 
 namespace Naad;
 
@@ -13,6 +14,8 @@ internal static class Program
     [STAThread]
     private static int Main()
     {
+        ApplicationConfiguration.Initialize();
+
         // First, before any hook or microphone work: a second instance must leave without
         // registering a second keyboard hook. Released when Main returns, on this thread.
         using var instance = SingleInstanceGuard.TryAcquire();
@@ -46,20 +49,16 @@ internal static class Program
     private static void Run(string apiKey)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
-        var ui = new WindowsFormsSynchronizationContext();
-        SynchronizationContext.SetSynchronizationContext(ui);
-        Console.CancelKeyPress += (_, e) =>
-        {
-            e.Cancel = true;
-            ui.Post(_ => Application.ExitThread(), null);
-        };
+        SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
+        // Created first so it is disposed last: the icon stays until everything else is down.
+        using var tray = new TrayIcon(exit: Application.ExitThread);
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
         using var hook = new KeyboardHook();
         new DictationController(hook, recorder, new OpenAiCompatibleTranscriber(http, apiKey)).Listen();
 
-        Console.WriteLine("Naad vertical slice. Hold Right Ctrl, speak, release. Press Ctrl+C here to quit.");
+        Console.WriteLine("Naad is running in the notification area. Hold Right Ctrl, speak, release.");
         Application.Run();
     }
 }
