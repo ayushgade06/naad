@@ -1,6 +1,7 @@
 using Naad.Audio;
 using Naad.Dictation;
 using Naad.Hotkey;
+using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
 
@@ -15,16 +16,19 @@ internal static class Program
     private static int Main()
     {
         ApplicationConfiguration.Initialize();
-        StartLogging();
+        HandleUnhandledExceptions();
 
         // First, before any hook or microphone work: a second instance must leave without
         // registering a second keyboard hook. Released when Main returns, on this thread.
         using var instance = SingleInstanceGuard.TryAcquire();
         if (instance is null)
         {
+            // Console only: the running instance owns the settings and the log file.
             Log.Info(LogEvent.SecondInstanceRejected);
             return 0;
         }
+
+        ApplySettings();
 
         var apiKey = Environment.GetEnvironmentVariable(ApiKeyVariable);
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -50,7 +54,21 @@ internal static class Program
         }
     }
 
-    private static void StartLogging()
+    // Settings are loaded after the single-instance check, so only one instance ever
+    // migrates or rewrites the file. The log file starts only if settings allow it; until
+    // then, lines go to the console only.
+    private static void ApplySettings()
+    {
+        var result = new SettingsStore(SettingsStore.DefaultPath).Load();
+        if (result.Settings.FileLogging)
+        {
+            StartFileLogging();
+        }
+
+        SettingsStore.LogOutcome(result);
+    }
+
+    private static void StartFileLogging()
     {
         try
         {
@@ -61,7 +79,10 @@ internal static class Program
             // Naad still works without a log file; lines keep going to the console.
             Console.Error.WriteLine($"Log file unavailable: {e.GetType().Name}");
         }
+    }
 
+    private static void HandleUnhandledExceptions()
+    {
         // An exception in one dictation must not end the app: it is logged and the message
         // loop continues. This also replaces WinForms' default dialog, which shows the
         // exception message and could expose user content.

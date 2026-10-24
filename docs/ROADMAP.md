@@ -225,15 +225,30 @@ production-quality code, and keeps the slice working at every commit.
 
 - **Goal:** typed settings loaded from and saved to disk.
 - **In:**
-  - `Settings/Settings.cs` (a record) and `Settings/SettingsStore.cs`.
-  - The file is `%APPDATA%\Naad\settings.json`.
-  - Defaults, a schema version, atomic writes.
-  - A corrupt file is backed up and replaced with defaults.
-- **Out:** the settings UI (P17), secrets (P12).
+  - `Settings/AppSettings.cs` (a record: `version` and `fileLogging`) and
+    `Settings/SettingsStore.cs`.
+  - The file is `%APPDATA%\Naad\settings.json`. It is created with defaults
+    on first run.
+  - A schema version and an extendable migration table. A file without a
+    version is treated as version 0.
+  - Atomic writes (temp file, then replace), with a timestamped `.bak` of the
+    original before any rewrite.
+  - Recovery from missing, empty, malformed, wrong-typed, unreadable and
+    newer-version files. A newer-version file is never modified.
+  - Startup loads settings after the single-instance check. The log file
+    starts only if `fileLogging` is on. Each outcome is logged as a fixed event.
+  - `docs/settings.md` documents the format, the policy and excluded values.
+- **Out:** the settings UI (P17), secrets (P12), the shortcut (P7), the
+  provider and model (P13).
 - **Needs:** P5.
-- **Done when:** round-trip, missing-file, corrupt-file and
-  unknown-field tests pass.
-- **Verify:** `dotnet test`.
+- **Done when:**
+  - Tests pass for: round-trip, missing file, missing and unknown fields,
+    migration, corrupt and wrong-typed values, a future version, a failed
+    write, logging failure, and that rewrites carry no stray content.
+  - The real exe starts in every recovery case.
+- **Verify:**
+  - `dotnet test`.
+  - P6 harness for M-C1 to M-C4 against the real exe.
 
 ### P7: Shortcut chord model and matcher (pure)
 

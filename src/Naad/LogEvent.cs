@@ -15,6 +15,15 @@ internal enum LogEvent
     UnhandledException,
     UnobservedTaskException,
 
+    SettingsLoaded,
+    SettingsCreated,
+    SettingsMigrated,
+    SettingsRepaired,
+    SettingsCorrupt,
+    SettingsFutureVersion,
+    SettingsReadFailed,
+    SettingsWriteFailed,
+
     RecordingStarted,
     MicrophoneUnavailable,
     DictationCancelledByKey,

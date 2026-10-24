@@ -1,6 +1,8 @@
 namespace Naad.Tests;
 
-// Log is static; every test here points it at its own temporary directory.
+// Log is static; every test here points it at its own temporary directory. The "Log"
+// collection keeps classes that configure Log from running in parallel.
+[Collection("Log")]
 public sealed class LogTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "naad-log-tests", Guid.NewGuid().ToString("N"));
