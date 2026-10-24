@@ -5,7 +5,8 @@ namespace Naad.Tests.Settings;
 // Write-side behaviour of SettingsStore.Load. Temporary directories only.
 public sealed class SettingsStoreWriteTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "naad-settings-tests", Guid.NewGuid().ToString("N"));
+    private readonly string _directory =
+        Path.Combine(Path.GetTempPath(), "naad-settings-tests", Guid.NewGuid().ToString("N"));
 
     public SettingsStoreWriteTests() => Directory.CreateDirectory(_directory);
 
@@ -130,7 +131,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
     public void Load_RewrittenFile_HoldsOnlyKnownSettingsNeverOtherContent()
     {
         // Someone pasted a key into the file; a rewrite must not carry it forward.
-        File.WriteAllText(SettingsPath, """{ "fileLogging": true, "apiKey": "fake-api-key-0123", "note": "dictated text" }""");
+        File.WriteAllText(
+            SettingsPath,
+            """{ "fileLogging": true, "apiKey": "fake-api-key-0123", "note": "dictated text" }""");
 
         new SettingsStore(SettingsPath).Load();
 

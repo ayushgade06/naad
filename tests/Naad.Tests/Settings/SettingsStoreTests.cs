@@ -5,7 +5,8 @@ namespace Naad.Tests.Settings;
 // Every test uses its own temporary directory; the real %APPDATA%\Naad is never touched.
 public sealed class SettingsStoreTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "naad-settings-tests", Guid.NewGuid().ToString("N"));
+    private readonly string _directory =
+        Path.Combine(Path.GetTempPath(), "naad-settings-tests", Guid.NewGuid().ToString("N"));
 
     public SettingsStoreTests() => Directory.CreateDirectory(_directory);
 

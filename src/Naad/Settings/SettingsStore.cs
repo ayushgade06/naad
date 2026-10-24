@@ -93,6 +93,48 @@ internal sealed class SettingsStore(string path)
         };
     }
 
+    /// <summary>
+    /// Turns a load result into fixed log events with numbers only. Never logs settings
+    /// values, file contents, paths or exception messages.
+    /// </summary>
+    public static void LogOutcome(SettingsLoadResult result)
+    {
+        switch (result.Status)
+        {
+            case SettingsStatus.Loaded:
+                Log.Info(LogEvent.SettingsLoaded);
+                break;
+            case SettingsStatus.Missing when result.Saved:
+                Log.Info(LogEvent.SettingsCreated);
+                break;
+            case SettingsStatus.Migrated:
+                Log.Info(LogEvent.SettingsMigrated, ("from_version", result.FileVersion));
+                break;
+            case SettingsStatus.Repaired:
+                Log.Warn(LogEvent.SettingsRepaired, ("file_version", result.FileVersion));
+                break;
+            case SettingsStatus.Corrupt:
+                Log.Warn(LogEvent.SettingsCorrupt);
+                break;
+            case SettingsStatus.FutureVersion:
+                Log.Warn(
+                    LogEvent.SettingsFutureVersion,
+                    ("file_version", result.FileVersion),
+                    ("supported_version", AppSettings.CurrentVersion));
+                break;
+            case SettingsStatus.ReadFailed:
+                LogError(LogEvent.SettingsReadFailed, result.Error);
+                break;
+        }
+
+        var neededWrite = result.Status is SettingsStatus.Missing or SettingsStatus.Migrated
+            or SettingsStatus.Repaired or SettingsStatus.Corrupt;
+        if (neededWrite && !result.Saved)
+        {
+            LogError(LogEvent.SettingsWriteFailed, result.Error);
+        }
+    }
+
     internal static SettingsLoadResult Parse(string json)
     {
         JsonObject? root;
@@ -127,6 +169,18 @@ internal sealed class SettingsStore(string path)
             : version < AppSettings.CurrentVersion ? SettingsStatus.Migrated
             : SettingsStatus.Loaded;
         return new(settings, status, version);
+    }
+
+    private static void LogError(LogEvent logEvent, Exception? error)
+    {
+        if (error is null)
+        {
+            Log.Error(logEvent);
+        }
+        else
+        {
+            Log.Error(logEvent, error);
+        }
     }
 
     // The original is copied to a backup before anything is written, so a rewrite never loses
