@@ -25,11 +25,26 @@ internal static class Program
         var apiKey = Environment.GetEnvironmentVariable(ApiKeyVariable);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            Console.Error.WriteLine(
-                $"Set {ApiKeyVariable} to a Groq API key (https://console.groq.com/keys), then run Naad again.");
+            StartupError.Show(
+                $"{ApiKeyVariable} is not set. Set it to a Groq API key (https://console.groq.com/keys), " +
+                "then start Naad again.");
             return 1;
         }
 
+        try
+        {
+            Run(apiKey);
+            return 0;
+        }
+        catch (Exception e)
+        {
+            StartupError.Show($"Naad stopped because of an error.\n\n{StartupError.Describe(e, apiKey)}");
+            return 1;
+        }
+    }
+
+    private static void Run(string apiKey)
+    {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         var ui = new WindowsFormsSynchronizationContext();
         SynchronizationContext.SetSynchronizationContext(ui);
@@ -46,6 +61,5 @@ internal static class Program
 
         Console.WriteLine("Naad vertical slice. Hold Right Ctrl, speak, release. Press Ctrl+C here to quit.");
         Application.Run();
-        return 0;
     }
 }
