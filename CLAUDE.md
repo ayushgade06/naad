@@ -30,8 +30,8 @@ override any notes, memories or earlier conversations.
   a pull request each need approval too.
 - Work on a feature branch (`<type>/<area>-<topic>`) and merge through a
   pull request. **Never squash-merge**, and never force-push to `main`.
-- Each commit is one coherent change. Never pad, split or merge commits to
-  reach a commit count.
+- Each commit is one coherent change. Don't split one change into several
+  commits, and don't bundle unrelated changes into one.
 - Do not install SDKs, tools or packages without asking first. A NuGet
   package may be added only in the phase that plans it, and must be
   recorded in `THIRD-PARTY-NOTICES.md` in the same commit.
