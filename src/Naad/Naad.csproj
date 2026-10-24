@@ -4,6 +4,8 @@
     <!-- Console until the vertical slice is proven; P4 switches to a WinExe tray app. -->
     <OutputType>Exe</OutputType>
     <RootNamespace>Naad</RootNamespace>
+    <!-- WinForms provides the message loop the keyboard hook needs and the STA clipboard. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <!-- LibraryImport generates unsafe marshalling code. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
