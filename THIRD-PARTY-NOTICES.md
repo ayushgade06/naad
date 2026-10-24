@@ -47,3 +47,10 @@ SOFTWARE.
 ```
 
 Suki's name, icons, sounds and artwork are not used in Naad.
+
+## xUnit.net (test-only)
+
+- Package: `xunit.v3` 4.0.2
+- License: Apache-2.0
+- Source: https://github.com/xunit/xunit
+- Used only by `tests/Naad.Tests`; not shipped with Naad.

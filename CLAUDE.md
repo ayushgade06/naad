@@ -67,8 +67,18 @@ override any notes, memories or earlier conversations.
 
 ## Commands
 
-These do not exist yet. The solution and CI arrive in phase P2, which will
-replace this section with the real build, test and format commands.
+Run these from the repository root. They need the .NET 10 SDK, which
+`global.json` pins. CI (`.github/workflows/ci.yml`) runs the same steps on
+`windows-latest`.
+
+```sh
+dotnet build                          # warnings and code-style violations are errors
+dotnet test                           # xunit.v3 on Microsoft.Testing.Platform
+dotnet format --verify-no-changes     # formatting gate; `dotnet format` fixes it
+```
+
+A test run that finds zero tests fails with exit code 8. That is deliberate:
+it catches tests that silently stop being discovered.
 
 ## Verification before reporting a phase
 

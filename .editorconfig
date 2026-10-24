@@ -1,6 +1,6 @@
 # Naad formatting and code-style rules. See docs/STYLE.md for the reasoning.
-# IDE* rules below are enforced at build time once the solution sets
-# EnforceCodeStyleInBuild (phase P2).
+# IDE* rules below fail the build through EnforceCodeStyleInBuild and
+# TreatWarningsAsErrors in Directory.Build.props.
 root = true
 
 [*]
@@ -75,4 +75,9 @@ dotnet_naming_rule.constants_pascal.severity = warning
 # Diagnostics
 dotnet_diagnostic.IDE0005.severity = warning # unnecessary using
 dotnet_diagnostic.IDE0161.severity = warning # file-scoped namespace
+dotnet_diagnostic.IDE1006.severity = warning # naming rules above; not reported at build without this
 dotnet_diagnostic.CA2007.severity = none     # ConfigureAwait: WinForms app keeps the UI context
+
+[tests/**.cs]
+# Test names use Method_Condition_ExpectedResult (docs/STYLE.md section 7).
+dotnet_diagnostic.CA1707.severity = none

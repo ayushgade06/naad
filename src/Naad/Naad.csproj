@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Console until the vertical slice is proven; P4 switches to a WinExe tray app. -->
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Naad</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Types are internal by default (docs/STYLE.md); tests still need to reach them. -->
+    <InternalsVisibleTo Include="Naad.Tests" />
+  </ItemGroup>
+
+</Project>

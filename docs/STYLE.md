@@ -135,8 +135,11 @@ treat warnings as errors.
 
 ## 7. Tests
 
-- Use xUnit. Keep the test project in `tests/Naad.Tests`, with folders that
-  mirror `src/Naad`.
+- Use xUnit v3, run by Microsoft.Testing.Platform. Keep the test project in
+  `tests/Naad.Tests`, with folders that mirror `src/Naad`.
+- Test classes are `public sealed`, because xUnit requires public test
+  classes. They reach internal production types through
+  `InternalsVisibleTo`.
 - Name tests `Method_Condition_ExpectedResult`, for example
   `Reduce_RightCtrlReleased_EmitsReleased`.
 - Use Arrange / Act / Assert, with one behaviour per test. Prefer
