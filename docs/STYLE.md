@@ -191,8 +191,7 @@ treat warnings as errors.
 - Each commit is one logical change that builds and passes the tests on its
   own. Do not combine unrelated changes in one commit.
 - A test goes in the same commit as the code it covers.
-- Never create commits just to raise the count, and never split one change
-  into fake steps.
+- Never split one change into fake steps.
 - Create commits only after the maintainer has reviewed the changes and
   said to commit.
 

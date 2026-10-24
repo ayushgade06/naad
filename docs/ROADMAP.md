@@ -11,10 +11,6 @@ at a time, and each phase follows this cycle:
 5. Open a pull request and merge it without squashing.
 6. The next phase starts only after that.
 
-The estimated total is about **220 meaningful commits** (expected range
-200–250). The per-phase numbers are estimates, not quotas: a phase that
-needs fewer commits gets fewer. Never invent commits to hit a number.
-
 Each phase lists:
 
 - **Goal:** what the phase achieves.
@@ -24,7 +20,6 @@ Each phase lists:
 - **Needs:** prerequisites and earlier phases.
 - **Done when:** acceptance criteria.
 - **Verify:** the exact checks to run.
-- **Commits:** the estimated count.
 
 `docs/manual-tests.md` is created in P3, and every later phase adds its
 manual checks to it.
@@ -78,7 +73,6 @@ manual checks to it.
   - Every file uses LF line endings and UTF-8.
   - Every relative link in the Markdown files resolves.
   - `git -C ../Suki status` is clean.
-- **Commits:** 7.
 
 ### P2: Solution skeleton and CI
 
@@ -109,7 +103,6 @@ manual checks to it.
 - **Verify:**
   - Run the three commands and record their output.
   - Introduce a format violation deliberately and confirm CI fails.
-- **Commits:** 8.
 
 ## Vertical slice
 
@@ -172,7 +165,6 @@ manual checks to it.
     their results recorded.
   - Write a short go/no-go note for each part of the stack in the pull
     request.
-- **Commits:** 10.
 
 ## Hardening the pieces into the MVP
 
@@ -204,7 +196,6 @@ production-quality code, and keeps the slice working at every commit.
   - `dotnet test`: guard, redaction and icon tests.
   - UI Automation harness for M-T1 to M-T4.
   - Manual checks M-T5 and M-T6, which need physical keys.
-- **Commits:** 6.
 
 ### P5: Logging
 
@@ -222,7 +213,6 @@ production-quality code, and keeps the slice working at every commit.
     written.
 - **Verify:** unit tests for rotation and formatting; manual check M-L1
   (inspect a real log file).
-- **Commits:** 6.
 
 ### P6: Settings persistence
 
@@ -237,7 +227,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Done when:** round-trip, missing-file, corrupt-file and
   unknown-field tests pass.
 - **Verify:** `dotnet test`.
-- **Commits:** 8.
 
 ### P7: Shortcut chord model and matcher (pure)
 
@@ -258,7 +247,6 @@ production-quality code, and keeps the slice working at every commit.
   - releasing keys out of order
   - Left Ctrl not matching
 - **Verify:** `dotnet test`.
-- **Commits:** 8.
 
 ### P8: Keyboard hook, hardened
 
@@ -278,7 +266,6 @@ production-quality code, and keeps the slice working at every commit.
   - No modifier key is left stuck.
   - Naad's own Ctrl+V does not trigger its own shortcut.
 - **Verify:** manual checks M-H1 to M-H5; `dotnet test`.
-- **Commits:** 8.
 
 ### P9: Dictation state machine (pure)
 
@@ -294,7 +281,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Needs:** P7.
 - **Done when:** a transition-table test covers every state and event pair.
 - **Verify:** `dotnet test`.
-- **Commits:** 9.
 
 ### P10: Audio capture, hardened
 
@@ -313,7 +299,6 @@ production-quality code, and keeps the slice working at every commit.
   - With no microphone or access blocked, a clear error is shown and
     nothing crashes.
 - **Verify:** manual checks M-A1 to M-A3; `dotnet test`.
-- **Commits:** 10.
 
 ### P11: WAV encoding and recording gates
 
@@ -327,7 +312,6 @@ production-quality code, and keeps the slice working at every commit.
   - The WAV header matches a fixture.
   - Silent buffers and clips under 300 ms are rejected.
 - **Verify:** `dotnet test`.
-- **Commits:** 6.
 
 ### P12: Secret store
 
@@ -343,7 +327,6 @@ production-quality code, and keeps the slice working at every commit.
   - The stored file does not contain the key in plain text.
   - The key never appears in logs.
 - **Verify:** `dotnet test`; manual check M-K1.
-- **Commits:** 6.
 
 ### P13: Transcription provider, hardened
 
@@ -361,7 +344,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Done when:** fake-handler tests cover 200, 401, 413, 429, 5xx,
   timeout and an empty result.
 - **Verify:** `dotnet test`; manual check M-G1 (one live Groq call).
-- **Commits:** 11.
 
 ### P14: Clipboard insertion, hardened
 
@@ -381,7 +363,6 @@ production-quality code, and keeps the slice working at every commit.
     clipboard text comes back.
   - Transcripts do not appear in Win+V history.
 - **Verify:** `dotnet test`; manual checks M-I1 to M-I6.
-- **Commits:** 11.
 
 ### P15: Focus guard and fallback
 
@@ -401,7 +382,6 @@ production-quality code, and keeps the slice working at every commit.
     of silently losing the text.
 - **Verify:** manual checks M-F1 to M-F4; unit tests for the decision
   logic.
-- **Commits:** 8.
 
 ### P16: MVP integration, `v0.1.0`
 
@@ -419,7 +399,6 @@ production-quality code, and keeps the slice working at every commit.
   VS Code on Windows 11.
 - **Verify:** every manual check in `docs/manual-tests.md`;
   `dotnet test`; CI green.
-- **Commits:** 10.
 
 ## Making it a usable app
 
@@ -436,7 +415,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Done when:** every setting takes effect without a restart and stays
   after a restart.
 - **Verify:** manual checks M-U1 to M-U6; tests for validation.
-- **Commits:** 14.
 
 ### P18: Recording overlay
 
@@ -446,7 +424,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Needs:** P16.
 - **Done when:** the overlay never takes focus or keyboard input.
 - **Verify:** manual checks M-O1 to M-O3; tests for meter normalization.
-- **Commits:** 9.
 
 ### P19: Robustness
 
@@ -460,7 +437,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Done when:** every scenario in the robustness section of the manual
   checks passes.
 - **Verify:** manual checks M-R1 to M-R6; tests for the retry policy.
-- **Commits:** 12.
 
 ## Toward 1.0
 
@@ -477,7 +453,6 @@ production-quality code, and keeps the slice working at every commit.
   - Dictation works with the network disconnected.
   - Latency and CPU use are measured and documented.
 - **Verify:** manual checks M-W1 to M-W4; tests for provider selection.
-- **Commits:** 14.
 
 ### P21: Quality features
 
@@ -490,7 +465,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Needs:** P17.
 - **Done when:** each feature has its own tests and manual checks.
 - **Verify:** `dotnet test`; manual checks M-Q1 to M-Q5.
-- **Commits:** 12.
 
 ### P22: Packaging
 
@@ -505,7 +479,6 @@ production-quality code, and keeps the slice working at every commit.
   with nothing left behind except user data, which the user chooses to
   keep or remove.
 - **Verify:** manual checks M-P1 to M-P4 on a clean VM.
-- **Commits:** 12.
 
 ### P23: Auto-update
 
@@ -516,7 +489,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Done when:** a release N installation updates to N+1 and keeps its
   settings.
 - **Verify:** manual checks M-P5 and M-P6.
-- **Commits:** 8.
 
 ### P24: 1.0 hardening and documentation
 
@@ -528,17 +500,3 @@ production-quality code, and keeps the slice working at every commit.
 - **Done when:** every manual check passes and the documentation matches
   the app's behaviour.
 - **Verify:** the full manual checklist; CI green.
-- **Commits:** 8.
-
----
-
-## Commit budget
-
-| Range | Phases | Estimate |
-|---|---|---|
-| Foundation | P1–P2 | 15 |
-| Vertical slice | P3 | 10 |
-| MVP hardening | P4–P16 | 107 |
-| Usable app | P17–P19 | 35 |
-| Toward 1.0 | P20–P24 | 54 |
-| **Total** | | **≈221** |
