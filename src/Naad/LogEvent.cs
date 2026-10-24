@@ -10,7 +10,7 @@ internal enum LogEvent
     AppStopped,
     SecondInstanceRejected,
     ApiKeyMissing,
-    StartupFailed,
+    FatalError,
     UnhandledUiException,
     UnhandledException,
     UnobservedTaskException,
