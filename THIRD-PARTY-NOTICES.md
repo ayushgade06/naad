@@ -48,6 +48,21 @@ SOFTWARE.
 
 Suki's name, icons, sounds and artwork are not used in Naad.
 
+## NAudio
+
+- Packages: `NAudio.WinMM` 3.3.0, with its dependencies `NAudio.Core` 3.3.0
+  and `NAudio.Midi` 3.3.0
+- License: MIT, © Mark Heath 2026
+- Source: https://github.com/naudio/NAudio
+- Used for microphone capture and WAV encoding. Ships with Naad.
+
+## System.Numerics.Tensors
+
+- Package: `System.Numerics.Tensors` 9.0.0, a dependency of NAudio
+- License: MIT, © Microsoft Corporation
+- Source: https://github.com/dotnet/runtime
+- Ships with Naad.
+
 ## xUnit.net (test-only)
 
 - Package: `xunit.v3` 4.0.2
