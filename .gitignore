@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+TestResults/
+*.binlog
+
+# Velopack release output (added in the packaging phase)
+Releases/
+
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+# Secrets: API keys live in DPAPI storage or a local .env, never in git
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+
+# Runtime data that may contain user content
+logs/
+*.log
+*.wav
+
+# OS clutter
+Thumbs.db
+Desktop.ini
+.DS_Store
