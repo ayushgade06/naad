@@ -124,6 +124,9 @@ treat warnings as errors.
   process names of the target app, HTTP request or response bodies, or API
   keys. Logs contain event names, durations, byte counts, HTTP status codes
   and exception types only.
+- Log only through `Log` with a `LogEvent` and numeric fields; never write
+  diagnostics with `Console` or string messages. A new event is a new enum
+  member.
 - Audio stays in memory. If a temporary file is ever unavoidable, delete it
   in a `finally` block.
 - API keys are stored with DPAPI (CurrentUser scope). For local

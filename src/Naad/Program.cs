@@ -15,19 +15,21 @@ internal static class Program
     private static int Main()
     {
         ApplicationConfiguration.Initialize();
+        StartLogging();
 
         // First, before any hook or microphone work: a second instance must leave without
         // registering a second keyboard hook. Released when Main returns, on this thread.
         using var instance = SingleInstanceGuard.TryAcquire();
         if (instance is null)
         {
-            Console.WriteLine("Naad is already running.");
+            Log.Info(LogEvent.SecondInstanceRejected);
             return 0;
         }
 
         var apiKey = Environment.GetEnvironmentVariable(ApiKeyVariable);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
+            Log.Error(LogEvent.ApiKeyMissing);
             StartupError.Show(
                 $"{ApiKeyVariable} is not set. Set it to a Groq API key (https://console.groq.com/keys), " +
                 "then start Naad again.");
@@ -37,13 +39,50 @@ internal static class Program
         try
         {
             Run(apiKey);
+            Log.Info(LogEvent.AppStopped);
             return 0;
         }
         catch (Exception e)
         {
+            Log.Error(LogEvent.FatalError, e);
             StartupError.Show($"Naad stopped because of an error.\n\n{StartupError.Describe(e, apiKey)}");
             return 1;
         }
+    }
+
+    private static void StartLogging()
+    {
+        try
+        {
+            Log.Configure(Log.DefaultDirectory);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Naad still works without a log file; lines keep going to the console.
+            Console.Error.WriteLine($"Log file unavailable: {e.GetType().Name}");
+        }
+
+        // An exception in one dictation must not end the app: it is logged and the message
+        // loop continues. This also replaces WinForms' default dialog, which shows the
+        // exception message and could expose user content.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => Log.Error(LogEvent.UnhandledUiException, e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception error)
+            {
+                Log.Error(LogEvent.UnhandledException, error);
+            }
+            else
+            {
+                Log.Error(LogEvent.UnhandledException);
+            }
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Log.Error(LogEvent.UnobservedTaskException, e.Exception);
+            e.SetObserved();
+        };
     }
 
     private static void Run(string apiKey)
@@ -61,7 +100,7 @@ internal static class Program
         using var controller = new DictationController(hook, recorder, new OpenAiCompatibleTranscriber(http, apiKey));
         controller.Listen();
 
-        Console.WriteLine("Naad is running in the notification area. Hold Right Ctrl, speak, release.");
+        Log.Info(LogEvent.AppStarted);
         Application.Run();
     }
 }

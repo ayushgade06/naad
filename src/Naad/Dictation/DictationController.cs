@@ -10,10 +10,9 @@ namespace Naad.Dictation;
 
 /// <summary>
 /// Hold-to-talk flow: press records, release transcribes and pastes. Runs on the UI thread.
-/// Reports events and numbers only, never what was said.
+/// Logs events and numbers only, never what was said.
 /// </summary>
-// ponytail: slice-quality flow with plain flags and console output; P9 replaces the flags
-// with a tested state machine and P5 replaces Report with the log.
+// ponytail: slice-quality flow with plain flags; P9 replaces them with a tested state machine.
 internal sealed class DictationController(
     KeyboardHook hook,
     AudioRecorder recorder,
@@ -50,9 +49,6 @@ internal sealed class DictationController(
         _shutdown.Dispose();
     }
 
-    private static void Report(string message) =>
-        Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff}  {message}");
-
     private void OnPressed()
     {
         // One dictation at a time: presses while transcribing are ignored.
@@ -78,11 +74,11 @@ internal sealed class DictationController(
         }
         catch (MmException e)
         {
-            Report($"Microphone unavailable ({e.Result}). Check Settings > Privacy & security > Microphone.");
+            Log.Warn(LogEvent.MicrophoneUnavailable, ("mm_result", (long)e.Result));
             return false;
         }
 
-        Report($"Recording (microphone opened in {Stopwatch.GetElapsedTime(_pressedAt).TotalMilliseconds:F0} ms)...");
+        Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(Stopwatch.GetElapsedTime(_pressedAt))));
         return true;
     }
 
@@ -121,26 +117,28 @@ internal sealed class DictationController(
             var pcm = await recorder.StopAsync();
             if (_cancelled)
             {
-                Report("Cancelled: another key was pressed with Right Ctrl.");
+                Log.Info(LogEvent.DictationCancelledByKey);
                 return;
             }
 
             if (held < MinimumHold)
             {
-                Report($"Ignored: held for {held.TotalMilliseconds:F0} ms.");
+                Log.Info(LogEvent.DictationIgnoredShortHold, ("held_ms", Milliseconds(held)));
                 return;
             }
 
             var wav = Wav.Encode(pcm, AudioRecorder.Format);
-            Report($"Recorded {held.TotalSeconds:F1} s ({wav.Length:N0} bytes). Transcribing...");
+            Log.Info(LogEvent.RecordingStopped, ("held_ms", Milliseconds(held)), ("wav_bytes", wav.Length));
 
             var requestStart = Stopwatch.GetTimestamp();
             var text = await transcriber.TranscribeAsync(wav, shutdown);
-            var requestTime = Stopwatch.GetElapsedTime(requestStart);
-            Report($"Transcribed {text.Length} characters in {requestTime.TotalMilliseconds:F0} ms.");
+            Log.Info(
+                LogEvent.TranscriptionCompleted,
+                ("request_ms", Milliseconds(Stopwatch.GetElapsedTime(requestStart))),
+                ("chars", text.Length));
             if (text.Length == 0)
             {
-                Report("Nothing to insert.");
+                Log.Info(LogEvent.TranscriptionEmpty);
                 return;
             }
 
@@ -150,27 +148,31 @@ internal sealed class DictationController(
                 return;
             }
 
-            Insert(text, modifiersReleased);
-            Report($"Release to text: {Stopwatch.GetElapsedTime(releasedAt).TotalMilliseconds:F0} ms.");
+            Insert(text, modifiersReleased, releasedAt);
         }
         catch (HttpRequestException e)
         {
-            Report(e.StatusCode is { } status
-                ? $"Transcription failed: HTTP {(int)status}."
-                : $"Transcription failed: network error ({e.HttpRequestError}).");
+            if (e.StatusCode is { } status)
+            {
+                Log.Warn(LogEvent.TranscriptionFailed, ("http_status", (long)status));
+            }
+            else
+            {
+                Log.Warn(LogEvent.TranscriptionFailed, ("network_error", (long)e.HttpRequestError));
+            }
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
-            Report("Cancelled: Naad is shutting down.");
+            Log.Info(LogEvent.DictationCancelledByShutdown);
         }
         catch (OperationCanceledException)
         {
-            Report("Transcription timed out.");
+            Log.Warn(LogEvent.TranscriptionTimedOut);
         }
         catch (Exception e)
         {
             // This task is fire-and-forget, so anything not caught here would vanish silently.
-            Report($"Dictation failed: {e.GetType().Name}.");
+            Log.Error(LogEvent.DictationFailed, e);
         }
         finally
         {
@@ -180,24 +182,26 @@ internal sealed class DictationController(
 
     // Never paste into a window the user didn't dictate into; the transcript stays on
     // the clipboard so nothing is lost.
-    private void Insert(string text, bool modifiersReleased)
+    private void Insert(string text, bool modifiersReleased, long releasedAt)
     {
         TextInserter.CopyToClipboard(text);
         if (User32.GetForegroundWindow() != _targetWindow)
         {
-            Report("Focus changed while transcribing: not pasted. The transcript is on the clipboard.");
+            Log.Warn(LogEvent.PasteSkippedFocusChanged);
         }
         else if (!modifiersReleased)
         {
-            Report("Modifier keys still held: not pasted. The transcript is on the clipboard.");
+            Log.Warn(LogEvent.PasteSkippedModifiersHeld);
         }
         else if (!TextInserter.SendPaste())
         {
-            Report("Windows rejected the paste. The transcript is on the clipboard.");
+            Log.Warn(LogEvent.PasteRejected);
         }
         else
         {
-            Report("Pasted.");
+            Log.Info(LogEvent.Pasted, ("release_to_text_ms", Milliseconds(Stopwatch.GetElapsedTime(releasedAt))));
         }
     }
+
+    private static long Milliseconds(TimeSpan duration) => (long)duration.TotalMilliseconds;
 }

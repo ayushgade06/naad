@@ -201,18 +201,25 @@ production-quality code, and keeps the slice working at every commit.
 
 - **Goal:** diagnostic logs that cannot leak user content.
 - **In:**
-  - `Log.cs`: a size-rotated file in `%LOCALAPPDATA%\Naad\logs`.
-  - Handlers for unhandled exceptions on the UI thread and on background
-    tasks.
+  - `Log.cs` and the closed `LogEvent` enum. A line holds only an event,
+    numeric fields with identifier names, and an exception's type name.
+  - A file in `%LOCALAPPDATA%\Naad\logs`, rotated to one backup at 1 MB, and
+    echoed to the console for `dotnet run`.
+  - Handlers for unhandled exceptions on the UI thread, other threads and
+    unobserved tasks. They replace WinForms' default exception dialog.
+  - Lifecycle events, and the controller's console reports replaced by log
+    events.
 - **Out:** telemetry or remote reporting (never planned).
 - **Needs:** P4.
 - **Done when:**
   - Logs rotate at the size limit.
   - The API only accepts event names and numbers.
-  - A test proves a transcript-like string passed by mistake is not
-    written.
-- **Verify:** unit tests for rotation and formatting; manual check M-L1
-  (inspect a real log file).
+  - Tests prove that a transcript-like field name and an exception message
+    are never written.
+- **Verify:**
+  - Unit tests for format, rotation and redaction.
+  - Harness runs checking real log lines.
+  - Manual check M-L1, which needs physical keys.
 
 ### P6: Settings persistence
 
