@@ -4,11 +4,19 @@
     <!-- Console until the vertical slice is proven; P4 switches to a WinExe tray app. -->
     <OutputType>Exe</OutputType>
     <RootNamespace>Naad</RootNamespace>
+    <!-- WinForms provides the message loop the keyboard hook needs and the STA clipboard. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- LibraryImport generates unsafe marshalling code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Types are internal by default (docs/STYLE.md); tests still need to reach them. -->
     <InternalsVisibleTo Include="Naad.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio.WinMM" Version="3.3.0" />
   </ItemGroup>
 
 </Project>

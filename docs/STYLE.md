@@ -61,8 +61,8 @@ treat warnings as errors.
 - **Data:** `record` or `record struct` for immutable data. Use primary
   constructors when they make the class shorter and clearer.
 - **Naming:**
-  - `PascalCase` for types, members and constants
-  - `_camelCase` for private fields
+  - `PascalCase` for types, members, constants and `static readonly` fields
+  - `_camelCase` for private instance fields
   - `camelCase` for locals and parameters
   - `I` prefix for interfaces
   - async methods end in `Async`

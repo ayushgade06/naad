@@ -123,25 +123,31 @@ manual checks to it.
   - clipboard plus `SendInput` paste
   - the focus check
 - **In:**
-  - The app runs as a console process (quit with Ctrl+C).
+  - The app runs as a console process (quit with Ctrl+C). It uses a
+    WinForms message loop, because the hook needs one and the clipboard
+    needs an STA thread.
   - `Native/User32.cs` holds the P/Invoke declarations.
   - A minimal `WH_KEYBOARD_LL` hook hard-coded to Right Ctrl, passed
-    through to other apps.
-  - NAudio `WaveInEvent` capture: default device, 16 kHz mono PCM16, held
-    in memory.
+    through to other apps. Auto-repeat and Naad's own injected keys are
+    ignored.
+  - NAudio `WaveIn` capture (named `WaveInEvent` before NAudio 3): default
+    device, 16 kHz mono PCM16, held in memory.
   - A WAV encoder with unit tests.
   - A Groq `/audio/transcriptions` call:
     - model `whisper-large-v3-turbo`
     - key read from the `NAAD_GROQ_API_KEY` environment variable
     - 20-second timeout
+  - Discard a recording if Right Ctrl was held for under 300 ms, or if
+    another key was pressed while it was held (e.g. Right Ctrl+C). Taps and
+    shortcuts must never send audio or paste text.
   - Remember the foreground window when the key is pressed. Before
-    pasting, if the foreground window has changed, do not paste; print a
-    notice.
-  - Wait for Right Ctrl to be physically released, then set the clipboard
-    text and send Ctrl+V.
-  - Log only timings and byte counts.
+    pasting, if the foreground window has changed, do not paste; leave the
+    transcript on the clipboard and print a notice.
+  - Wait for all modifier keys to be physically released, then set the
+    clipboard text and send Ctrl+V.
+  - Print only events, timings and byte counts.
   - Create `docs/manual-tests.md` with the slice checks.
-  - Add NAudio to `THIRD-PARTY-NOTICES.md`.
+  - Add NAudio and its dependencies to `THIRD-PARTY-NOTICES.md`.
 - **Out:**
   - restoring the clipboard (the clipboard **is overwritten** in this
     phase)
@@ -161,7 +167,7 @@ manual checks to it.
     in no paste.
   - Release-to-text latency is recorded.
 - **Verify:**
-  - `dotnet test` passes (WAV header and length tests).
+  - `dotnet test` passes (WAV round-trip, RIFF size and empty-input tests).
   - Manual checks M-S1 to M-S5 in `docs/manual-tests.md` are run and
     their results recorded.
   - Write a short go/no-go note for each part of the stack in the pull
@@ -252,6 +258,9 @@ production-quality code, and keeps the slice working at every commit.
     matcher runs on the UI thread.
   - Pass-through or swallow per chord.
   - Ignore Naad's own injected input (`LLKHF_INJECTED` plus a marker).
+  - Cancel the recording when a mouse button or the wheel is used while
+    the chord is held (`WH_MOUSE_LL`), so Ctrl+click and Ctrl+scroll are
+    not treated as dictation.
 - **Out:** reinstalling the hook after sleep (P19).
 - **Needs:** P7.
 - **Done when:**
