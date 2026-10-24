@@ -51,12 +51,15 @@ internal static class Program
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
-        // Created first so it is disposed last: the icon stays until everything else is down.
+        // Exit ends the message loop; the usings below then dispose in reverse order:
+        // controller (stop triggers, cancel transcription), hook (unhook), recorder
+        // (microphone), HTTP client, tray icon. Main then releases the single-instance mutex.
         using var tray = new TrayIcon(exit: Application.ExitThread);
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
         using var hook = new KeyboardHook();
-        new DictationController(hook, recorder, new OpenAiCompatibleTranscriber(http, apiKey)).Listen();
+        using var controller = new DictationController(hook, recorder, new OpenAiCompatibleTranscriber(http, apiKey));
+        controller.Listen();
 
         Console.WriteLine("Naad is running in the notification area. Hold Right Ctrl, speak, release.");
         Application.Run();
