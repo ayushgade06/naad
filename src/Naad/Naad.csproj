@@ -8,6 +8,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <!-- LibraryImport generates unsafe marshalling code. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Original artwork (teal square, white sound-wave bars), MIT like the rest of Naad. -->
+    <ApplicationIcon>Assets\naad.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
