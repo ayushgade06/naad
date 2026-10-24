@@ -13,6 +13,15 @@ internal static class Program
     [STAThread]
     private static int Main()
     {
+        // First, before any hook or microphone work: a second instance must leave without
+        // registering a second keyboard hook. Released when Main returns, on this thread.
+        using var instance = SingleInstanceGuard.TryAcquire();
+        if (instance is null)
+        {
+            Console.WriteLine("Naad is already running.");
+            return 0;
+        }
+
         var apiKey = Environment.GetEnvironmentVariable(ApiKeyVariable);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
