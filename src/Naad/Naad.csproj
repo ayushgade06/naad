@@ -6,4 +6,9 @@
     <RootNamespace>Naad</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Types are internal by default (docs/STYLE.md); tests still need to reach them. -->
+    <InternalsVisibleTo Include="Naad.Tests" />
+  </ItemGroup>
+
 </Project>

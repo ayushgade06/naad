@@ -77,3 +77,7 @@ dotnet_diagnostic.IDE0005.severity = warning # unnecessary using
 dotnet_diagnostic.IDE0161.severity = warning # file-scoped namespace
 dotnet_diagnostic.IDE1006.severity = warning # naming rules above; not reported at build without this
 dotnet_diagnostic.CA2007.severity = none     # ConfigureAwait: WinForms app keeps the UI context
+
+[tests/**.cs]
+# Test names use Method_Condition_ExpectedResult (docs/STYLE.md section 7).
+dotnet_diagnostic.CA1707.severity = none

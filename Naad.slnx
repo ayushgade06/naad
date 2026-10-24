@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Naad/Naad.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Naad.Tests/Naad.Tests.csproj" />
+  </Folder>
 </Solution>
