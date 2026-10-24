@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Console until the vertical slice is proven; P4 switches to a WinExe tray app. -->
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Naad</RootNamespace>
+  </PropertyGroup>
+
+</Project>
