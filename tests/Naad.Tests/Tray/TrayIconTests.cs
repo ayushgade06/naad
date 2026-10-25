@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using Naad.Audio;
 using Naad.Hotkey;
 using Naad.Tray;
 
@@ -36,5 +37,35 @@ public sealed class TrayIconTests
         Assert.True(Chord.TryParse(string.Join('+', longest), out var widest));
 
         Assert.True(TrayIcon.Tooltip(widest).Length <= NotifyIconTextLimit, TrayIcon.Tooltip(widest));
+    }
+
+    [Fact]
+    public void MicrophoneErrorMessage_EveryError_FitsNotificationLimit()
+    {
+        // Windows cuts notification text at 255 characters.
+        const int NotificationTextLimit = 255;
+        foreach (var error in Enum.GetValues<MicrophoneError>())
+        {
+            var message = TrayIcon.MicrophoneErrorMessage(error);
+
+            Assert.InRange(message.Length, 1, NotificationTextLimit);
+        }
+    }
+
+    [Fact]
+    public void MicrophoneErrorMessage_Blocked_TellsUserToClickForSettings()
+    {
+        var message = TrayIcon.MicrophoneErrorMessage(MicrophoneError.Blocked);
+
+        Assert.Contains("Click here", message, StringComparison.Ordinal);
+        Assert.Contains("Let desktop apps access your microphone", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MicrophoneErrorMessage_EachError_IsDistinct()
+    {
+        var messages = Enum.GetValues<MicrophoneError>().Select(TrayIcon.MicrophoneErrorMessage).ToList();
+
+        Assert.Equal(messages.Count, messages.Distinct().Count());
     }
 }
