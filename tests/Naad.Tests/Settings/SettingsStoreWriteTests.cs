@@ -30,7 +30,8 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.Equal("""
             {
               "version": 1,
-              "fileLogging": true
+              "fileLogging": true,
+              "dictationShortcut": "RightCtrl"
             }
             """.ReplaceLineEndings(), File.ReadAllText(SettingsPath).ReplaceLineEndings());
     }
@@ -140,7 +141,8 @@ public sealed class SettingsStoreWriteTests : IDisposable
         var written = File.ReadAllText(SettingsPath);
         Assert.DoesNotContain("fake-api-key-0123", written, StringComparison.Ordinal);
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
-        Assert.Equal(["fileLogging", "version"], System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject()
-            .Select(p => p.Key).Order());
+        Assert.Equal(
+            ["dictationShortcut", "fileLogging", "version"],
+            System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }
 }

@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Naad.Hotkey;
 
 namespace Naad.Settings;
 
@@ -49,6 +51,10 @@ internal sealed class SettingsStore(string path)
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
+
+        // The default encoder writes "+" as +, which breaks shortcuts like
+        // "LeftCtrl+Space" for anyone editing the file. It is never embedded in HTML.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
     // Migrations[n] upgrades a version-n file to version n + 1, in place.
@@ -271,6 +277,19 @@ internal sealed class SettingsStore(string path)
             }
         }
 
-        return (AppSettings.Defaults with { FileLogging = fileLogging }, repaired);
+        var shortcut = AppSettings.Defaults.DictationShortcut;
+        if (root.TryGetPropertyValue("dictationShortcut", out node))
+        {
+            if (node is JsonValue value && value.TryGetValue(out string? text) && Chord.TryParse(text, out var chord))
+            {
+                shortcut = chord;
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
+        return (AppSettings.Defaults with { FileLogging = fileLogging, DictationShortcut = shortcut }, repaired);
     }
 }
