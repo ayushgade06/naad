@@ -25,7 +25,11 @@ internal enum LogEvent
     SettingsWriteFailed,
 
     RecordingStarted,
+    MicrophoneNotFound,
+    MicrophoneBlocked,
+    MicrophoneInUse,
     MicrophoneUnavailable,
+    RecordingStopTimedOut,
     DictationCancelledByKey,
     DictationCancelledByMouse,
     MouseHookUnavailable,

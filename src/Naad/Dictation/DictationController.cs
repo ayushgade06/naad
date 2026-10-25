@@ -4,7 +4,6 @@ using Naad.Hotkey;
 using Naad.Insertion;
 using Naad.Native;
 using Naad.Transcription;
-using NAudio;
 
 namespace Naad.Dictation;
 
@@ -27,6 +26,9 @@ internal sealed class DictationController(
     // quick press after a discarded one never opens the microphone while it is still closing.
     private Task _stopped = Task.CompletedTask;
     private nint _targetWindow;
+
+    /// <summary>The microphone could not be opened for a dictation. Raised on the UI thread.</summary>
+    public event Action<MicrophoneError>? MicrophoneFailed;
 
     public void Listen()
     {
@@ -84,19 +86,46 @@ internal sealed class DictationController(
         // The previous recording's own task reports how its stop went.
         await previousStop.ConfigureAwait(
             ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        MicrophoneFailure? failure;
         try
         {
-            await Task.Run(recorder.Start);
+            failure = await Task.Run(recorder.Start);
         }
-        catch (MmException e)
+        catch (ObjectDisposedException)
         {
-            Log.Warn(LogEvent.MicrophoneUnavailable, ("mm_result", (long)e.Result));
+            // Naad is shutting down: the recorder was disposed while this press was queued.
+            return false;
+        }
+
+        if (failure is { } f)
+        {
+            LogFailure(f);
             Apply(DictationEvent.RecordingFailed, job);
+            MicrophoneFailed?.Invoke(f.Error);
             return false;
         }
 
         Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(Stopwatch.GetElapsedTime(pressedAt))));
         return true;
+    }
+
+    private static void LogFailure(MicrophoneFailure failure)
+    {
+        switch (failure.Error)
+        {
+            case MicrophoneError.NotFound:
+                Log.Warn(LogEvent.MicrophoneNotFound, ("mm_result", failure.Code));
+                break;
+            case MicrophoneError.Blocked:
+                Log.Warn(LogEvent.MicrophoneBlocked);
+                break;
+            case MicrophoneError.InUse:
+                Log.Warn(LogEvent.MicrophoneInUse, ("mm_result", failure.Code));
+                break;
+            default:
+                Log.Warn(LogEvent.MicrophoneUnavailable, ("mm_result", failure.Code));
+                break;
+        }
     }
 
     // Returns the recorded PCM, or null if the microphone never opened.
