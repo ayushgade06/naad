@@ -1,8 +1,13 @@
+using Microsoft.Win32;
+using NAudio;
 using NAudio.Wave;
 
 namespace Naad.Audio;
 
-/// <summary>Records the default microphone into memory. Audio never touches the disk.</summary>
+/// <summary>
+/// Records the default microphone into memory. Audio never touches the disk. Start, StopAsync
+/// and Dispose may be called from different threads; one recording runs at a time.
+/// </summary>
 internal sealed class AudioRecorder : IDisposable
 {
     // 16 kHz mono 16-bit PCM is Whisper's native input, so providers never resample.
@@ -14,91 +19,177 @@ internal sealed class AudioRecorder : IDisposable
     // Small buffers so the final words before key release are not cut off.
     private const int BufferMilliseconds = 50;
 
-    private readonly MemoryStream _pcm = new();
-    private WaveIn? _waveIn;
-    private TaskCompletionSource? _stopped;
+    // Windows' per-capability privacy switches, under HKLM (device-wide) and HKCU (this user).
+    private const string ConsentKey =
+        @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
 
-    /// <exception cref="NAudio.MmException">No microphone, or access is blocked.</exception>
-    public void Start()
+    // With 50 ms buffers the last one arrives within milliseconds. A driver that never confirms
+    // the stop must not hang dictation, so after this the audio received so far is used.
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
+
+    private readonly Lock _gate = new();
+    private Recording? _current;
+    private bool _disposed;
+
+    /// <summary>Starts recording, or returns why it can't. Returns null once recording.</summary>
+    public MicrophoneFailure? Start()
     {
-        if (_waveIn is not null)
+        lock (_gate)
         {
-            throw new InvalidOperationException("Already recording.");
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_current is not null)
+            {
+                throw new InvalidOperationException("Already recording.");
+            }
+
+            if (IsBlockedByPrivacySettings())
+            {
+                return new(MicrophoneError.Blocked);
+            }
+
+            if (WaveIn.DeviceCount == 0)
+            {
+                return new(MicrophoneError.NotFound);
+            }
+
+            var recording = new Recording();
+            try
+            {
+                recording.Start();
+            }
+            catch (MmException e)
+            {
+                recording.Dispose();
+                return MicrophoneFailure.FromResult(e.Result);
+            }
+
+            _current = recording;
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Stops recording and returns the raw PCM in <see cref="Format"/>. Throws if the device
+    /// reported an error while recording.
+    /// </summary>
+    public async Task<byte[]> StopAsync()
+    {
+        Recording recording;
+        lock (_gate)
+        {
+            recording = _current ?? throw new InvalidOperationException("Not recording.");
+            _current = null;
         }
 
-        lock (_pcm)
+        try
         {
-            _pcm.SetLength(0);
+            return await recording.StopAsync();
+        }
+        finally
+        {
+            recording.Dispose();
+        }
+    }
+
+    /// <summary>Closes the device if a recording is running. Later Start calls throw.</summary>
+    public void Dispose()
+    {
+        Recording? recording;
+        lock (_gate)
+        {
+            _disposed = true;
+            recording = _current;
+            _current = null;
         }
 
-        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var waveIn = new WaveIn
+        recording?.Dispose();
+    }
+
+    private static bool IsBlockedByPrivacySettings()
+    {
+        try
+        {
+            return MicrophoneFailure.IsDeniedByConsent(
+            [
+                ReadConsent(Registry.LocalMachine, ConsentKey),
+                ReadConsent(Registry.CurrentUser, ConsentKey),
+                ReadConsent(Registry.CurrentUser, ConsentKey + @"\NonPackaged"),
+            ]);
+        }
+        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            // Unreadable consent is not proof of a block; opening the device decides.
+            return false;
+        }
+    }
+
+    private static string? ReadConsent(RegistryKey root, string path)
+    {
+        using var key = root.OpenSubKey(path);
+        return key?.GetValue("Value") as string;
+    }
+
+    /// <summary>
+    /// One recording's device and buffer. Each recording gets its own buffer, so a late buffer
+    /// from a stopped or disposed device can never land in another recording, and the buffer
+    /// is never disposed under a callback still writing to it.
+    /// </summary>
+    private sealed class Recording : IDisposable
+    {
+        private readonly MemoryStream _pcm = new();
+        private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly WaveIn _waveIn = new()
         {
             DeviceNumber = DefaultDevice,
             WaveFormat = Format,
             BufferMilliseconds = BufferMilliseconds,
         };
-        waveIn.DataAvailable += (_, e) =>
+
+        public Recording()
         {
+            // NAudio raises these on its capture thread.
+            _waveIn.DataAvailable += (_, e) =>
+            {
+                lock (_pcm)
+                {
+                    _pcm.Write(e.BufferSpan);
+                }
+            };
+            _waveIn.RecordingStopped += (_, e) =>
+            {
+                if (e.Exception is null)
+                {
+                    _stopped.TrySetResult();
+                }
+                else
+                {
+                    _stopped.TrySetException(e.Exception);
+                }
+            };
+        }
+
+        /// <exception cref="MmException">The device could not be opened or started.</exception>
+        public void Start() => _waveIn.StartRecording();
+
+        public async Task<byte[]> StopAsync()
+        {
+            _waveIn.StopRecording();
+            try
+            {
+                // RecordingStopped fires only after the last buffer has been delivered.
+                await _stopped.Task.WaitAsync(StopTimeout);
+            }
+            catch (TimeoutException)
+            {
+                Log.Warn(LogEvent.RecordingStopTimedOut);
+            }
+
             lock (_pcm)
             {
-                _pcm.Write(e.BufferSpan);
+                return _pcm.ToArray();
             }
-        };
-        waveIn.RecordingStopped += (_, e) =>
-        {
-            if (e.Exception is null)
-            {
-                stopped.TrySetResult();
-            }
-            else
-            {
-                stopped.TrySetException(e.Exception);
-            }
-        };
-
-        try
-        {
-            waveIn.StartRecording();
-        }
-        catch
-        {
-            waveIn.Dispose();
-            throw;
         }
 
-        _waveIn = waveIn;
-        _stopped = stopped;
-    }
-
-    /// <summary>Stops recording and returns the raw PCM in <see cref="Format"/>.</summary>
-    public async Task<byte[]> StopAsync()
-    {
-        var waveIn = _waveIn ?? throw new InvalidOperationException("Not recording.");
-        var stopped = _stopped!;
-        _waveIn = null;
-        _stopped = null;
-        try
-        {
-            waveIn.StopRecording();
-
-            // RecordingStopped fires only after the last buffer has been delivered.
-            await stopped.Task;
-        }
-        finally
-        {
-            waveIn.Dispose();
-        }
-
-        lock (_pcm)
-        {
-            return _pcm.ToArray();
-        }
-    }
-
-    public void Dispose()
-    {
-        _waveIn?.Dispose();
-        _pcm.Dispose();
+        public void Dispose() => _waveIn.Dispose();
     }
 }
