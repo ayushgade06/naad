@@ -12,6 +12,12 @@ namespace Naad.Hotkey;
 /// </summary>
 internal sealed class KeyboardHook : IDisposable
 {
+    /// <summary>
+    /// Naad's own synthetic input carries this in dwExtraInfo, so the hook can tell it apart
+    /// from other programs' input. The value is "NAAD" in ASCII.
+    /// </summary>
+    public const nuint OwnInputMarker = 0x4E41_4144;
+
     // Held in a field: Windows keeps only a raw pointer, so the GC must not collect the delegate.
     private readonly User32.HookProc _proc;
     private readonly nint _handle;
@@ -47,24 +53,40 @@ internal sealed class KeyboardHook : IDisposable
 
     public void Dispose() => User32.UnhookWindowsHookEx(_handle);
 
+    /// <summary>
+    /// Whether the hook skips an input event. Naad's own Ctrl+V must never reach the matcher.
+    /// Other programs' synthetic input counts like a physical key, so a key remapper can provide
+    /// the shortcut (for example a Copilot key remapped to Right Ctrl), except input from a
+    /// lower-integrity process such as a sandbox, which must not be able to start a recording.
+    /// </summary>
+    public static bool ShouldIgnore(uint flags, nuint extraInfo) =>
+        (flags & User32.LlkhfLowerIlInjected) != 0
+        || ((flags & User32.LlkhfInjected) != 0 && extraInfo == OwnInputMarker);
+
+    // The matcher runs here rather than after the callback, because whether to swallow the
+    // key must be known before the callback returns. It is quick and does no I/O; the event
+    // handlers, which open the microphone and so on, are queued.
     private nint OnKey(int code, nint wParam, nint lParam)
     {
         if (code >= 0)
         {
             var info = Marshal.PtrToStructure<User32.KbdLlHookStruct>(lParam);
-            if ((info.Flags & User32.LlkhfInjected) == 0)
+            if (!ShouldIgnore(info.Flags, info.ExtraInfo)
+                && OnKeyEvent(info.VkCode, wParam is User32.WmKeyDown or User32.WmSysKeyDown))
             {
-                OnPhysicalKey(info.VkCode, wParam is User32.WmKeyDown or User32.WmSysKeyDown);
+                // A non-zero result without calling the next hook keeps the key from every app.
+                return 1;
             }
         }
 
-        // Always pass the key on: the shortcut's keys keep working in every app.
         return User32.CallNextHookEx(0, code, wParam, lParam);
     }
 
-    private void OnPhysicalKey(uint vk, bool down)
+    // Returns whether to swallow the key event.
+    private bool OnKeyEvent(uint vk, bool down)
     {
-        foreach (var e in _matcher.OnKey((Keys)vk, down).Events)
+        var outcome = _matcher.OnKey((Keys)vk, down);
+        foreach (var e in outcome.Events)
         {
             Raise(e.Kind switch
             {
@@ -74,6 +96,8 @@ internal sealed class KeyboardHook : IDisposable
                 _ => throw new UnreachableException(),
             });
         }
+
+        return outcome.Swallow;
     }
 
     // Windows silently removes hooks whose callback is slow, so handlers run after the

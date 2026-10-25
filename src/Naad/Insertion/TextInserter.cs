@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Naad.Hotkey;
 using Naad.Native;
 
 namespace Naad.Insertion;
@@ -63,7 +64,14 @@ internal static class TextInserter
         Type = User32.InputKeyboard,
         Union = new User32.InputUnion
         {
-            Keyboard = new User32.KeyboardInput { Vk = vk, Flags = up ? User32.KeyEventFKeyUp : 0 },
+            Keyboard = new User32.KeyboardInput
+            {
+                Vk = vk,
+                Flags = up ? User32.KeyEventFKeyUp : 0,
+
+                // Marks the paste as Naad's own, so the keyboard hook skips it.
+                ExtraInfo = KeyboardHook.OwnInputMarker,
+            },
         },
     };
 }

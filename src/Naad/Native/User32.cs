@@ -13,6 +13,9 @@ internal static partial class User32
     // Set on events produced by SendInput, including Naad's own Ctrl+V.
     public const uint LlkhfInjected = 0x10;
 
+    // Also set when the injecting process runs at a lower integrity level, e.g. a sandbox.
+    public const uint LlkhfLowerIlInjected = 0x02;
+
     public const ushort VkShift = 0x10;
     public const ushort VkControl = 0x11;
     public const ushort VkMenu = 0x12;
