@@ -8,7 +8,8 @@ editor while Naad is closed; changes apply the next time Naad starts.
 ```json
 {
   "version": 1,
-  "fileLogging": true
+  "fileLogging": true,
+  "dictationShortcut": "RightCtrl"
 }
 ```
 
@@ -16,17 +17,53 @@ editor while Naad is closed; changes apply the next time Naad starts.
 |---|---|---|---|
 | `version` | integer | `1` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
+| `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 
 Hand edits are forgiving. Property names may use any casing, and `//`
 comments and trailing commas are accepted. Naad keeps the file as you wrote
 it unless it has to repair or migrate it.
+
+## The dictation shortcut
+
+`dictationShortcut` is one to four key names joined by `+`, for example
+`"RightCtrl"`, `"LeftCtrl+Space"` or `"RightAlt+F9"`. Names ignore case,
+and spaces around `+` are allowed.
+
+- **Modifiers** have their own names, because left and right are different
+  keys: `LeftCtrl`, `RightCtrl`, `LeftShift`, `RightShift`, `LeftAlt`,
+  `RightAlt`, `LeftWin`, `RightWin`.
+- **Every other key** uses its name in .NET's
+  [`Keys` enumeration](https://learn.microsoft.com/dotnet/api/system.windows.forms.keys),
+  for example `Space`, `F9`, `A`, `D1` (the 1 above the letters), `NumPad1`,
+  `Scroll` or `Pause`.
+- **Refused**, because a keyboard hook never reports them: modifiers
+  without a side (`ControlKey`, `ShiftKey`, `Menu`) and mouse buttons. A
+  key listed twice, or more than four keys, is refused too.
+
+An invalid value falls back to Right Ctrl, and the file is backed up and
+repaired as described below. The tray icon's tooltip names the shortcut in
+use, for example "Naad: hold Right Ctrl to dictate".
+
+How the keys are matched:
+
+- The shortcut starts when its last key goes down while its other keys are
+  held, in any order. Keys you were already holding, such as Shift, don't
+  stop it.
+- Pressing any other key while holding the shortcut cancels the dictation,
+  so shortcuts such as Right Ctrl+C keep working. Nothing is sent or
+  pasted. Press the shortcut again to dictate.
+- Releasing any of its keys ends the dictation.
+- Holding a key down (auto-repeat) has no effect.
+
+The shortcut's keys still reach the app you are using. Pick keys that do
+nothing on their own: a lone letter would be typed, and repeated, while you
+hold it.
 
 ## What is deliberately not a setting
 
 | Value | Why it is not in settings.json |
 |---|---|
 | API key | It is a secret, and settings.json is plain text. It comes from `NAAD_GROQ_API_KEY` today, and will move to Windows DPAPI storage in P12. It must never be added to this file. |
-| Dictation shortcut | Right Ctrl is fixed until configurable chords arrive in P7. |
 | Transcription endpoint and model | Fixed to Groq `whisper-large-v3-turbo` until P13 makes the provider configurable. |
 | Timeouts, the 300 ms tap threshold, log size | Internal tuning values, not user preferences. |
 
@@ -57,7 +94,7 @@ A setting is added only when the app actually reads it.
 | Missing setting | Uses that setting's default. | `SettingsLoaded` |
 | Unknown setting | Ignores it. It stays in the file unless the file has to be rewritten. | `SettingsLoaded` |
 | No `version` (older file) | Migrates it, backs up the original as `v0`, then rewrites it. | `SettingsMigrated from_version=0` |
-| Wrong-typed value, e.g. `"fileLogging": "no"` | Uses that setting's default, backs up the original as `invalid`, then rewrites it. | `SettingsRepaired` |
+| Wrong-typed or invalid value, e.g. `"fileLogging": "no"` or `"dictationShortcut": "Ctrl"` | Uses that setting's default, backs up the original as `invalid`, then rewrites it. | `SettingsRepaired` |
 | Empty file, invalid JSON, or an invalid `version` | Uses defaults, backs up the original as `corrupt`, then writes defaults. | `SettingsCorrupt` |
 | Newer `version` than supported | Uses defaults in memory. The file is left exactly as it is. | `SettingsFutureVersion` |
 | File can't be read (locked, access denied) | Uses defaults in memory. Doesn't retry or write. | `SettingsReadFailed` |
