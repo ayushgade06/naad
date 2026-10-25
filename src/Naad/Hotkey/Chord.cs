@@ -77,6 +77,9 @@ internal sealed record Chord
 
     public bool Contains(Key key) => Keys.Contains(key);
 
+    /// <summary>Ctrl, Shift, Alt or Windows, on either side.</summary>
+    public static bool IsModifier(Key key) => Array.Exists(Modifiers, m => m.Key == key);
+
     /// <summary>The chord for people, e.g. "Right Ctrl" or "Left Ctrl+Space".</summary>
     public string Describe() => string.Join('+', Keys.Select(k => NameOf(k, display: true)));
 

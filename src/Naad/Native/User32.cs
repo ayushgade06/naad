@@ -6,12 +6,26 @@ namespace Naad.Native;
 internal static partial class User32
 {
     public const int WhKeyboardLl = 13;
+    public const int WhMouseLl = 14;
 
     public const int WmKeyDown = 0x0100;
     public const int WmSysKeyDown = 0x0104;
 
+    public const int WmLButtonDown = 0x0201;
+    public const int WmRButtonDown = 0x0204;
+    public const int WmMButtonDown = 0x0207;
+    public const int WmMouseWheel = 0x020A;
+    public const int WmXButtonDown = 0x020B;
+    public const int WmMouseHWheel = 0x020E;
+
     // Set on events produced by SendInput, including Naad's own Ctrl+V.
     public const uint LlkhfInjected = 0x10;
+
+    // Also set when the injecting process runs at a lower integrity level, e.g. a sandbox.
+    public const uint LlkhfLowerIlInjected = 0x02;
+
+    // The mouse hook's equivalent of LlkhfLowerIlInjected.
+    public const uint LlmhfLowerIlInjected = 0x02;
 
     public const ushort VkShift = 0x10;
     public const ushort VkControl = 0x11;
@@ -49,6 +63,17 @@ internal static partial class User32
     {
         public uint VkCode;
         public uint ScanCode;
+        public uint Flags;
+        public uint Time;
+        public nuint ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MsLlHookStruct
+    {
+        public int X;
+        public int Y;
+        public uint MouseData;
         public uint Flags;
         public uint Time;
         public nuint ExtraInfo;

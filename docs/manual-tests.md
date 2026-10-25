@@ -43,7 +43,7 @@ the log file (see M-L1). The expected results below give the event names.
 | M-S1 | Missing key | Run Naad in a new window where `NAAD_GROQ_API_KEY` is not set. | The **Naad** error dialog (since P4) explains how to set the key. The log shows `ERROR ApiKeyMissing`, the exit code is 1 (`$LASTEXITCODE`), and no key is shown. |
 | M-S2 | Dictate into Notepad | 1. Open Notepad and click in it. 2. Hold **Right Ctrl**, say "hello world this is a test", release. 3. Repeat 3 times. | The spoken text appears at the cursor each time. The log shows `RecordingStarted mic_open_ms=N`, `RecordingStopped held_ms=N wav_bytes=N`, `TranscriptionCompleted request_ms=N chars=N` and `Pasted release_to_text_ms=N`. Record the three `release_to_text_ms` values. |
 | M-S3 | Ctrl shortcuts keep working | 1. In Notepad, use **Left** Ctrl+C and Ctrl+V. 2. Select text and press **Right** Ctrl+C, then paste with Ctrl+V. 3. Tap Right Ctrl as quickly as possible, 5 times, waiting 3 s between taps. | 1. Copy and paste work, and nothing is recorded. 2. Copy works, the log shows `DictationCancelledByKey`, and nothing is inserted. 3. Recording starts on key-down, so each tap logs `RecordingStarted` and then, on release, `DictationIgnoredShortHold held_ms=N`. Nothing is inserted. A tap must never leave a recording running; the next press always starts a new one. |
-| M-S4 | Focus change blocks the paste | In Notepad, hold Right Ctrl and speak. **While still holding it**, click the console window with the mouse, then release. | The log shows `WARN PasteSkippedFocusChanged`. No text is inserted anywhere. Pressing Ctrl+V in Notepad afterwards pastes the transcript. |
+| M-S4 | Focus change blocks the paste | In Notepad, hold Right Ctrl and speak a long sentence. Release it and **at once** click the console window with the mouse, before the text appears. (Since P8, clicking while still holding Right Ctrl cancels the dictation instead; see M-H2.) | The log shows `WARN PasteSkippedFocusChanged`. No text is inserted anywhere. Pressing Ctrl+V in Notepad afterwards pastes the transcript. If the text was pasted before your click, retry with a longer sentence. |
 | M-S5 | Microphone blocked | 1. In Settings > Privacy & security > Microphone, turn off **Let desktop apps access your microphone**. 2. Hold Right Ctrl, speak, release. 3. Turn the setting back on. | Naad does not crash. Note which happened: `WARN MicrophoneUnavailable mm_result=N`, or a recording of silence. With silence, Whisper may invent a phrase such as "Thank you." and Naad will paste it; note that too. P10 and P11 must handle the silent case. |
 
 ## Tray app and lifecycle (P4): M-T1 to M-T6
@@ -138,8 +138,8 @@ keyboard-only cases no longer depend on a manual run:
 | Parsing, refusing and writing `dictationShortcut` | `ChordTests`, `SettingsStoreTests` |
 | The tray tooltip names the shortcut and fits the 127-character limit | `TrayIconTests`, P7 harness |
 
-What still needs real hardware, because the hook deliberately ignores
-injected keys and the tests feed the matcher directly:
+What still needs real hardware, because the tests feed the matcher directly
+and synthetic input is no proof of how a physical keyboard behaves:
 
 - that Windows reports the sided keys (Right Ctrl as `RControlKey`) to the
   hook on your keyboard, which M-S2 and M-S3 confirm;
@@ -148,14 +148,47 @@ injected keys and the tests feed the matcher directly:
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
-| M-SC1 | Custom shortcut | Close Naad. Set `"dictationShortcut": "LeftCtrl+Space"`, start Naad, then hover over the tray icon. In Notepad, hold Left Ctrl, then hold Space, speak, release both. | The tooltip reads "Naad: hold Left Ctrl+Space to dictate". The text is pasted, and the log shows `RecordingStarted` and `Pasted`. Right Ctrl alone does nothing. Note: Notepad receives the Space key presses too. | Partly. The P7 harness checked the tooltip and startup for the default, a custom and an invalid shortcut against the real exe. Dictation needs physical keys. |
+| M-SC1 | Custom shortcut | Close Naad. Set `"dictationShortcut": "LeftCtrl+Space"`, start Naad, then hover over the tray icon. In Notepad, hold Left Ctrl, then hold Space, speak, release both. | The tooltip reads "Naad: hold Left Ctrl+Space to dictate". The text is pasted, and the log shows `RecordingStarted` and `Pasted`. Right Ctrl alone does nothing. Since P8 no space is typed: the chord's Space is swallowed. | Partly. The P7 harness checked the tooltip and startup for the default, a custom and an invalid shortcut against the real exe. Dictation needs physical keys. |
 | M-SC2 | Cancel stops the microphone at once | With the default shortcut, hold Right Ctrl, speak for 2 s, press C, keep holding Right Ctrl for 2 s, then release. | The log shows `DictationCancelledByKey` when C goes down, not at the release. Nothing is pasted. The Windows microphone indicator disappears right after C. | **No.** It needs physical keys. |
 
 **Status after P7:** M-S2, M-S3, M-T5, M-T6, M-SC1 (dictation part),
 M-SC2 and the dictation part of M-L1 need a person at a physical keyboard
-and microphone, and have **not been run** against the P7 build. P7 changed the cancel
-path (M-S3 step 2 now stops the recording when the other key goes down), so
-M-S3 and M-SC2 matter most on the next manual pass.
+and microphone, and have **not been run** against the P7 build. P7 changed
+the cancel path (M-S3 step 2 now stops the recording when the other key
+goes down), so M-S3 and M-SC2 matter most on the next manual pass.
+
+## Keyboard hook (P8): M-H1 to M-H5
+
+Since P8 the hook:
+
+- **swallows** the shortcut's non-modifier keys, so Space in
+  `LeftCtrl+Space` or F9 alone never reaches the app, while modifiers such
+  as Right Ctrl always pass through;
+- **cancels** the dictation when a mouse button or the wheel is used while
+  the shortcut is held (`DictationCancelledByMouse`). The click or scroll
+  still reaches the app. The mouse hook is installed only while the
+  shortcut is held;
+- **skips only Naad's own** synthetic input, recognised by a marker on its
+  Ctrl+V. Synthetic input from other programs, such as a key remapper,
+  counts like a physical key. Input injected by a lower-integrity
+  (sandboxed) process is ignored.
+
+The rules are unit tested (`ChordMatcherTests`, `KeyboardHookTests`). The
+checks below need physical keys, a mouse and a microphone.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-H1 | Hold and release in real apps | Dictate one sentence each into Notepad, Chrome (the address bar or a text box) and VS Code (an editor). | Each time the text appears once at the cursor. The log shows one `RecordingStarted` and one `Pasted` per dictation. | **No.** It needs physical keys. |
+| M-H2 | Mouse cancels | 1. In Chrome, hold Right Ctrl and click a link. 2. Hold Right Ctrl and scroll the wheel. 3. Hold Right Ctrl, speak, middle-click. | Each time the log shows `DictationCancelledByMouse` and nothing is pasted. The link still opens in a new tab and the page still zooms: the mouse input reaches Chrome. | **No.** It needs physical keys. |
+| M-H3 | No stuck modifier | After M-H1 and M-H2, and one Right Ctrl+C cancel, open the On-Screen Keyboard (`osk`) and type `abc` in Notepad. | No modifier is lit in the On-Screen Keyboard, `abc` is typed in lowercase, and no shortcut fires. | **No.** It needs physical keys. |
+| M-H4 | Naad's own Ctrl+V doesn't trigger it | Close Naad, set `"dictationShortcut": "V"`, start Naad. In Notepad, hold V, speak, release. Then restore `"RightCtrl"`. | The text is pasted once. After `Pasted`, the log shows no further `RecordingStarted`: the paste's own V was skipped. No `v` is typed while holding V. | Partly. The P8 harness injected Right Ctrl carrying Naad's marker into the real exe (SendInput accepted it) and no recording started. |
+| M-H5 | Swallowed shortcut key | Close Naad, set `"dictationShortcut": "F9"`, start Naad. In VS Code, put the cursor on a code line, hold F9, speak, release. Then restore `"RightCtrl"`. | The text is pasted and no breakpoint is toggled: VS Code never saw F9. | **No.** It needs physical keys. |
+
+The P8 harness injects keys into whichever window has focus and drives the
+mouse to use the tray menu. Run it only on an idle machine.
+
+**Status after P8:** M-H1 to M-H5 have **not been run**. Together with the
+checks listed after P7, they are the physical-key pass still owed.
 
 ## Known limits of the slice
 
@@ -164,6 +197,3 @@ These are fixed in later phases:
 - The clipboard is overwritten by every dictation. P14 restores it.
 - Silence is not detected. P11 adds that.
 - Pasting into an administrator window fails silently. P15 handles it.
-- Holding Right Ctrl while clicking or scrolling with the mouse (for
-  example Ctrl+click) still counts as dictation, because only keyboard keys
-  cancel. P8 handles it.

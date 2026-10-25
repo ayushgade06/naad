@@ -55,9 +55,14 @@ How the keys are matched:
 - Releasing any of its keys ends the dictation.
 - Holding a key down (auto-repeat) has no effect.
 
-The shortcut's keys still reach the app you are using. Pick keys that do
-nothing on their own: a lone letter would be typed, and repeated, while you
-hold it.
+Modifiers in the shortcut (Ctrl, Shift, Alt, Windows) still reach the app
+you are using, so Right Ctrl keeps working as Ctrl. Its other keys don't:
+holding `LeftCtrl+Space` types no space, and with `F9` the app never sees
+F9. That also means a shortcut such as a lone `V` stops you typing that
+letter while Naad runs.
+
+Clicking a mouse button or turning the wheel while holding the shortcut
+cancels the dictation, so Ctrl+click and Ctrl+scroll keep working.
 
 ## What is deliberately not a setting
 
