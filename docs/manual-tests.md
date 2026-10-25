@@ -190,6 +190,23 @@ mouse to use the tray menu. Run it only on an idle machine.
 **Status after P8:** M-H1 to M-H5 have **not been run**. Together with the
 checks listed after P7, they are the physical-key pass still owed.
 
+## Dictation state (P9): M-D1 and M-D2
+
+Since P9, `DictationSession` owns the dictation state (Idle, Recording,
+Transcribing, Inserting), and the controller only carries out what it
+decides. `DictationSessionTests` covers every state and event pair: short
+holds, cancels, presses while busy, the microphone failing, empty and
+failed transcripts, and results for an old job, which are ignored so a
+transcript can never be inserted twice. What still needs a person:
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-D1 | Five-minute limit | In Notepad, hold Right Ctrl for just over 5 minutes, speaking now and then, then release. | At 5 minutes the log shows `RecordingMaxDurationReached`, then `RecordingStopped held_ms=300000` (about), and the text is pasted without waiting for the release. The release does nothing. | **No.** It needs physical keys and a microphone. |
+| M-D2 | Press again right after a cancel | Press Right Ctrl+C, then within a second hold Right Ctrl and dictate a sentence. | The log shows `DictationCancelledByKey`, then a new `RecordingStarted`, and the sentence is pasted. No `DictationFailed` or `MicrophoneUnavailable` appears. | **No.** It needs physical keys and a microphone. |
+
+**Status after P9:** M-D1 and M-D2 have **not been run**. A smoke run of
+the real exe (start, `AppStarted`, no errors) passed.
+
 ## Known limits of the slice
 
 These are fixed in later phases:
