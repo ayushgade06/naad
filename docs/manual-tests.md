@@ -69,7 +69,7 @@ tray icon.
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
-| M-T1 | Starts in the tray, no window | Launch Naad either way. Look in the notification area; Windows 11 may hide new icons behind the **^** (show hidden icons) button. | A teal icon with white sound-wave bars appears, with the tooltip "Naad: hold Right Ctrl to dictate". No console or other window opens. | Yes. The P4 UI Automation harness checks the process has no window and finds the icon by name. |
+| M-T1 | Starts in the tray, no window | Launch Naad either way. Look in the notification area; Windows 11 may hide new icons behind the **^** (show hidden icons) button. | A teal icon with white sound-wave bars appears, with the tooltip "Naad: hold Right Ctrl to dictate" (since P7 it names the configured shortcut). No console or other window opens. | Yes. The P4 UI Automation harness checks the process has no window and finds the icon by name. |
 | M-T2 | Exit from the tray | Right-click the icon > **Exit**. | The icon disappears, `Naad.exe` is gone from Task Manager, and `dotnet run` returns. | Yes. The harness opens the menu with a synthetic mouse right-click, invokes **Exit** through UI Automation, and checks exit code 0 and that the icon is gone. |
 | M-T3 | Second launch | While Naad runs, launch it again. | No second icon appears. It logs `INFO SecondInstanceRejected` and exits with code 0. The first instance keeps working. | Yes. The harness checks exit code 0, the `SecondInstanceRejected` line, and that the first instance is still alive. |
 | M-T4 | Missing key | Launch with `NAAD_GROQ_API_KEY` unset. | A **Naad** error dialog explains how to set the key. **OK** exits with code 1. No key is shown. | Yes. The harness reads the dialog through UI Automation and presses OK. |
@@ -117,6 +117,45 @@ Naad before editing the file, and keep a copy if your file matters to you.
 The harness restored the real `%APPDATA%\Naad` afterwards: it removed the
 folder, because the folder had not existed before the run. Unit tests use
 temporary folders only.
+
+## Shortcut (P7): M-SC1 and M-SC2
+
+Since P7 the shortcut comes from `dictationShortcut` in settings.json (see
+[settings.md](settings.md#the-dictation-shortcut)), and the rules that turn
+key events into a press, a release or a cancel live in `ChordMatcher`.
+Those rules are unit tested with synthetic key events, so these
+keyboard-only cases no longer depend on a manual run:
+
+| Case | Covered by |
+|---|---|
+| Right Ctrl alone presses on key-down and releases on key-up | `ChordMatcherTests` |
+| Right Ctrl plus another key (M-S3 step 2) cancels, and the release that follows does nothing | `ChordMatcherTests` |
+| Left Ctrl, alone or with other keys (M-S3 step 1), never matches Right Ctrl | `ChordMatcherTests` |
+| Auto-repeat of the shortcut or of another key | `ChordMatcherTests` |
+| Repeated taps (M-S3 step 3): each tap is one press and one release | `ChordMatcherTests` |
+| Multi-key chords in either press order, released in any order | `ChordMatcherTests` |
+| The most specific chord wins; equal lengths fall back to list order | `ChordMatcherTests` |
+| Parsing, refusing and writing `dictationShortcut` | `ChordTests`, `SettingsStoreTests` |
+| The tray tooltip names the shortcut and fits the 127-character limit | `TrayIconTests`, P7 harness |
+
+What still needs real hardware, because the hook deliberately ignores
+injected keys and the tests feed the matcher directly:
+
+- that Windows reports the sided keys (Right Ctrl as `RControlKey`) to the
+  hook on your keyboard, which M-S2 and M-S3 confirm;
+- the 300 ms tap threshold and the recording itself (M-S3 step 3);
+- the checks below for a non-default shortcut.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-SC1 | Custom shortcut | Close Naad. Set `"dictationShortcut": "LeftCtrl+Space"`, start Naad, then hover over the tray icon. In Notepad, hold Left Ctrl, then hold Space, speak, release both. | The tooltip reads "Naad: hold Left Ctrl+Space to dictate". The text is pasted, and the log shows `RecordingStarted` and `Pasted`. Right Ctrl alone does nothing. Note: Notepad receives the Space key presses too. | Partly. The P7 harness checked the tooltip and startup for the default, a custom and an invalid shortcut against the real exe. Dictation needs physical keys. |
+| M-SC2 | Cancel stops the microphone at once | With the default shortcut, hold Right Ctrl, speak for 2 s, press C, keep holding Right Ctrl for 2 s, then release. | The log shows `DictationCancelledByKey` when C goes down, not at the release. Nothing is pasted. The Windows microphone indicator disappears right after C. | **No.** It needs physical keys. |
+
+**Status after P7:** M-S2, M-S3, M-T5, M-T6, M-SC1 (dictation part),
+M-SC2 and the dictation part of M-L1 need a person at a physical keyboard
+and microphone, and have **not been run** against the P7 build. P7 changed the cancel
+path (M-S3 step 2 now stops the recording when the other key goes down), so
+M-S3 and M-SC2 matter most on the next manual pass.
 
 ## Known limits of the slice
 

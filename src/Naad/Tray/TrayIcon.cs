@@ -1,20 +1,25 @@
+using Naad.Hotkey;
+
 namespace Naad.Tray;
 
 /// <summary>Naad's notification-area icon and menu. Create and dispose it on the UI thread.</summary>
 internal sealed class TrayIcon : IDisposable
 {
-    // Also the icon's accessible name, which UI tests use to find it.
-    public const string Tooltip = "Naad: hold Right Ctrl to dictate";
-
     private readonly Icon _image = LoadIcon();
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _icon;
 
-    public TrayIcon(Action exit)
+    public TrayIcon(Chord shortcut, Action exit)
     {
         _menu.Items.Add("Exit", null, (_, _) => exit());
-        _icon = new NotifyIcon { Icon = _image, Text = Tooltip, ContextMenuStrip = _menu, Visible = true };
+        _icon = new NotifyIcon { Icon = _image, Text = Tooltip(shortcut), ContextMenuStrip = _menu, Visible = true };
     }
+
+    /// <summary>
+    /// Also the icon's accessible name, which UI tests use to find it. NotifyIcon refuses
+    /// text over 127 characters; a chord's four-key limit keeps it well under that.
+    /// </summary>
+    public static string Tooltip(Chord shortcut) => $"Naad: hold {shortcut.Describe()} to dictate";
 
     /// <summary>Loads the embedded icon at the size Windows uses in the notification area.</summary>
     public static Icon LoadIcon()

@@ -1,28 +1,28 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Naad.Native;
 
 namespace Naad.Hotkey;
 
 /// <summary>
-/// Watches the dictation key through a low-level keyboard hook. Create it on the UI
-/// thread: Windows calls the hook on the installing thread's message loop.
+/// Watches the dictation shortcut through a low-level keyboard hook; the
+/// <see cref="ChordMatcher"/> decides what the keys mean. Create it on the UI thread:
+/// Windows calls the hook on the installing thread's message loop.
 /// </summary>
 internal sealed class KeyboardHook : IDisposable
 {
-    // ponytail: hard-coded Right Ctrl; P7/P8 replace this with configurable chords.
-    private const uint TriggerKey = User32.VkRControl;
-
     // Held in a field: Windows keeps only a raw pointer, so the GC must not collect the delegate.
     private readonly User32.HookProc _proc;
     private readonly nint _handle;
     private readonly SynchronizationContext _ui;
-    private bool _triggerDown;
+    private readonly ChordMatcher _matcher;
 
-    public KeyboardHook()
+    public KeyboardHook(Chord shortcut)
     {
         _ui = SynchronizationContext.Current
             ?? throw new InvalidOperationException("KeyboardHook must be created on a thread with a message loop.");
+        _matcher = new ChordMatcher([shortcut]);
         _proc = OnKey;
         _handle = User32.SetWindowsHookEx(
             User32.WhKeyboardLl,
@@ -39,8 +39,11 @@ internal sealed class KeyboardHook : IDisposable
 
     public event Action? TriggerReleased;
 
-    /// <summary>Another key went down while the trigger was held, e.g. Right Ctrl+C.</summary>
-    public event Action? OtherKeyPressed;
+    /// <summary>
+    /// Another key went down while the shortcut was held, e.g. Right Ctrl+C. No
+    /// <see cref="TriggerReleased"/> follows.
+    /// </summary>
+    public event Action? TriggerCancelled;
 
     public void Dispose() => User32.UnhookWindowsHookEx(_handle);
 
@@ -55,32 +58,21 @@ internal sealed class KeyboardHook : IDisposable
             }
         }
 
-        // Always pass the key on: Right Ctrl keeps working as Ctrl in every app.
+        // Always pass the key on: the shortcut's keys keep working in every app.
         return User32.CallNextHookEx(0, code, wParam, lParam);
     }
 
     private void OnPhysicalKey(uint vk, bool down)
     {
-        if (vk != TriggerKey)
+        foreach (var e in _matcher.OnKey((Keys)vk, down))
         {
-            if (down && _triggerDown)
+            Raise(e.Kind switch
             {
-                Raise(OtherKeyPressed);
-            }
-
-            return;
-        }
-
-        // Holding a key repeats key-downs; only the first one is a press.
-        if (down && !_triggerDown)
-        {
-            _triggerDown = true;
-            Raise(TriggerPressed);
-        }
-        else if (!down && _triggerDown)
-        {
-            _triggerDown = false;
-            Raise(TriggerReleased);
+                ChordEventKind.Pressed => TriggerPressed,
+                ChordEventKind.Released => TriggerReleased,
+                ChordEventKind.Cancelled => TriggerCancelled,
+                _ => throw new UnreachableException(),
+            });
         }
     }
 

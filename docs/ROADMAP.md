@@ -256,11 +256,17 @@ production-quality code, and keeps the slice working at every commit.
 - **In:**
   - `Hotkey/Chord.cs` and `Hotkey/ChordMatcher.cs`.
   - Left and right modifiers are distinct.
-  - Emits a press when a chord becomes active and a release when it ends.
+  - Emits a press when a chord becomes active and a release when it ends,
+    or a cancel when another key goes down while it is held.
   - Ignores key auto-repeat.
-  - The most specific matching chord wins.
-  - Chords are serialized into settings.
-- **Out:** the UI for capturing a shortcut (P17).
+  - The most specific matching chord wins; among equally long chords, the
+    first configured.
+  - Chords are serialized into settings as `dictationShortcut`
+    (`"RightCtrl"` by default). An invalid value is repaired to the default.
+  - The existing hook feeds the matcher, and the tray tooltip names the
+    configured shortcut.
+- **Out:** the UI for capturing a shortcut (P17); swallowing keys, the
+  injected-input marker and the mouse hook (P8).
 - **Needs:** P6.
 - **Done when:** `[Theory]` tables cover:
   - Right Ctrl alone
@@ -268,7 +274,10 @@ production-quality code, and keeps the slice working at every commit.
   - auto-repeat
   - releasing keys out of order
   - Left Ctrl not matching
-- **Verify:** `dotnet test`.
+- **Verify:**
+  - `dotnet test`.
+  - P7 harness: the real exe starts with the default, a custom and an
+    invalid shortcut, and its tray tooltip names the shortcut in use.
 
 ### P8: Keyboard hook, hardened
 

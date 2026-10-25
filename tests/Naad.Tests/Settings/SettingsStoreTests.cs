@@ -1,3 +1,4 @@
+using Naad.Hotkey;
 using Naad.Settings;
 
 namespace Naad.Tests.Settings;
@@ -116,6 +117,58 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults.FileLogging, result.Settings.FileLogging);
+    }
+
+    [Theory]
+    [InlineData("RightCtrl")]
+    [InlineData("leftctrl + space")]
+    [InlineData("LeftAlt+LeftShift+F9")]
+    public void Load_ValidShortcut_ReturnsIt(string text)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "dictationShortcut": "{{text}}" }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.True(Chord.TryParse(text, out var expected));
+        Assert.Equal(expected, result.Settings.DictationShortcut);
+    }
+
+    [Fact]
+    public void Load_NoShortcut_UsesRightCtrl()
+    {
+        var result = LoadFrom("""{ "version": 1, "fileLogging": true }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(Chord.RightCtrl, result.Settings.DictationShortcut);
+    }
+
+    [Theory]
+    [InlineData("\"NoSuchKey\"")]
+    [InlineData("\"\"")]
+    [InlineData("\"ControlKey\"")]
+    [InlineData("\"RightCtrl+RightCtrl\"")]
+    [InlineData("163")]
+    [InlineData("[\"RightCtrl\"]")]
+    [InlineData("null")]
+    public void Load_InvalidShortcut_FallsBackToRightCtrlAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "fileLogging": false, "dictationShortcut": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(Chord.RightCtrl, result.Settings.DictationShortcut);
+        Assert.False(result.Settings.FileLogging);
+    }
+
+    [Fact]
+    public void Load_RewrittenFile_KeepsShortcutReadable()
+    {
+        LoadFrom("""{ "fileLogging": false, "dictationShortcut": "leftctrl+space" }""");
+
+        var reloaded = new SettingsStore(SettingsPath).Load();
+
+        var written = File.ReadAllText(SettingsPath);
+        Assert.Contains("\"dictationShortcut\": \"LeftCtrl+Space\"", written, StringComparison.Ordinal);
+        Assert.Equal(SettingsStatus.Loaded, reloaded.Status);
+        Assert.Equal("LeftCtrl+Space", reloaded.Settings.DictationShortcut.ToString());
     }
 
     [Fact]

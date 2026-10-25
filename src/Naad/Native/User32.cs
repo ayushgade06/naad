@@ -18,7 +18,6 @@ internal static partial class User32
     public const ushort VkMenu = 0x12;
     public const ushort VkLWin = 0x5B;
     public const ushort VkRWin = 0x5C;
-    public const ushort VkRControl = 0xA3;
     public const ushort VkV = 0x56;
 
     public const uint InputKeyboard = 1;
