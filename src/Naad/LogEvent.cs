@@ -27,6 +27,8 @@ internal enum LogEvent
     RecordingStarted,
     MicrophoneUnavailable,
     DictationCancelledByKey,
+    DictationCancelledByMouse,
+    MouseHookUnavailable,
     DictationIgnoredShortHold,
     RecordingStopped,
     TranscriptionCompleted,

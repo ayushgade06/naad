@@ -25,4 +25,19 @@ public sealed class KeyboardHookTests
     {
         Assert.Equal(expected, KeyboardHook.ShouldIgnore(flags, (nuint)extraInfo));
     }
+
+    [Theory]
+    [InlineData(0x0201, true)] // WM_LBUTTONDOWN
+    [InlineData(0x0204, true)] // WM_RBUTTONDOWN
+    [InlineData(0x0207, true)] // WM_MBUTTONDOWN
+    [InlineData(0x020B, true)] // WM_XBUTTONDOWN
+    [InlineData(0x020A, true)] // WM_MOUSEWHEEL
+    [InlineData(0x020E, true)] // WM_MOUSEHWHEEL
+    [InlineData(0x0200, false)] // WM_MOUSEMOVE
+    [InlineData(0x0202, false)] // WM_LBUTTONUP
+    [InlineData(0x0205, false)] // WM_RBUTTONUP
+    public void IsButtonOrWheel_MouseMessage_IsTrueOnlyForPressesAndWheel(int message, bool expected)
+    {
+        Assert.Equal(expected, KeyboardHook.IsButtonOrWheel(message));
+    }
 }

@@ -26,7 +26,7 @@ internal sealed class DictationController(
     private nint _targetWindow;
     private long _pressedAt;
     private bool _recording;
-    private bool _cancelled;
+    private LogEvent? _cancelledBy;
     private bool _busy;
 
     public void Listen()
@@ -59,7 +59,7 @@ internal sealed class DictationController(
 
         _targetWindow = User32.GetForegroundWindow();
         _recording = true;
-        _cancelled = false;
+        _cancelledBy = null;
         _pressedAt = Stopwatch.GetTimestamp();
         _starting = StartRecordingAsync();
     }
@@ -82,13 +82,15 @@ internal sealed class DictationController(
         return true;
     }
 
-    // Another key joined the shortcut (Right Ctrl+C). No release follows, so the recording
-    // stops now and is discarded.
-    private void OnCancelled()
+    // Another key or a mouse button joined the shortcut (Right Ctrl+C, Ctrl+click). No release
+    // follows, so the recording stops now and is discarded.
+    private void OnCancelled(CancelCause cause)
     {
         if (_recording)
         {
-            _cancelled = true;
+            _cancelledBy = cause == CancelCause.Mouse
+                ? LogEvent.DictationCancelledByMouse
+                : LogEvent.DictationCancelledByKey;
             OnReleased();
         }
     }
@@ -118,9 +120,9 @@ internal sealed class DictationController(
             }
 
             var pcm = await recorder.StopAsync();
-            if (_cancelled)
+            if (_cancelledBy is { } cancelled)
             {
-                Log.Info(LogEvent.DictationCancelledByKey);
+                Log.Info(cancelled);
                 return;
             }
 
