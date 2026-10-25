@@ -31,6 +31,7 @@ internal enum LogEvent
     MouseHookUnavailable,
     DictationIgnoredShortHold,
     RecordingStopped,
+    RecordingMaxDurationReached,
     TranscriptionCompleted,
     TranscriptionEmpty,
     TranscriptionFailed,

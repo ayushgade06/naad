@@ -9,25 +9,24 @@ using NAudio;
 namespace Naad.Dictation;
 
 /// <summary>
-/// Hold-to-talk flow: press records, release transcribes and pastes. Runs on the UI thread.
-/// Logs events and numbers only, never what was said.
+/// Hold-to-talk flow: press records, release transcribes and pastes. <see cref="DictationSession"/>
+/// decides what happens; this class carries it out. Runs on the UI thread: every await resumes
+/// there, so the session is only ever touched from one thread. Logs events and numbers only,
+/// never what was said.
 /// </summary>
-// ponytail: slice-quality flow with plain flags; P9 replaces them with a tested state machine.
 internal sealed class DictationController(
     KeyboardHook hook,
     AudioRecorder recorder,
     OpenAiCompatibleTranscriber transcriber) : IDisposable
 {
-    // Shorter holds are taps or Right Ctrl shortcuts; Whisper tends to invent text for them.
-    private static readonly TimeSpan MinimumHold = TimeSpan.FromMilliseconds(300);
-
+    private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
-    private Task<bool>? _starting;
+    private Task<bool> _starting = Task.FromResult(false);
+
+    // Completes once the last recording has fully stopped. A new recording waits for it, so a
+    // quick press after a discarded one never opens the microphone while it is still closing.
+    private Task _stopped = Task.CompletedTask;
     private nint _targetWindow;
-    private long _pressedAt;
-    private bool _recording;
-    private LogEvent? _cancelledBy;
-    private bool _busy;
 
     public void Listen()
     {
@@ -49,25 +48,42 @@ internal sealed class DictationController(
         _shutdown.Dispose();
     }
 
-    private void OnPressed()
+    private void OnPressed() => Apply(DictationEvent.Pressed, _session.Job);
+
+    private void OnReleased() => Apply(DictationEvent.Released, _session.Job);
+
+    private void OnCancelled(CancelCause cause) => Apply(
+        cause == CancelCause.Mouse ? DictationEvent.CancelledByMouse : DictationEvent.CancelledByKey,
+        _session.Job);
+
+    private DictationStep Apply(DictationEvent e, long job)
     {
-        // One dictation at a time: presses while transcribing are ignored.
-        if (_recording || _busy)
+        var step = _session.Handle(e, job, Stopwatch.GetElapsedTime(0));
+        switch (step.Action)
         {
-            return;
+            case DictationAction.StartRecording:
+                _targetWindow = User32.GetForegroundWindow();
+                _starting = StartRecordingAsync(step.Job, _stopped, Stopwatch.GetTimestamp());
+                _ = StopAtMaxDurationAsync(step.Job, _shutdown.Token);
+                break;
+            case DictationAction.Discard:
+                _ = DiscardAsync(e, step.Held);
+                break;
+            case DictationAction.Transcribe:
+                _ = TranscribeAsync(step, Stopwatch.GetTimestamp());
+                break;
         }
 
-        _targetWindow = User32.GetForegroundWindow();
-        _recording = true;
-        _cancelledBy = null;
-        _pressedAt = Stopwatch.GetTimestamp();
-        _starting = StartRecordingAsync();
+        return step;
     }
 
     // Opening the microphone can take long enough that the keyboard hook, which shares
     // this thread, misses the key release of a quick tap. So it opens on the thread pool.
-    private async Task<bool> StartRecordingAsync()
+    private async Task<bool> StartRecordingAsync(long job, Task previousStop, long pressedAt)
     {
+        // The previous recording's own task reports how its stop went.
+        await previousStop.ConfigureAwait(
+            ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
         try
         {
             await Task.Run(recorder.Start);
@@ -75,65 +91,89 @@ internal sealed class DictationController(
         catch (MmException e)
         {
             Log.Warn(LogEvent.MicrophoneUnavailable, ("mm_result", (long)e.Result));
+            Apply(DictationEvent.RecordingFailed, job);
             return false;
         }
 
-        Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(Stopwatch.GetElapsedTime(_pressedAt))));
+        Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(Stopwatch.GetElapsedTime(pressedAt))));
         return true;
     }
 
-    // Another key or a mouse button joined the shortcut (Right Ctrl+C, Ctrl+click). No release
-    // follows, so the recording stops now and is discarded.
-    private void OnCancelled(CancelCause cause)
+    // Returns the recorded PCM, or null if the microphone never opened.
+    private Task<byte[]?> StopRecording()
     {
-        if (_recording)
-        {
-            _cancelledBy = cause == CancelCause.Mouse
-                ? LogEvent.DictationCancelledByMouse
-                : LogEvent.DictationCancelledByKey;
-            OnReleased();
-        }
+        var stop = StopAfterStartAsync(_starting);
+        _stopped = stop;
+        return stop;
     }
 
-    private void OnReleased()
+    private async Task<byte[]?> StopAfterStartAsync(Task<bool> starting) =>
+        await starting ? await recorder.StopAsync() : null;
+
+    // ponytail: every recording leaves a five-minute timer behind, ignored by job id once the
+    // recording ends; cancel it per job if many short dictations ever show up in memory use.
+    private async Task StopAtMaxDurationAsync(long job, CancellationToken shutdown)
     {
-        if (!_recording)
+        try
+        {
+            await Task.Delay(DictationSession.MaxRecording, shutdown);
+        }
+        catch (OperationCanceledException)
         {
             return;
         }
 
-        _recording = false;
-        _busy = true;
-        _ = FinishAsync(Stopwatch.GetTimestamp());
+        if (Apply(DictationEvent.MaxDurationReached, job).Action == DictationAction.Transcribe)
+        {
+            Log.Info(LogEvent.RecordingMaxDurationReached);
+        }
     }
 
-    private async Task FinishAsync(long releasedAt)
+    private async Task DiscardAsync(DictationEvent cause, TimeSpan held)
+    {
+        try
+        {
+            if (await StopRecording() is null)
+            {
+                return;
+            }
+        }
+        catch (Exception e)
+        {
+            // Fire-and-forget: anything not caught here would vanish silently.
+            Log.Error(LogEvent.DictationFailed, e);
+            return;
+        }
+
+        switch (cause)
+        {
+            case DictationEvent.Released:
+                Log.Info(LogEvent.DictationIgnoredShortHold, ("held_ms", Milliseconds(held)));
+                break;
+            case DictationEvent.CancelledByMouse:
+                Log.Info(LogEvent.DictationCancelledByMouse);
+                break;
+            default:
+                Log.Info(LogEvent.DictationCancelledByKey);
+                break;
+        }
+    }
+
+    private async Task TranscribeAsync(DictationStep step, long releasedAt)
     {
         // Read before the first await: Dispose may dispose the source later.
         var shutdown = _shutdown.Token;
+        var job = step.Job;
         try
         {
-            var held = Stopwatch.GetElapsedTime(_pressedAt, releasedAt);
-            if (!await _starting!)
+            // Null: the microphone never opened, and the session already ended the job.
+            if (await StopRecording() is not { } pcm)
             {
-                return;
-            }
-
-            var pcm = await recorder.StopAsync();
-            if (_cancelledBy is { } cancelled)
-            {
-                Log.Info(cancelled);
-                return;
-            }
-
-            if (held < MinimumHold)
-            {
-                Log.Info(LogEvent.DictationIgnoredShortHold, ("held_ms", Milliseconds(held)));
                 return;
             }
 
             var wav = Wav.Encode(pcm, AudioRecorder.Format);
-            Log.Info(LogEvent.RecordingStopped, ("held_ms", Milliseconds(held)), ("wav_bytes", wav.Length));
+            Log.Info(LogEvent.RecordingStopped, ("held_ms", Milliseconds(step.Held)), ("wav_bytes", wav.Length));
 
             var requestStart = Stopwatch.GetTimestamp();
             var text = await transcriber.TranscribeAsync(wav, shutdown);
@@ -144,16 +184,20 @@ internal sealed class DictationController(
             if (text.Length == 0)
             {
                 Log.Info(LogEvent.TranscriptionEmpty);
+                Apply(DictationEvent.TranscribedEmpty, job);
                 return;
             }
 
-            var modifiersReleased = await TextInserter.WaitForModifiersReleasedAsync();
-            if (shutdown.IsCancellationRequested)
+            if (Apply(DictationEvent.Transcribed, job).Action != DictationAction.Insert)
             {
                 return;
             }
 
-            Insert(text, modifiersReleased, releasedAt);
+            var modifiersReleased = await TextInserter.WaitForModifiersReleasedAsync();
+            if (!shutdown.IsCancellationRequested)
+            {
+                Insert(text, modifiersReleased, releasedAt);
+            }
         }
         catch (HttpRequestException e)
         {
@@ -176,12 +220,17 @@ internal sealed class DictationController(
         }
         catch (Exception e)
         {
-            // This task is fire-and-forget, so anything not caught here would vanish silently.
+            // Fire-and-forget: anything not caught here would vanish silently.
             Log.Error(LogEvent.DictationFailed, e);
         }
         finally
         {
-            _busy = false;
+            // Every path ends the job, so the next press is accepted. Events for a job that
+            // already ended are ignored by the session.
+            var end = _session.State == DictationState.Inserting
+                ? DictationEvent.Inserted
+                : DictationEvent.TranscriptionFailed;
+            Apply(end, job);
         }
     }
 
