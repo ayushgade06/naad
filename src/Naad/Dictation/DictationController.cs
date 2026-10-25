@@ -32,7 +32,7 @@ internal sealed class DictationController(
     public void Listen()
     {
         hook.TriggerPressed += OnPressed;
-        hook.OtherKeyPressed += OnOtherKeyPressed;
+        hook.TriggerCancelled += OnCancelled;
         hook.TriggerReleased += OnReleased;
     }
 
@@ -43,7 +43,7 @@ internal sealed class DictationController(
     public void Dispose()
     {
         hook.TriggerPressed -= OnPressed;
-        hook.OtherKeyPressed -= OnOtherKeyPressed;
+        hook.TriggerCancelled -= OnCancelled;
         hook.TriggerReleased -= OnReleased;
         _shutdown.Cancel();
         _shutdown.Dispose();
@@ -82,11 +82,14 @@ internal sealed class DictationController(
         return true;
     }
 
-    private void OnOtherKeyPressed()
+    // Another key joined the shortcut (Right Ctrl+C). No release follows, so the recording
+    // stops now and is discarded.
+    private void OnCancelled()
     {
         if (_recording)
         {
             _cancelled = true;
+            OnReleased();
         }
     }
 

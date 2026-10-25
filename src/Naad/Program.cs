@@ -28,7 +28,7 @@ internal static class Program
             return 0;
         }
 
-        ApplySettings();
+        var settings = ApplySettings();
 
         var apiKey = Environment.GetEnvironmentVariable(ApiKeyVariable);
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -42,7 +42,7 @@ internal static class Program
 
         try
         {
-            Run(apiKey);
+            Run(apiKey, settings);
             Log.Info(LogEvent.AppStopped);
             return 0;
         }
@@ -57,7 +57,7 @@ internal static class Program
     // Settings are loaded after the single-instance check, so only one instance ever
     // migrates or rewrites the file. The log file starts only if settings allow it; until
     // then, lines go to the console only.
-    private static void ApplySettings()
+    private static AppSettings ApplySettings()
     {
         var result = new SettingsStore(SettingsStore.DefaultPath).Load();
         if (result.Settings.FileLogging)
@@ -66,6 +66,7 @@ internal static class Program
         }
 
         SettingsStore.LogOutcome(result);
+        return result.Settings;
     }
 
     private static void StartFileLogging()
@@ -106,7 +107,7 @@ internal static class Program
         };
     }
 
-    private static void Run(string apiKey)
+    private static void Run(string apiKey, AppSettings settings)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
@@ -114,10 +115,10 @@ internal static class Program
         // Exit ends the message loop; the usings below then dispose in reverse order:
         // controller (stop triggers, cancel transcription), hook (unhook), recorder
         // (microphone), HTTP client, tray icon. Main then releases the single-instance mutex.
-        using var tray = new TrayIcon(exit: Application.ExitThread);
+        using var tray = new TrayIcon(settings.DictationShortcut, exit: Application.ExitThread);
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
-        using var hook = new KeyboardHook();
+        using var hook = new KeyboardHook(settings.DictationShortcut);
         using var controller = new DictationController(hook, recorder, new OpenAiCompatibleTranscriber(http, apiKey));
         controller.Listen();
 
