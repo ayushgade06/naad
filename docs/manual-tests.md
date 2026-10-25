@@ -44,7 +44,7 @@ the log file (see M-L1). The expected results below give the event names.
 | M-S2 | Dictate into Notepad | 1. Open Notepad and click in it. 2. Hold **Right Ctrl**, say "hello world this is a test", release. 3. Repeat 3 times. | The spoken text appears at the cursor each time. The log shows `RecordingStarted mic_open_ms=N`, `RecordingStopped held_ms=N wav_bytes=N`, `TranscriptionCompleted request_ms=N chars=N` and `Pasted release_to_text_ms=N`. Record the three `release_to_text_ms` values. |
 | M-S3 | Ctrl shortcuts keep working | 1. In Notepad, use **Left** Ctrl+C and Ctrl+V. 2. Select text and press **Right** Ctrl+C, then paste with Ctrl+V. 3. Tap Right Ctrl as quickly as possible, 5 times, waiting 3 s between taps. | 1. Copy and paste work, and nothing is recorded. 2. Copy works, the log shows `DictationCancelledByKey`, and nothing is inserted. 3. Recording starts on key-down, so each tap logs `RecordingStarted` and then, on release, `DictationIgnoredShortHold held_ms=N`. Nothing is inserted. A tap must never leave a recording running; the next press always starts a new one. |
 | M-S4 | Focus change blocks the paste | In Notepad, hold Right Ctrl and speak a long sentence. Release it and **at once** click the console window with the mouse, before the text appears. (Since P8, clicking while still holding Right Ctrl cancels the dictation instead; see M-H2.) | The log shows `WARN PasteSkippedFocusChanged`. No text is inserted anywhere. Pressing Ctrl+V in Notepad afterwards pastes the transcript. If the text was pasted before your click, retry with a longer sentence. |
-| M-S5 | Microphone blocked | 1. In Settings > Privacy & security > Microphone, turn off **Let desktop apps access your microphone**. 2. Hold Right Ctrl, speak, release. 3. Turn the setting back on. | Naad does not crash. Note which happened: `WARN MicrophoneUnavailable mm_result=N`, or a recording of silence. With silence, Whisper may invent a phrase such as "Thank you." and Naad will paste it; note that too. P10 and P11 must handle the silent case. |
+| M-S5 | Microphone blocked | 1. In Settings > Privacy & security > Microphone, turn off **Let desktop apps access your microphone**. 2. Hold Right Ctrl, speak, release. 3. Turn the setting back on. | Naad does not crash. Note which happened: `WARN MicrophoneUnavailable mm_result=N`, or a recording of silence. With silence, Whisper may invent a phrase such as "Thank you." and Naad will paste it; note that too. Since P10 the expected result is M-A2's. |
 
 ## Tray app and lifecycle (P4): M-T1 to M-T6
 
@@ -206,6 +206,39 @@ transcript can never be inserted twice. What still needs a person:
 
 **Status after P9:** M-D1 and M-D2 have **not been run**. A smoke run of
 the real exe (start, `AppStarted`, no errors) passed.
+
+## Audio capture (P10): M-A1 to M-A3
+
+Since P10, a dictation that can't record shows a tray notification titled
+**Naad can't use the microphone** that says why, and logs one of these
+events. Nothing is recorded, uploaded or pasted.
+
+| Cause | Log event | Notification says |
+|---|---|---|
+| Windows privacy settings block the microphone | `WARN MicrophoneBlocked` | Privacy settings block the microphone; click to open them. |
+| No recording device | `WARN MicrophoneNotFound mm_result=N` | No microphone was found. |
+| Another app holds the device | `WARN MicrophoneInUse mm_result=N` | Another app is using the microphone. |
+| Any other WinMM error | `WARN MicrophoneUnavailable mm_result=N` | The microphone could not be opened. |
+
+Naad checks the privacy switches before opening the device: the
+device-wide **Microphone access**, your own **Microphone access**, and
+**Let desktop apps access your microphone**. A blocked device may open and
+record silence, and Whisper turns silence into invented text, so the
+device's own error can't be relied on. `MicrophoneFailureTests` covers the
+error mapping and the privacy decision, and `TrayIconTests` the messages.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-A1 | Default microphone | Dictate one sentence into Notepad with your default microphone. | The text is pasted. The log shows `RecordingStarted mic_open_ms=N` and `RecordingStopped held_ms=N wav_bytes=N`. | **No.** It needs physical keys and a microphone. |
+| M-A2 | Access blocked | 1. In Settings > Privacy & security > Microphone, turn off **Let desktop apps access your microphone**. 2. Hold Right Ctrl, speak, release. 3. Click the notification. 4. Turn the setting back on and dictate again. Repeat with **Microphone access** turned off. | Step 2: no recording, `WARN MicrophoneBlocked`, and the notification explains the block. Nothing is pasted, not even an invented phrase. Step 3 opens the microphone privacy page. Step 4 works normally. | **No.** It changes Windows privacy settings and needs physical keys. |
+| M-A3 | No microphone | Unplug or disable every input device (Settings > System > Sound > Input, or Device Manager), then hold Right Ctrl and release. Re-enable the device afterwards. | No crash. The log shows `WARN MicrophoneNotFound`, and the notification says no microphone was found. After re-enabling, dictation works again without restarting Naad. | **No.** It changes devices and needs physical keys. |
+
+With Focus Assist (Do not disturb) on, Windows may hold the notification
+back; the log event still appears.
+
+**Status after P10:** M-A1 to M-A3 have **not been run**. A smoke run of
+the real exe (start, `AppStarted`, no errors) passed. The automated runs
+never open the microphone or change privacy settings.
 
 ## Known limits of the slice
 

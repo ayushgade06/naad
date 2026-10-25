@@ -328,19 +328,28 @@ production-quality code, and keeps the slice working at every commit.
 
 - **Goal:** microphone capture that fails safely.
 - **In:**
-  - `Audio/AudioRecorder.cs`.
-  - Device-open failures are returned as typed errors.
+  - `Audio/AudioRecorder.cs` and `Audio/MicrophoneFailure.cs`.
+  - Device-open failures are returned as typed errors: not found, blocked,
+    in use, or failed with a WinMM code.
   - Detect microphone access blocked by Windows privacy settings and link
-    to `ms-settings:privacy-microphone`.
-  - The recording buffer is thread-safe.
-  - Disposal is deterministic.
+    to `ms-settings:privacy-microphone`. The block is read from Windows'
+    consent store before opening, because a blocked device may record
+    silence instead of failing.
+  - A tray notification explains each error; for a block, clicking it
+    opens the privacy page.
+  - The recording buffer is thread-safe: one buffer per recording, behind
+    a lock.
+  - Disposal is deterministic: Start, Stop and Dispose share one lock, and
+    a stop the driver never confirms gives up after 2 seconds.
 - **Out:** choosing a device (P17), hot-plug handling (P19).
 - **Needs:** P9.
 - **Done when:**
   - Recording works with the default microphone.
   - With no microphone or access blocked, a clear error is shown and
     nothing crashes.
-- **Verify:** manual checks M-A1 to M-A3; `dotnet test`.
+- **Verify:**
+  - Manual checks M-A1 to M-A3; `dotnet test`.
+  - Smoke run of the real exe (start, `AppStarted`, no errors).
 
 ### P11: WAV encoding and recording gates
 
