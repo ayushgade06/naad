@@ -283,20 +283,26 @@ production-quality code, and keeps the slice working at every commit.
 
 - **Goal:** a reliable global hook driven by the matcher.
 - **In:**
-  - `Hotkey/KeyboardHook.cs`. The callback only queues the event, and the
-    matcher runs on the UI thread.
-  - Pass-through or swallow per chord.
-  - Ignore Naad's own injected input (`LLKHF_INJECTED` plus a marker).
+  - `Hotkey/KeyboardHook.cs`. The callback queues the event handlers. The
+    matcher runs inside the callback, on the UI thread, because whether to
+    swallow a key must be known before the callback returns; it does no I/O.
+  - Pass-through or swallow per chord: a chord's non-modifier keys are
+    swallowed, its modifiers always pass through. The matcher decides.
+  - Ignore Naad's own injected input (`LLKHF_INJECTED` plus a marker in
+    `dwExtraInfo`). Other programs' synthetic input counts as keys, except
+    input injected by a lower-integrity process.
   - Cancel the recording when a mouse button or the wheel is used while
-    the chord is held (`WH_MOUSE_LL`), so Ctrl+click and Ctrl+scroll are
-    not treated as dictation.
+    the chord is held (`WH_MOUSE_LL`, installed only while it is held), so
+    Ctrl+click and Ctrl+scroll are not treated as dictation.
 - **Out:** reinstalling the hook after sleep (P19).
 - **Needs:** P7.
 - **Done when:**
   - Hold and release are detected correctly in Notepad, Chrome and VS Code.
   - No modifier key is left stuck.
   - Naad's own Ctrl+V does not trigger its own shortcut.
-- **Verify:** manual checks M-H1 to M-H5; `dotnet test`.
+- **Verify:**
+  - Manual checks M-H1 to M-H5; `dotnet test`.
+  - P8 harness: the real exe skips injected input carrying Naad's marker.
 
 ### P9: Dictation state machine (pure)
 
