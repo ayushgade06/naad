@@ -88,6 +88,19 @@ public sealed class ChordTests
         Assert.NotEqual(Chord.RightCtrl, left);
     }
 
+    [Theory]
+    [InlineData(Key.LControlKey, true)]
+    [InlineData(Key.RShiftKey, true)]
+    [InlineData(Key.RMenu, true)]
+    [InlineData(Key.LWin, true)]
+    [InlineData(Key.Space, false)]
+    [InlineData(Key.F9, false)]
+    [InlineData(Key.Apps, false)]
+    public void IsModifier_Key_IsTrueOnlyForSidedModifiers(Key key, bool expected)
+    {
+        Assert.Equal(expected, Chord.IsModifier(key));
+    }
+
     [Fact]
     public void Json_Chord_IsWrittenAsItsSettingsForm()
     {

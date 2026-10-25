@@ -64,7 +64,7 @@ internal sealed class KeyboardHook : IDisposable
 
     private void OnPhysicalKey(uint vk, bool down)
     {
-        foreach (var e in _matcher.OnKey((Keys)vk, down))
+        foreach (var e in _matcher.OnKey((Keys)vk, down).Events)
         {
             Raise(e.Kind switch
             {

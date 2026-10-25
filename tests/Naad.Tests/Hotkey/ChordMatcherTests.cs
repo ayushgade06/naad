@@ -1,10 +1,11 @@
 using Naad.Hotkey;
+using Key = System.Windows.Forms.Keys;
 
 namespace Naad.Tests.Hotkey;
 
 // Steps are written as "+Key" for key-down and "-Key" for key-up, using chord key names
-// (RightCtrl, LeftShift, C). Expected events are "Pressed:<chord>", "Released:<chord>" or
-// "Cancelled:<chord>", with the chord in its settings form.
+// (RightCtrl, LeftShift, C), and "Mouse" for a mouse button or wheel. Expected events are
+// "Pressed:<chord>", "Released:<chord>" or "Cancelled:<chord>", with the chord in its settings form.
 public sealed class ChordMatcherTests
 {
     [Theory]
@@ -87,11 +88,68 @@ public sealed class ChordMatcherTests
         Assert.Equal("", Run([], "+RightCtrl -RightCtrl"));
     }
 
+    [Theory]
+    // A mouse button or the wheel cancels the active chord (Ctrl+click, Ctrl+scroll).
+    [InlineData("+RightCtrl Mouse -RightCtrl", "Pressed:RightCtrl Cancelled:RightCtrl")]
+    [InlineData("+RightCtrl Mouse Mouse", "Pressed:RightCtrl Cancelled:RightCtrl")]
+    // Without an active chord the mouse does nothing, and the next press works.
+    [InlineData("Mouse +RightCtrl -RightCtrl", "Pressed:RightCtrl Released:RightCtrl")]
+    [InlineData("+RightCtrl Mouse -RightCtrl +RightCtrl",
+        "Pressed:RightCtrl Cancelled:RightCtrl Pressed:RightCtrl")]
+    [InlineData("+RightCtrl -RightCtrl Mouse", "Pressed:RightCtrl Released:RightCtrl")]
+    public void OnMouseButton_WhileChordHeld_Cancels(string steps, string expected)
+    {
+        Assert.Equal(expected, Run(["RightCtrl"], steps));
+    }
+
+    [Theory]
+    // Modifier-only chords pass every key through, so Right Ctrl keeps working as Ctrl.
+    [InlineData("RightCtrl", "+RightCtrl +RightCtrl +C -C -RightCtrl", "p p p p p")]
+    // The key that completes the chord is swallowed, with its repeats and its key-up.
+    [InlineData("LeftCtrl+Space", "+LeftCtrl +Space +Space -Space -LeftCtrl", "p s s s p")]
+    [InlineData("LeftCtrl+Space", "+LeftCtrl +Space -LeftCtrl -Space", "p s p s")]
+    // Pressed before the modifier, Space already reached the app, so its key-up must too.
+    [InlineData("LeftCtrl+Space", "+Space +LeftCtrl -LeftCtrl -Space", "p p p p")]
+    // A swallowed key stays swallowed until it comes up, even after a cancel.
+    [InlineData("LeftCtrl+Space", "+LeftCtrl +Space +X +Space -X -Space", "p s p s p s")]
+    [InlineData("LeftCtrl+Space", "+LeftCtrl +Space Mouse +Space -Space", "p s - s s")]
+    // Space on its own is not the chord, so it is typed normally.
+    [InlineData("LeftCtrl+Space", "+Space +Space -Space", "p p p")]
+    [InlineData("F9", "+F9 +F9 -F9 +A -A", "s s s p p")]
+    public void OnKey_ChordKeys_SwallowsOnlyNonModifiersOfActiveChord(string chord, string steps, string expected)
+    {
+        var matcher = new ChordMatcher([Parse(chord)]);
+
+        var outcomes = steps.Split(' ').Select(step => step == "Mouse"
+            ? Mouse(matcher)
+            : matcher.OnKey(Parse(step[1..]).Keys.Single(), down: step[0] == '+').Swallow ? "s" : "p");
+
+        Assert.Equal(expected, string.Join(' ', outcomes));
+    }
+
+    [Fact]
+    public void IsActive_FollowsTheChord()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+
+        matcher.OnKey(Key.RControlKey, down: true);
+        Assert.True(matcher.IsActive);
+        matcher.OnMouseButton();
+        Assert.False(matcher.IsActive);
+    }
+
+    private static string Mouse(ChordMatcher matcher)
+    {
+        matcher.OnMouseButton();
+        return "-";
+    }
+
     private static string Run(string[] chords, string steps)
     {
         var matcher = new ChordMatcher([.. chords.Select(Parse)]);
-        var events = steps.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .SelectMany(step => matcher.OnKey(Parse(step[1..]).Keys.Single(), down: step[0] == '+'));
+        var events = steps.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(step => step == "Mouse"
+            ? matcher.OnMouseButton()
+            : matcher.OnKey(Parse(step[1..]).Keys.Single(), down: step[0] == '+').Events);
         return string.Join(' ', events.Select(e => $"{e.Kind}:{e.Chord}"));
     }
 
