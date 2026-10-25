@@ -70,7 +70,7 @@ cancels the dictation, so Ctrl+click and Ctrl+scroll keep working.
 |---|---|
 | API key | It is a secret, and settings.json is plain text. It comes from `NAAD_GROQ_API_KEY` today, and will move to Windows DPAPI storage in P12. It must never be added to this file. |
 | Transcription endpoint and model | Fixed to Groq `whisper-large-v3-turbo` until P13 makes the provider configurable. |
-| Timeouts, the 300 ms tap threshold, log size | Internal tuning values, not user preferences. |
+| Timeouts, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
 
 A setting is added only when the app actually reads it.
 

@@ -314,10 +314,15 @@ production-quality code, and keeps the slice working at every commit.
   - Recording stops automatically at the maximum duration (5 minutes).
   - Presses are ignored unless the state is Idle.
   - Job IDs prevent the same transcript being inserted twice.
+  - `DictationController` carries out the session's actions and keeps no
+    state flags of its own. A new recording waits until the previous one
+    has closed the microphone.
 - **Out:** toggle mode (P21).
 - **Needs:** P7.
 - **Done when:** a transition-table test covers every state and event pair.
-- **Verify:** `dotnet test`.
+- **Verify:**
+  - `dotnet test`, including a check that the table lists every pair.
+  - Smoke run of the real exe (start, `AppStarted`, no errors).
 
 ### P10: Audio capture, hardened
 
