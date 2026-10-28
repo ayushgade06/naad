@@ -27,6 +27,9 @@ results.
    $env:NAAD_GROQ_API_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString 'Groq API key')).Password
    ```
 
+   Since P12 you can instead store the key once, encrypted; see "The API
+   key" in `docs/settings.md`.
+
 4. From the repository root, run `dotnet run --project src/Naad`. Leave the
    window open: it shows what Naad is doing. Since P4, Naad runs in the
    notification area. Quit it with **right-click the tray icon > Exit**;
@@ -266,6 +269,23 @@ boundary with synthetic samples.
 | M-W3 | Pause after speaking | Hold Right Ctrl, say "hello", stay silent for 20 s, then release. | "Hello" is pasted. | **No.** It needs physical keys and a microphone. |
 
 **Status after P11:** M-W1 to M-W3 have **not been run**.
+
+## API key storage (P12): M-K1
+
+Since P12, the API key can be stored encrypted with DPAPI instead of being
+set in every terminal; `docs/settings.md` describes how. A non-blank
+`NAAD_GROQ_API_KEY` still overrides the stored key. `SecretStoreTests` runs
+real DPAPI against temporary files: round trip, no plaintext in the file,
+garbage, truncated or foreign ciphertext, a locked file, the override's
+precedence, a failed save keeping the previous key, and log lines without
+the key.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-K1 | Stored key end to end | 1. In a new PowerShell window without `NAAD_GROQ_API_KEY`, store your key as `docs/settings.md` shows. 2. Open `%LOCALAPPDATA%\Naad\api-key.dpapi` in Notepad. 3. Start Naad and dictate one sentence into Notepad. 4. Exit, replace the file's contents with `junk`, start Naad. 5. Store the key again. | 1. `$LASTEXITCODE` is 0. 2. The file is unreadable binary; your key isn't in it. 3. The log shows `ApiKeyLoaded`, and the text is pasted. 4. A **Naad** dialog says the stored key can't be read, the log shows `ERROR ApiKeyUnreadable exception=System.Security.Cryptography.CryptographicException`, and Naad exits. 5. Naad works again. No step shows the key on screen or in `naad.log`. | Partly. The P12 harness ran the Release exe with a synthetic key: storing through a pipe (exit 0, 262 bytes, no plaintext as ASCII or UTF-16), refusing without a pipe (exit 1), starting from the stored key (`ApiKeyLoaded`, `AppStarted`), the override (`ApiKeyFromEnvironment`), no key (`ApiKeyMissing`, dialog), and a garbage file (`ApiKeyUnreadable`, dialog). The log never held the synthetic keys. Dictation with a real key wasn't run. |
+
+**Status after P12:** M-K1 has **not been run** with a real key; the
+harness parts above passed on 2026-10-28.
 
 ## Known limits of the slice
 
