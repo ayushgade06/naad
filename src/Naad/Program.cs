@@ -142,11 +142,12 @@ internal static class Program
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
         // Exit ends the message loop; the usings below then dispose in reverse order:
-        // controller (stop triggers, cancel transcription), clipboard window, hook (unhook),
-        // recorder (microphone), HTTP client, tray icon. Main then releases the single-instance mutex.
-        // The tray is created first so it is disposed last; its copy action reaches the
-        // controller, which exists by the time the menu can be clicked.
+        // controller (ignore triggers, cancel transcription and paste), clipboard window, hook
+        // (unhook), recorder (microphone), HTTP client, tray icon, sounds. Main then releases the
+        // single-instance mutex. The tray's copy action reaches the controller, which exists by
+        // the time the menu can be clicked.
         DictationController? dictation = null;
+        using var sounds = settings.PlaySounds ? new SoundCues() : null;
         using var tray = new TrayIcon(
             settings.DictationShortcut,
             copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
@@ -159,11 +160,25 @@ internal static class Program
         using var clipboard = new WindowsClipboard();
         var inserter = new TextInserter(
             clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
-        using var controller = new DictationController(hook, recorder, transcriber, inserter);
+        using var controller = new DictationController(
+            recorder, transcriber, inserter, FocusGuard.Foreground, FocusGuard.Check, TimeProvider.System);
         dictation = controller;
+        controller.StateChanged += tray.ShowState;
+        if (sounds is not null)
+        {
+            controller.StateChanged += sounds.OnStateChanged;
+        }
+
         controller.MicrophoneFailed += tray.ShowMicrophoneError;
+        controller.NothingHeard += tray.ShowNothingHeard;
+        controller.TranscriptionFailed += tray.ShowTranscriptionError;
         controller.TranscriptKept += tray.ShowTranscriptKept;
-        controller.Listen();
+
+        // The hook raises these on this thread. Disposing the controller first makes later
+        // events no-ops, and the hook is unhooked right after.
+        hook.TriggerPressed += controller.Press;
+        hook.TriggerReleased += controller.Release;
+        hook.TriggerCancelled += controller.Cancel;
 
         Log.Info(LogEvent.AppStarted);
         Application.Run();
