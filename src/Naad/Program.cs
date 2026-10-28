@@ -9,14 +9,21 @@ namespace Naad;
 
 internal static class Program
 {
-    // ponytail: read from the environment for the slice; P12 stores the key with DPAPI.
-    private const string ApiKeyVariable = "NAAD_GROQ_API_KEY";
+    // Stores the API key piped to standard input, then exits; see docs/settings.md.
+    private const string SetApiKeyArgument = "--set-api-key";
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         HandleUnhandledExceptions();
+
+        // Needs no single-instance check: it only writes the key file, which a running
+        // instance read at its start and never reads again.
+        if (args is [SetApiKeyArgument])
+        {
+            return StoreApiKey();
+        }
 
         // First, before any hook or microphone work: a second instance must leave without
         // registering a second keyboard hook. Released when Main returns, on this thread.
@@ -30,13 +37,12 @@ internal static class Program
 
         var settings = ApplySettings();
 
-        var apiKey = Environment.GetEnvironmentVariable(ApiKeyVariable);
-        if (string.IsNullOrWhiteSpace(apiKey))
+        var resolved = new SecretStore(SecretStore.DefaultPath)
+            .Resolve(Environment.GetEnvironmentVariable(SecretStore.OverrideVariable));
+        SecretStore.LogOutcome(resolved);
+        if (resolved.Key is not { } apiKey)
         {
-            Log.Error(LogEvent.ApiKeyMissing);
-            StartupError.Show(
-                $"{ApiKeyVariable} is not set. Set it to a Groq API key (https://console.groq.com/keys), " +
-                "then start Naad again.");
+            StartupError.Show(StartupError.ApiKeyProblem(resolved.Status));
             return 1;
         }
 
@@ -52,6 +58,28 @@ internal static class Program
             StartupError.Show($"Naad stopped because of an error.\n\n{StartupError.Describe(e, apiKey)}");
             return 1;
         }
+    }
+
+    // Console only: no settings are loaded, so no log file is written.
+    private static int StoreApiKey()
+    {
+        // Typing the key as an argument would leave it in the shell's history; only a pipe is read.
+        var key = Console.IsInputRedirected ? Console.In.ReadToEnd() : "";
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            StartupError.Show($"Pipe the API key into Naad.exe {SetApiKeyArgument}, as docs/settings.md describes.");
+            return 1;
+        }
+
+        if (new SecretStore(SecretStore.DefaultPath).Save(key) is { } error)
+        {
+            Log.Error(LogEvent.ApiKeyStoreFailed, error);
+            StartupError.Show("The API key could not be saved. The previously stored key, if any, is unchanged.");
+            return 1;
+        }
+
+        Log.Info(LogEvent.ApiKeyStored);
+        return 0;
     }
 
     // Settings are loaded after the single-instance check, so only one instance ever

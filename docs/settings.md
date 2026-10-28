@@ -64,11 +64,52 @@ letter while Naad runs.
 Clicking a mouse button or turning the wheel while holding the shortcut
 cancels the dictation, so Ctrl+click and Ctrl+scroll keep working.
 
+## The API key
+
+Naad needs an API key for the transcription provider (Groq by default; get
+one at https://console.groq.com/keys). It is stored encrypted, apart from
+settings.json, in `%LOCALAPPDATA%\Naad\api-key.dpapi`.
+
+To store or replace the key, pipe it into Naad from PowerShell. The key is
+read without being shown, and never lands in the shell's history:
+
+```powershell
+[Net.NetworkCredential]::new('', (Read-Host -AsSecureString 'API key')).Password |
+  & "<path to>\Naad.exe" --set-api-key | Out-Null
+```
+
+From a source checkout, use `dotnet run --project src/Naad -- --set-api-key`
+in place of the `& ... Naad.exe` part. `| Out-Null` makes PowerShell wait
+for Naad to finish; `$LASTEXITCODE` is then `0` once the key is stored.
+Naad accepts the key only from a pipe: `--set-api-key` without one shows how
+to use it and changes nothing. The key takes effect the next time Naad
+starts.
+
+How it is protected and found:
+
+- **Encryption:** Windows DPAPI with the CurrentUser scope. Only your
+  Windows account, on this PC, can decrypt the file. Another user, another
+  PC, or a copy of the file on a backup can't. Resetting your Windows
+  password from outside your account (for example by an administrator) can
+  make the file unreadable; store the key again if that happens.
+- **Development override:** if the `NAAD_GROQ_API_KEY` environment variable
+  is set and not blank, Naad uses it and doesn't read the stored key. The
+  log says which one was used (`ApiKeyFromEnvironment` or `ApiKeyLoaded`),
+  never the key itself.
+- **No key:** Naad shows a dialog explaining how to store one, logs
+  `ApiKeyMissing` and exits.
+- **Unreadable key** (damaged, or saved by another Windows user): Naad shows
+  a dialog asking you to store it again, logs `ApiKeyUnreadable` with the
+  exception type, and exits. It doesn't delete the file.
+
+The key never appears in settings.json, the log, error dialogs or test
+files. To remove it, delete `api-key.dpapi` while Naad is closed.
+
 ## What is deliberately not a setting
 
 | Value | Why it is not in settings.json |
 |---|---|
-| API key | It is a secret, and settings.json is plain text. It comes from `NAAD_GROQ_API_KEY` today, and will move to Windows DPAPI storage in P12. It must never be added to this file. |
+| API key | It is a secret, and settings.json is plain text. It is stored encrypted on its own; see [The API key](#the-api-key). It must never be added to this file. |
 | Transcription endpoint and model | Fixed to Groq `whisper-large-v3-turbo` until P13 makes the provider configurable. |
 | Timeouts, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
 
