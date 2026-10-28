@@ -13,7 +13,7 @@ namespace Naad.Dictation;
 /// touched from one thread. Logs events and numbers only, never what was said.
 /// </summary>
 /// <param name="recorder">The microphone.</param>
-/// <param name="transcriber">Turns the recording into text.</param>
+/// <param name="transcriber">Turns the recording into text; see <see cref="UseTranscriber"/>.</param>
 /// <param name="inserter">Puts the text into the target window.</param>
 /// <param name="captureTarget">The window that has focus, read when the shortcut is pressed.</param>
 /// <param name="checkTarget">Whether that window may receive text now.</param>
@@ -28,6 +28,7 @@ internal sealed class DictationController(
 {
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
+    private ITranscriber _transcriber = transcriber;
     private Task<bool> _starting = Task.FromResult(false);
 
     // Completes once the last recording has fully stopped. A new recording waits for it, so a
@@ -69,6 +70,13 @@ internal sealed class DictationController(
     /// <summary>Another key or a mouse button joined the shortcut. Call on the UI thread.</summary>
     public void Cancel(CancelCause cause) => ApplyShortcut(
         cause == CancelCause.Mouse ? DictationEvent.CancelledByMouse : DictationEvent.CancelledByKey);
+
+    /// <summary>
+    /// Transcribes with <paramref name="replacement"/> from the next recording on, after a settings
+    /// or key change. A transcription already running finishes with the one it started with. Call
+    /// on the UI thread.
+    /// </summary>
+    public void UseTranscriber(ITranscriber replacement) => _transcriber = replacement;
 
     /// <summary>
     /// Puts the kept transcript on the clipboard, out of clipboard history, for the user to
@@ -226,8 +234,10 @@ internal sealed class DictationController(
 
     private async Task TranscribeAsync(DictationStep step, long releasedAt)
     {
-        // Read before the first await: Dispose may dispose the source later.
+        // Read before the first await: Dispose may dispose the source later, and a transcriber
+        // swapped in meanwhile is for the next dictation.
         var shutdown = _shutdown.Token;
+        var service = _transcriber;
         var job = step.Job;
 
         // The window the user was in when they pressed the shortcut, never whatever has focus now.
@@ -263,7 +273,7 @@ internal sealed class DictationController(
                 ("rms", check.Rms));
 
             var requestStart = time.GetTimestamp();
-            var result = await transcriber.TranscribeAsync(wav, shutdown);
+            var result = await service.TranscribeAsync(wav, shutdown);
             if (result.Failure is { } failure)
             {
                 DictationLog.Transcription(failure);

@@ -265,6 +265,34 @@ public sealed class DictationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task UseTranscriber_WhileTranscribing_AppliesFromTheNextDictation()
+    {
+        var release = new TaskCompletionSource();
+        var started = new TaskCompletionSource();
+        _h.Transcriber.Respond = async _ =>
+        {
+            started.SetResult();
+            await release.Task;
+            return new TranscriptionResult(Transcript);
+        };
+        var replacement = new FakeTranscriber();
+        var idle = _h.NextIdle();
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        _h.Time.Advance(LongHold);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+        await started.Task.WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+        await _h.Ui.RunAsync(() => _h.Controller.UseTranscriber(replacement));
+        release.SetResult();
+        await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(1, _h.Transcriber.Calls);
+        Assert.Equal(1, replacement.Calls);
+        Assert.Equal(2, _h.Pastes);
+    }
+
+    [Fact]
     public async Task Dispose_DuringTranscription_CancelsItAndInsertsNothing()
     {
         var started = new TaskCompletionSource();
