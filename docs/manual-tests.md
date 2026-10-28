@@ -240,10 +240,36 @@ back; the log event still appears.
 the real exe (start, `AppStarted`, no errors) passed. The automated runs
 never open the microphone or change privacy settings.
 
+## Recording gates (P11): M-W1 to M-W3
+
+Since P11, a finished recording is checked before it is uploaded. Naad
+writes its own 44-byte WAV header (`Wav`), and `SilenceGate` rejects:
+
+- **too short:** less than 300 ms of audio, which can happen when the
+  microphone opens late. Logged as `INFO RecordingTooShort`.
+- **silent:** no sample reaches about -45 dBFS (peak 180 of 32768), or
+  fewer than three 30 ms windows reach about -55 dBFS RMS (60). Logged as
+  `INFO RecordingSilent`.
+
+Both lines carry `audio_ms`, `peak` and `rms`, and nothing is uploaded or
+pasted. Accepted recordings log `RecordingStopped` with the same `peak` and
+`rms` fields. These are levels, not audio. The thresholds are deliberately
+low, so a quiet sentence is uploaded rather than lost; the numbers from
+M-W2 decide whether they need tuning. `WavTests` checks the header against
+a hand-written fixture, and `SilenceGateTests` covers each threshold's
+boundary with synthetic samples.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-W1 | Silence isn't uploaded | In Notepad, hold Right Ctrl for 2 s without speaking, in a quiet room, then release. Repeat with the microphone muted (hardware switch or Settings > System > Sound > Input volume 0). | Each time the log shows `RecordingSilent audio_ms=N peak=N rms=N`, no `TranscriptionCompleted`, and nothing is pasted, not even "Thank you." | **No.** It needs physical keys and a microphone. |
+| M-W2 | Quiet speech still goes through | Hold Right Ctrl and say one sentence softly, as if someone nearby were asleep. Then say one at your normal level. | Both are pasted. Record both `RecordingStopped` lines' `peak` and `rms`, and M-W1's, in the pull request. | **No.** It needs physical keys and a microphone. |
+| M-W3 | Pause after speaking | Hold Right Ctrl, say "hello", stay silent for 20 s, then release. | "Hello" is pasted. | **No.** It needs physical keys and a microphone. |
+
+**Status after P11:** M-W1 to M-W3 have **not been run**.
+
 ## Known limits of the slice
 
 These are fixed in later phases:
 
 - The clipboard is overwritten by every dictation. P14 restores it.
-- Silence is not detected. P11 adds that.
 - Pasting into an administrator window fails silently. P15 handles it.
