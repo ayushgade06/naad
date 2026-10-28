@@ -22,6 +22,9 @@ internal sealed record AppSettings
     /// <summary>Write the diagnostic log file. The log never holds user content (see Log).</summary>
     public bool FileLogging { get; init; } = true;
 
+    /// <summary>Play a short tone when listening starts and stops.</summary>
+    public bool PlaySounds { get; init; } = true;
+
     /// <summary>The keys to hold while dictating, written like "RightCtrl" (see Chord).</summary>
     public Chord DictationShortcut { get; init; } = Chord.RightCtrl;
 
