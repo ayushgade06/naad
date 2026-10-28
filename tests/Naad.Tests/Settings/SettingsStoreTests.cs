@@ -159,6 +159,73 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_NoTranscriptionSettings_UsesGroqDefaults()
+    {
+        var result = LoadFrom("""{ "version": 1 }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal("https://api.groq.com/openai/v1", result.Settings.TranscriptionBaseUrl.AbsoluteUri);
+        Assert.Equal("whisper-large-v3-turbo", result.Settings.TranscriptionModel);
+    }
+
+    [Theory]
+    [InlineData("https://api.openai.com/v1", "whisper-1")]
+    [InlineData("https://stt.example.test/openai/v1/", "openai/whisper-large-v3")]
+    [InlineData("http://localhost:8000/v1", "Systran/faster-whisper-small")]
+    [InlineData("http://127.0.0.1:9000/v1", "local-model")]
+    public void Load_ValidTranscriptionSettings_ReturnsThem(string baseUrl, string model)
+    {
+        var result = LoadFrom(
+            $$"""{ "version": 1, "transcriptionBaseUrl": "{{baseUrl}}", "transcriptionModel": "{{model}}" }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(new Uri(baseUrl), result.Settings.TranscriptionBaseUrl);
+        Assert.Equal(model, result.Settings.TranscriptionModel);
+    }
+
+    // Plain http to another machine would send the API key unencrypted.
+    [Theory]
+    [InlineData("\"http://api.example.test/v1\"")]
+    [InlineData("\"ftp://api.example.test/v1\"")]
+    [InlineData("\"api.groq.com/openai/v1\"")]
+    [InlineData("\"https://api.example.test/v1?key=1\"")]
+    [InlineData("\"\"")]
+    [InlineData("5")]
+    [InlineData("null")]
+    public void Load_InvalidBaseUrl_FallsBackToGroqAsRepaired(string value)
+    {
+        var result = LoadFrom(
+            $$"""{ "version": 1, "transcriptionModel": "whisper-1", "transcriptionBaseUrl": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(AppSettings.Defaults.TranscriptionBaseUrl, result.Settings.TranscriptionBaseUrl);
+        Assert.Equal("whisper-1", result.Settings.TranscriptionModel);
+    }
+
+    [Theory]
+    [InlineData("\"\"")]
+    [InlineData("\"whisper large\"")]
+    [InlineData("\"whisper\\t1\"")]
+    [InlineData("\"whïsper\"")]
+    [InlineData("5")]
+    [InlineData("null")]
+    public void Load_InvalidModel_FallsBackToDefaultAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "transcriptionModel": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(AppSettings.Defaults.TranscriptionModel, result.Settings.TranscriptionModel);
+    }
+
+    [Fact]
+    public void Load_ModelOver100Characters_FallsBackAsRepaired()
+    {
+        var result = LoadFrom($$"""{ "version": 1, "transcriptionModel": "{{new string('m', 101)}}" }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+    }
+
+    [Fact]
     public void Load_RewrittenFile_KeepsShortcutReadable()
     {
         LoadFrom("""{ "fileLogging": false, "dictationShortcut": "leftctrl+space" }""");
