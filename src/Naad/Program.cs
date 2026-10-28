@@ -65,10 +65,18 @@ internal static class Program
     private static int StoreApiKey()
     {
         // Typing the key as an argument would leave it in the shell's history; only a pipe is read.
-        var key = Console.IsInputRedirected ? Console.In.ReadToEnd() : "";
+        var key = Console.IsInputRedirected ? SecretStore.ReadKey(Console.OpenStandardInput()) : "";
         if (string.IsNullOrWhiteSpace(key))
         {
             StartupError.Show($"Pipe the API key into Naad.exe {SetApiKeyArgument}, as docs/settings.md describes.");
+            return 1;
+        }
+
+        if (!SecretStore.IsValidKey(key))
+        {
+            Log.Error(LogEvent.ApiKeyInvalid);
+            StartupError.Show("That isn't a valid API key: it contains spaces or characters outside plain ASCII. " +
+                "Nothing was saved.");
             return 1;
         }
 

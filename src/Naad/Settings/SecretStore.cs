@@ -25,6 +25,9 @@ internal enum SecretStatus
 
     /// <summary>The file couldn't be read at all.</summary>
     ReadFailed,
+
+    /// <summary>The override variable holds characters an API key can't contain.</summary>
+    Invalid,
 }
 
 /// <param name="Key">The key, or null when <paramref name="Source"/> is None.</param>
@@ -59,6 +62,25 @@ internal sealed class SecretStore(string path)
         "api-key.dpapi");
 
     /// <summary>
+    /// Whether <paramref name="key"/> can be an API key: visible ASCII only, since it is sent in
+    /// an HTTP header. Text pasted or piped from elsewhere can carry a byte-order mark or a
+    /// non-breaking space, which would make every request fail before it is sent.
+    /// </summary>
+    public static bool IsValidKey(string? key) =>
+        !string.IsNullOrEmpty(key) && key.All(c => c is > ' ' and < '\u007f');
+
+    /// <summary>
+    /// Reads a key piped to standard input as UTF-8, dropping a byte-order mark and the
+    /// surrounding whitespace. PowerShell starts piped text with a UTF-8 byte-order mark, which
+    /// the console's code page would otherwise turn into three stray characters.
+    /// </summary>
+    public static string ReadKey(Stream input)
+    {
+        using var reader = new StreamReader(input, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd().Trim().TrimStart('\uFEFF');
+    }
+
+    /// <summary>
     /// The key to use. A non-blank <paramref name="overrideValue"/> (normally the
     /// <see cref="OverrideVariable"/> environment variable) wins and the store isn't read.
     /// </summary>
@@ -66,7 +88,10 @@ internal sealed class SecretStore(string path)
     {
         if (!string.IsNullOrWhiteSpace(overrideValue))
         {
-            return new(overrideValue.Trim(), ApiKeySource.Environment, SecretStatus.Loaded);
+            var trimmed = overrideValue.Trim();
+            return IsValidKey(trimmed)
+                ? new(trimmed, ApiKeySource.Environment, SecretStatus.Loaded)
+                : new(null, ApiKeySource.None, SecretStatus.Invalid);
         }
 
         byte[] protectedKey;
@@ -88,9 +113,9 @@ internal sealed class SecretStore(string path)
         {
             var key = Encoding.UTF8.GetString(
                 ProtectedData.Unprotect(protectedKey, Entropy, DataProtectionScope.CurrentUser));
-            return string.IsNullOrWhiteSpace(key)
-                ? new(null, ApiKeySource.None, SecretStatus.Unreadable)
-                : new(key, ApiKeySource.Stored, SecretStatus.Loaded);
+            return IsValidKey(key)
+                ? new(key, ApiKeySource.Stored, SecretStatus.Loaded)
+                : new(null, ApiKeySource.None, SecretStatus.Unreadable);
         }
         catch (CryptographicException e)
         {
@@ -102,15 +127,21 @@ internal sealed class SecretStore(string path)
     /// Encrypts and stores <paramref name="key"/>, replacing any stored key. Returns null once
     /// saved, or the error that prevented it; a failed save leaves the previous file intact.
     /// </summary>
-    /// <exception cref="ArgumentException">The key is blank.</exception>
+    /// <exception cref="ArgumentException">The key is blank or not <see cref="IsValidKey"/>
+    /// after trimming; callers check first.</exception>
     public Exception? Save(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var trimmed = key.Trim();
+        if (!IsValidKey(trimmed))
+        {
+            throw new ArgumentException("Not a valid API key.", nameof(key));
+        }
+
         var temp = path + ".tmp";
         try
         {
             var protectedKey = ProtectedData.Protect(
-                Encoding.UTF8.GetBytes(key.Trim()), Entropy, DataProtectionScope.CurrentUser);
+                Encoding.UTF8.GetBytes(trimmed), Entropy, DataProtectionScope.CurrentUser);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
             // Write then swap, so a crash mid-write never leaves half a key behind.
@@ -138,6 +169,9 @@ internal sealed class SecretStore(string path)
                 break;
             case (SecretStatus.Missing, _):
                 Log.Error(LogEvent.ApiKeyMissing);
+                break;
+            case (SecretStatus.Invalid, _):
+                Log.Error(LogEvent.ApiKeyInvalid);
                 break;
             case (_, _) when result.Error is { } error:
                 Log.Error(LogEvent.ApiKeyUnreadable, error);

@@ -11,6 +11,7 @@ internal enum LogEvent
     SecondInstanceRejected,
     ApiKeyMissing,
     ApiKeyUnreadable,
+    ApiKeyInvalid,
     ApiKeyFromEnvironment,
     ApiKeyLoaded,
     ApiKeyStored,

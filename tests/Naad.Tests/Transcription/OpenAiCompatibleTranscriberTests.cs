@@ -197,6 +197,8 @@ public sealed class OpenAiCompatibleTranscriberTests
     [InlineData("", "m", "https://x.test/v1")]
     [InlineData(" ", "m", "https://x.test/v1")]
     [InlineData(FakeKey, "", "https://x.test/v1")]
+    [InlineData("ï»¿" + FakeKey, "m", "https://x.test/v1")]
+    [InlineData("fake key", "m", "https://x.test/v1")]
     [InlineData(FakeKey, "m", "ftp://x.test/v1")]
     [InlineData(FakeKey, "m", "file:///C:/v1")]
     public void Constructor_InvalidConfiguration_Throws(string key, string model, string baseUrl)

@@ -45,4 +45,9 @@ public sealed class StartupErrorTests
         Assert.Equal(unreadable, StartupError.ApiKeyProblem(SecretStatus.ReadFailed));
         Assert.All([missing, unreadable], text => Assert.Contains("--set-api-key", text, StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ApiKeyProblem_InvalidOverride_NamesTheVariable() =>
+        Assert.StartsWith(
+            SecretStore.OverrideVariable, StartupError.ApiKeyProblem(SecretStatus.Invalid), StringComparison.Ordinal);
 }
