@@ -320,9 +320,55 @@ notifications for these failures; until then they are only logged.
 
 **Status after P13:** M-G1 to M-G3 have **not been run**.
 
+## Clipboard insertion (P14): M-I1 to M-I6
+
+Since P14, Naad pastes through the clipboard without losing what was on it:
+
+1. Wait until no modifier (Shift, Ctrl, Alt, Windows) is physically held,
+   for up to 1 s. If one still is, nothing is pasted and the clipboard
+   isn't touched (`PasteSkippedModifiersHeld`).
+2. Copy every clipboard format that is a plain memory block: text, RTF,
+   HTML, files copied in Explorer, images (as DIB) and app-specific
+   registered formats. GDI-handle and private formats (enhanced
+   metafiles, for example) can't be copied and are counted instead
+   (`ClipboardFormatsSkipped formats=N`); Office and browsers also offer
+   their content in formats that are copied.
+3. Write the transcript, marked so Windows leaves it out of clipboard
+   history (Win+V), cloud clipboard and clipboard monitors.
+4. Send Ctrl+V (`Pasted`).
+5. After 500 ms, which gives the app time to read the clipboard, put the
+   original back, but only if nothing else wrote to the clipboard since
+   Naad did. If you copied something meanwhile, your copy stays
+   (`ClipboardRestoreSkippedChanged`).
+
+Opening the clipboard is retried 10 times, 20 ms apart, if another app
+holds it. If it still can't be opened, nothing is pasted
+(`ClipboardUnavailable`). If Windows rejects the Ctrl+V input, the
+original is put back (`PasteRejected`). `TextInserterTests` covers each
+of these against a fake clipboard. `WindowsClipboardTests` runs the real
+clipboard and is explicit: it never runs in CI. Run it by hand with the
+command in its comment.
+
+Until P15 keeps transcripts itself, a transcript that isn't pasted
+(focus changed, a modifier held, or the input rejected) is left on the
+clipboard so it isn't lost, replacing what you had copied.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-I1 | Notepad keeps your clipboard | Copy the word `alpha`. In Notepad, dictate a sentence. Then press Ctrl+V. | The sentence is pasted, then Ctrl+V pastes `alpha`. The log shows `Pasted` and no `Clipboard*` warning. | **No.** It needs physical keys and a microphone. |
+| M-I2 | Chrome | Repeat M-I1 in a Chrome text box. | Same as M-I1. | **No.** |
+| M-I3 | VS Code | Repeat M-I1 in a VS Code editor. | Same as M-I1. Note if VS Code ever pastes `alpha` instead of the sentence: the 500 ms restore delay would be too short. | **No.** |
+| M-I4 | Your newer copy wins | Dictate a long sentence into Notepad. The moment the text appears, select a word and press Ctrl+C (within half a second). Then press Ctrl+V. | Ctrl+V pastes the word you copied, not the original clipboard. The log shows `ClipboardRestoreSkippedChanged`. Retry if you weren't fast enough (the log then shows no such line). | **No.** It needs fast physical input. |
+| M-I5 | Not in clipboard history | Turn on Settings > System > Clipboard > Clipboard history. Copy `alpha`, then dictate a sentence into Notepad. Press Win+V. | The history shows `alpha` once, and doesn't show the dictated sentence. | **No.** It needs the Win+V UI. |
+| M-I6 | Images and files come back | 1. Copy a screenshot region (Win+Shift+S), dictate into Notepad, then paste into Paint. 2. Copy a file in Explorer, dictate, then paste into a folder. | 1. The screenshot is pasted into Paint. 2. The file is copied into the folder. | **No.** |
+
+**Status after P14:** M-I1 to M-I6 have **not been run**. On 2026-10-28
+`WindowsClipboardTests` passed against the real clipboard: the transcript
+was written with the history markers, and all 9 formats on the clipboard
+at the time came back byte for byte. No contents were printed.
+
 ## Known limits of the slice
 
 These are fixed in later phases:
 
-- The clipboard is overwritten by every dictation. P14 restores it.
 - Pasting into an administrator window fails silently. P15 handles it.
