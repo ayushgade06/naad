@@ -16,7 +16,8 @@ namespace Naad.Dictation;
 internal sealed class DictationController(
     KeyboardHook hook,
     AudioRecorder recorder,
-    ITranscriber transcriber) : IDisposable
+    ITranscriber transcriber,
+    TextInserter inserter) : IDisposable
 {
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
@@ -247,11 +248,7 @@ internal sealed class DictationController(
                 return;
             }
 
-            var modifiersReleased = await TextInserter.WaitForModifiersReleasedAsync();
-            if (!shutdown.IsCancellationRequested)
-            {
-                Insert(text, modifiersReleased, releasedAt);
-            }
+            await InsertAsync(text, releasedAt, shutdown);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
@@ -294,24 +291,54 @@ internal sealed class DictationController(
 
     // Never paste into a window the user didn't dictate into; the transcript stays on
     // the clipboard so nothing is lost.
-    private void Insert(string text, bool modifiersReleased, long releasedAt)
+    // ponytail: until P15 keeps the transcript itself, a transcript that can't be pasted is left
+    // on the clipboard so nothing is lost, at the cost of the user's clipboard.
+    private async Task InsertAsync(string text, long releasedAt, CancellationToken shutdown)
     {
-        TextInserter.CopyToClipboard(text);
         if (User32.GetForegroundWindow() != _targetWindow)
         {
             Log.Warn(LogEvent.PasteSkippedFocusChanged);
+            await inserter.CopyAsync(text);
+            return;
         }
-        else if (!modifiersReleased)
+
+        var outcome = await inserter.PasteAsync(
+            text,
+            pasted: () => Log.Info(
+                LogEvent.Pasted, ("release_to_text_ms", Milliseconds(Stopwatch.GetElapsedTime(releasedAt)))),
+            shutdown);
+        if (inserter.LastSkippedFormats > 0 && outcome is InsertionOutcome.Pasted)
         {
-            Log.Warn(LogEvent.PasteSkippedModifiersHeld);
+            Log.Warn(LogEvent.ClipboardFormatsSkipped, ("formats", inserter.LastSkippedFormats));
         }
-        else if (!TextInserter.SendPaste())
+
+        switch (outcome)
         {
-            Log.Warn(LogEvent.PasteRejected);
-        }
-        else
-        {
-            Log.Info(LogEvent.Pasted, ("release_to_text_ms", Milliseconds(Stopwatch.GetElapsedTime(releasedAt))));
+            case InsertionOutcome.Pasted:
+                break;
+            case InsertionOutcome.PastedClipboardChanged:
+                Log.Info(LogEvent.ClipboardRestoreSkippedChanged);
+                break;
+            case InsertionOutcome.PastedRestoreFailed:
+                Log.Warn(LogEvent.ClipboardRestoreFailed);
+                break;
+            case InsertionOutcome.ModifiersHeld:
+                Log.Warn(LogEvent.PasteSkippedModifiersHeld);
+                await inserter.CopyAsync(text);
+                break;
+            case InsertionOutcome.PasteRejected:
+                Log.Warn(LogEvent.PasteRejected);
+                await inserter.CopyAsync(text);
+                break;
+            case InsertionOutcome.ClipboardUnavailable:
+                Log.Warn(LogEvent.ClipboardUnavailable);
+                break;
+            case InsertionOutcome.Cancelled:
+                Log.Info(LogEvent.DictationCancelledByShutdown);
+                break;
+            default:
+                // The session allows one insertion at a time, so the inserter is never busy here.
+                throw new UnreachableException($"Unexpected insertion outcome {outcome}.");
         }
     }
 

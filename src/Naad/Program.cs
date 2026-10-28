@@ -1,6 +1,7 @@
 using Naad.Audio;
 using Naad.Dictation;
 using Naad.Hotkey;
+using Naad.Insertion;
 using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
@@ -141,15 +142,17 @@ internal static class Program
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
         // Exit ends the message loop; the usings below then dispose in reverse order:
-        // controller (stop triggers, cancel transcription), hook (unhook), recorder
-        // (microphone), HTTP client, tray icon. Main then releases the single-instance mutex.
+        // controller (stop triggers, cancel transcription), clipboard window, hook (unhook),
+        // recorder (microphone), HTTP client, tray icon. Main then releases the single-instance mutex.
         using var tray = new TrayIcon(settings.DictationShortcut, exit: Application.ExitThread);
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
         using var hook = new KeyboardHook(settings.DictationShortcut);
         var transcriber = new OpenAiCompatibleTranscriber(
             http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel);
-        using var controller = new DictationController(hook, recorder, transcriber);
+        using var clipboard = new WindowsClipboard();
+        var inserter = new TextInserter(clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste);
+        using var controller = new DictationController(hook, recorder, transcriber, inserter);
         controller.MicrophoneFailed += tray.ShowMicrophoneError;
         controller.Listen();
 

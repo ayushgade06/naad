@@ -56,4 +56,8 @@ internal enum LogEvent
     PasteSkippedModifiersHeld,
     PasteRejected,
     Pasted,
+    ClipboardUnavailable,
+    ClipboardRestoreSkippedChanged,
+    ClipboardRestoreFailed,
+    ClipboardFormatsSkipped,
 }
