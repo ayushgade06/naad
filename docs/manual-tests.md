@@ -287,6 +287,19 @@ the key.
 **Status after P12:** M-K1 has **not been run** with a real key; the
 harness parts above passed on 2026-10-28.
 
+**Real key, 2026-10-28 (after P16).** Storing a real Groq key through the
+documented PowerShell pipe produced a key that every request rejected
+before sending it ("Request headers must contain only ASCII characters").
+PowerShell starts piped text with a UTF-8 byte-order mark, and Naad read
+stdin with the console's code page, so the key gained three stray
+characters (U+00EF U+00BB U+00BF). Since the fix, `--set-api-key` reads
+stdin as UTF-8 and drops the mark, and Naad accepts only visible-ASCII
+keys from the pipe, the store and `NAAD_GROQ_API_KEY`. A key stored before
+the fix is reported as unreadable, so Naad asks for it to be stored again.
+Re-stored with the fixed build, the real key started Naad (`ApiKeyLoaded`,
+`AppStarted`) and authenticated with Groq. The file held no plaintext,
+and the log never held the key.
+
 ## Transcription provider (P13): M-G1 to M-G3
 
 Since P13, the provider's base URL and model are settings
@@ -319,6 +332,24 @@ notifications for these failures; until then they are only logged.
 | M-G3 | Offline | Turn on airplane mode, dictate a sentence, then turn it off and dictate again. | First `WARN TranscriptionFailed network_error=N` (or `TranscriptionTimedOut`), and nothing is pasted. The second dictation works. | **No.** It changes the network and needs physical keys. |
 
 **Status after P13:** M-G1 to M-G3 have **not been run**.
+
+**Live harness, 2026-10-28 (after P16).** A local, uncommitted explicit test
+used the stored real key and Naad's own code against Groq, with speech
+synthesized by Windows text-to-speech instead of a microphone:
+
+| Case | Result |
+|---|---|
+| Two sentences through SilenceGate, Wav and the transcriber | Correct text, `request_ms` about 340 to 610 |
+| The same speech at about -31 dBFS (peak 930) | Accepted by the gate, correct text |
+| A whole dictation through DictationController (fake microphone, clipboard and focus) | Recording, Transcribing, Inserting, Idle; pasted once; clipboard restored |
+| A wrong key | `Unauthorized`, 401 |
+| An unknown model; a wrong path | `Rejected`, 404 each |
+| An unknown host; a 5 ms timeout; cancelling in flight | `Network` (name resolution); `Timeout`; cancellation thrown |
+| 3 s of silence uploaded on purpose, bypassing the gate | Whisper answered "Thank you.", the invention SilenceGate exists to stop; the gate marks it Silent |
+| A 27 MB upload | Groq dropped the connection rather than answering 413, so Naad reports `Network`. Naad's 5-minute limit keeps uploads near 9.6 MB. |
+
+This covers the provider end to end except the microphone and the real
+keyboard, clipboard and paste; M-G1 itself still needs a person.
 
 ## Clipboard insertion (P14): M-I1 to M-I6
 
@@ -478,8 +509,8 @@ rest still needs a person.
 | Dictation state | M-D1, M-D2 | NOT RUN. |
 | Microphone | M-A1 to M-A3 | NOT RUN. |
 | Recording gates | M-W1 to M-W3 | NOT RUN. |
-| API key | M-K1 | Partly (P12 harness, synthetic key). Real key: NOT RUN. |
-| Provider | M-G1 to M-G3 | NOT RUN. M-G1 needs a stored real key. |
+| API key | M-K1 | Partly: the harness stored and used a real key (see the P12 section). Notepad steps: NOT RUN. |
+| Provider | M-G1 to M-G3 | Partly: the live harness passed (see the P13 section). Dictation by voice: NOT RUN. |
 | Clipboard | M-I1 to M-I6 | NOT RUN. Real-clipboard harness passed (P14). |
 | Focus guard | M-F1 to M-F5 | NOT RUN. Real-desktop focus check passed (P15). |
 | MVP | M-M1 to M-M8 | NOT RUN. |
