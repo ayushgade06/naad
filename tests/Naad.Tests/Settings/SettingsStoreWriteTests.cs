@@ -34,7 +34,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "playSounds": true,
               "dictationShortcut": "RightCtrl",
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
-              "transcriptionModel": "whisper-large-v3-turbo"
+              "transcriptionModel": "whisper-large-v3-turbo",
+              "language": null,
+              "microphone": null
             }
             """.ReplaceLineEndings(), File.ReadAllText(SettingsPath).ReplaceLineEndings());
     }
@@ -145,7 +147,10 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("fake-api-key-0123", written, StringComparison.Ordinal);
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
-            ["dictationShortcut", "fileLogging", "playSounds", "transcriptionBaseUrl", "transcriptionModel", "version"],
+            [
+                "dictationShortcut", "fileLogging", "language", "microphone", "playSounds", "transcriptionBaseUrl",
+                "transcriptionModel", "version",
+            ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }
 }

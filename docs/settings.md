@@ -12,7 +12,9 @@ editor while Naad is closed; changes apply the next time Naad starts.
   "playSounds": true,
   "dictationShortcut": "RightCtrl",
   "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
-  "transcriptionModel": "whisper-large-v3-turbo"
+  "transcriptionModel": "whisper-large-v3-turbo",
+  "language": null,
+  "microphone": null
 }
 ```
 
@@ -24,6 +26,8 @@ editor while Naad is closed; changes apply the next time Naad starts.
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 | `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
 | `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
+| `language` | text or `null` | `null` | The language you speak, as a lowercase [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code such as `"en"` or `"hi"`; a few providers also take three-letter codes. Naad sends it with each recording, which makes transcripts faster and more accurate. `null` (or `""`) lets the provider detect the language. |
+| `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 
 Hand edits are forgiving. Property names may use any casing, and `//`
 comments and trailing commas are accepted. Naad keeps the file as you wrote

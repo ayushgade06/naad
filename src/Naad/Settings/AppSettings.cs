@@ -34,8 +34,18 @@ internal sealed record AppSettings
     /// <summary>The provider's speech-to-text model.</summary>
     public string TranscriptionModel { get; init; } = "whisper-large-v3-turbo";
 
+    /// <summary>The spoken language as an ISO 639-1 code such as "en"; null lets the provider detect it.</summary>
+    public string? Language { get; init; }
+
+    /// <summary>The recording device's name as Windows lists it; null follows the Windows default.</summary>
+    public string? Microphone { get; init; }
+
     // Model ids are short tokens such as "whisper-large-v3-turbo" or "openai/whisper-1".
     private const int MaxModelLength = 100;
+
+    // WinMM device names are at most 31 characters (MAXPNAMELEN, 32 with the terminator); a
+    // longer name could never match a device.
+    private const int MaxMicrophoneLength = 31;
 
     /// <summary>
     /// An absolute https URL, or http only for a server on this PC: the API key is sent with
@@ -54,4 +64,15 @@ internal sealed record AppSettings
     /// <summary>A non-empty token of visible characters, at most 100 long.</summary>
     public static bool IsValidModel(string? model) =>
         model is { Length: > 0 and <= MaxModelLength } && model.All(c => c > ' ' && c < '\u007f');
+
+    /// <summary>
+    /// Two or three lowercase ASCII letters: Whisper takes ISO 639-1 codes ("en", "hi"), and a
+    /// few providers accept three-letter ones ("haw").
+    /// </summary>
+    public static bool IsValidLanguage(string? language) =>
+        language is { Length: 2 or 3 } && language.All(char.IsAsciiLetterLower);
+
+    /// <summary>A name WinMM could report: 1 to 31 characters, no control characters.</summary>
+    public static bool IsValidMicrophone(string? name) =>
+        name is { Length: > 0 and <= MaxMicrophoneLength } && !name.Any(char.IsControl);
 }

@@ -336,8 +336,28 @@ internal sealed class SettingsStore(string path)
             DictationShortcut = shortcut,
             TranscriptionBaseUrl = baseUrl,
             TranscriptionModel = model,
+            Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
+            Microphone = ReadOptional(root, "microphone", AppSettings.IsValidMicrophone, ref repaired),
         };
         return (settings, repaired);
+    }
+
+    // Absent, null and "" all mean unset. Any other value must pass isValid; if it doesn't, the
+    // setting is unset and the settings are marked repaired.
+    private static string? ReadOptional(JsonObject root, string name, Func<string?, bool> isValid, ref bool repaired)
+    {
+        if (!root.TryGetPropertyValue(name, out var node) || node is null)
+        {
+            return null;
+        }
+
+        if (node is JsonValue value && value.TryGetValue(out string? text) && (text.Length == 0 || isValid(text)))
+        {
+            return text.Length == 0 ? null : text;
+        }
+
+        repaired = true;
+        return null;
     }
 
     // Null when the field is absent, or present but not a string (which marks it repaired).
