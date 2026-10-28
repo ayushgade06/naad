@@ -60,6 +60,16 @@ internal sealed class KeyboardHook : IDisposable
     /// </summary>
     public event Action<CancelCause>? TriggerCancelled;
 
+    /// <summary>
+    /// Watches for <paramref name="shortcut"/> from now on, without reinstalling the hook. Call on
+    /// the UI thread while no dictation runs: a shortcut held right now ends without an event.
+    /// </summary>
+    public void SetShortcut(Chord shortcut)
+    {
+        _matcher.SetChords([shortcut]);
+        SyncMouseHook();
+    }
+
     public void Dispose()
     {
         _disposed = true;

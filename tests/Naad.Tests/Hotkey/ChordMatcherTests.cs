@@ -138,6 +138,42 @@ public sealed class ChordMatcherTests
         Assert.False(matcher.IsActive);
     }
 
+    [Fact]
+    public void SetChords_NewChord_MatchesOnlyTheNewOne()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+
+        matcher.SetChords([Parse("LeftCtrl+Space")]);
+
+        Assert.Empty(matcher.OnKey(Key.RControlKey, down: true).Events);
+        matcher.OnKey(Key.RControlKey, down: false);
+        matcher.OnKey(Key.LControlKey, down: true);
+        Assert.Equal(ChordEventKind.Pressed, Assert.Single(matcher.OnKey(Key.Space, down: true).Events).Kind);
+    }
+
+    [Fact]
+    public void SetChords_WhileChordActive_EndsItWithoutEvents()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.RControlKey, down: true);
+
+        matcher.SetChords([Chord.RightCtrl]);
+
+        Assert.False(matcher.IsActive);
+        Assert.Empty(matcher.OnKey(Key.RControlKey, down: false).Events);
+    }
+
+    [Fact]
+    public void SetChords_WhileSwallowedKeyHeld_StillSwallowsItsKeyUp()
+    {
+        var matcher = new ChordMatcher([Parse("F9")]);
+        matcher.OnKey(Key.F9, down: true);
+
+        matcher.SetChords([Chord.RightCtrl]);
+
+        Assert.True(matcher.OnKey(Key.F9, down: false).Swallow);
+    }
+
     private static string Mouse(ChordMatcher matcher)
     {
         matcher.OnMouseButton();
