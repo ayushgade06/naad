@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Naad.Audio;
+using Naad.Dictation;
 using Naad.Hotkey;
 
 namespace Naad.Tray;
@@ -10,6 +11,14 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>Title of the notification shown when a dictation can't record.</summary>
     public const string MicrophoneErrorTitle = "Naad can't use the microphone";
 
+    /// <summary>Title of the notification shown when a transcript is kept instead of inserted.</summary>
+    public const string TranscriptKeptTitle = "Naad kept your text";
+
+    /// <summary>The menu item that puts a kept transcript on the clipboard.</summary>
+    public const string CopyLastTranscriptText = "Copy last transcript";
+
+    private const string CopyFailedMessage = "The clipboard is busy. Try Copy last transcript again.";
+
     // Windows' microphone privacy page; the URI is documented as ms-settings:privacy-microphone.
     private const string MicrophonePrivacySettings = "ms-settings:privacy-microphone";
 
@@ -19,19 +28,24 @@ internal sealed class TrayIcon : IDisposable
     private readonly Icon _image = LoadIcon();
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _icon;
-    private bool _notificationOpensPrivacySettings;
+    private readonly ToolStripMenuItem _copyLastTranscript;
+    private readonly Func<Task<bool>> _copy;
+    private Action? _notificationClicked;
 
-    public TrayIcon(Chord shortcut, Action exit)
+    /// <param name="shortcut">Named in the tooltip.</param>
+    /// <param name="copyLastTranscript">Copies the kept transcript; false if it couldn't.</param>
+    /// <param name="exit">Ends the app.</param>
+    public TrayIcon(Chord shortcut, Func<Task<bool>> copyLastTranscript, Action exit)
     {
+        _copy = copyLastTranscript;
+        _copyLastTranscript = new ToolStripMenuItem(CopyLastTranscriptText, null, (_, _) => _ = CopyAsync())
+        {
+            Enabled = false,
+        };
+        _menu.Items.Add(_copyLastTranscript);
         _menu.Items.Add("Exit", null, (_, _) => exit());
         _icon = new NotifyIcon { Icon = _image, Text = Tooltip(shortcut), ContextMenuStrip = _menu, Visible = true };
-        _icon.BalloonTipClicked += (_, _) =>
-        {
-            if (_notificationOpensPrivacySettings)
-            {
-                Process.Start(new ProcessStartInfo(MicrophonePrivacySettings) { UseShellExecute = true })?.Dispose();
-            }
-        };
+        _icon.BalloonTipClicked += (_, _) => _notificationClicked?.Invoke();
     }
 
     /// <summary>
@@ -51,6 +65,17 @@ internal sealed class TrayIcon : IDisposable
         _ => "The microphone could not be opened. Check it in Settings > System > Sound, then try again.",
     };
 
+    /// <summary>What to tell the user when a transcript is kept. Windows cuts it at 255 characters.</summary>
+    public static string TranscriptKeptMessage(TranscriptKeptReason reason) => reason switch
+    {
+        TranscriptKeptReason.WindowChanged => "The window changed before your text was ready, so Naad didn't " +
+            "paste it. Click here or choose Copy last transcript in the Naad menu, then paste it with Ctrl+V.",
+        TranscriptKeptReason.TargetElevated => "Windows doesn't let Naad type into apps running as " +
+            "administrator. Click here or choose Copy last transcript in the Naad menu, then paste with Ctrl+V.",
+        _ => "Naad couldn't paste your text. Click here or choose Copy last transcript in the Naad menu, " +
+            "then paste it with Ctrl+V.",
+    };
+
     /// <summary>Loads the embedded icon at the size Windows uses in the notification area.</summary>
     public static Icon LoadIcon()
     {
@@ -65,9 +90,42 @@ internal sealed class TrayIcon : IDisposable
     /// </summary>
     public void ShowMicrophoneError(MicrophoneError error)
     {
-        _notificationOpensPrivacySettings = error == MicrophoneError.Blocked;
+        _notificationClicked = error == MicrophoneError.Blocked ? OpenPrivacySettings : null;
         _icon.ShowBalloonTip(
             NotificationMilliseconds, MicrophoneErrorTitle, MicrophoneErrorMessage(error), ToolTipIcon.Warning);
+    }
+
+    /// <summary>
+    /// Tells the user their text was kept, and enables Copy last transcript. Clicking the
+    /// notification copies it too.
+    /// </summary>
+    public void ShowTranscriptKept(TranscriptKeptReason reason)
+    {
+        _copyLastTranscript.Enabled = true;
+        _notificationClicked = () => _ = CopyAsync();
+        _icon.ShowBalloonTip(
+            NotificationMilliseconds, TranscriptKeptTitle, TranscriptKeptMessage(reason), ToolTipIcon.Info);
+    }
+
+    private static void OpenPrivacySettings() =>
+        Process.Start(new ProcessStartInfo(MicrophonePrivacySettings) { UseShellExecute = true })?.Dispose();
+
+    // Fire-and-forget from a click: anything not caught here would vanish silently.
+    private async Task CopyAsync()
+    {
+        try
+        {
+            if (!await _copy())
+            {
+                _notificationClicked = null;
+                _icon.ShowBalloonTip(
+                    NotificationMilliseconds, TranscriptKeptTitle, CopyFailedMessage, ToolTipIcon.Warning);
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Error(LogEvent.TranscriptCopyFailed, e);
+        }
     }
 
     public void Dispose()

@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using Naad.Audio;
+using Naad.Dictation;
 using Naad.Hotkey;
 using Naad.Tray;
 
@@ -67,5 +68,18 @@ public sealed class TrayIconTests
         var messages = Enum.GetValues<MicrophoneError>().Select(TrayIcon.MicrophoneErrorMessage).ToList();
 
         Assert.Equal(messages.Count, messages.Distinct().Count());
+    }
+
+    [Fact]
+    public void TranscriptKeptMessage_EveryReason_IsDistinctFitsAndPointsToCopy()
+    {
+        var messages = Enum.GetValues<TranscriptKeptReason>().Select(TrayIcon.TranscriptKeptMessage).ToList();
+
+        Assert.Equal(messages.Count, messages.Distinct().Count());
+        Assert.All(messages, message =>
+        {
+            Assert.InRange(message.Length, 1, 255);
+            Assert.Contains(TrayIcon.CopyLastTranscriptText, message, StringComparison.Ordinal);
+        });
     }
 }

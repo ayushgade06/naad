@@ -144,16 +144,25 @@ internal static class Program
         // Exit ends the message loop; the usings below then dispose in reverse order:
         // controller (stop triggers, cancel transcription), clipboard window, hook (unhook),
         // recorder (microphone), HTTP client, tray icon. Main then releases the single-instance mutex.
-        using var tray = new TrayIcon(settings.DictationShortcut, exit: Application.ExitThread);
+        // The tray is created first so it is disposed last; its copy action reaches the
+        // controller, which exists by the time the menu can be clicked.
+        DictationController? dictation = null;
+        using var tray = new TrayIcon(
+            settings.DictationShortcut,
+            copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
+            exit: Application.ExitThread);
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
         using var hook = new KeyboardHook(settings.DictationShortcut);
         var transcriber = new OpenAiCompatibleTranscriber(
             http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel);
         using var clipboard = new WindowsClipboard();
-        var inserter = new TextInserter(clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste);
+        var inserter = new TextInserter(
+            clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
         using var controller = new DictationController(hook, recorder, transcriber, inserter);
+        dictation = controller;
         controller.MicrophoneFailed += tray.ShowMicrophoneError;
+        controller.TranscriptKept += tray.ShowTranscriptKept;
         controller.Listen();
 
         Log.Info(LogEvent.AppStarted);

@@ -18,8 +18,19 @@ internal enum InsertionOutcome
     /// <summary>A modifier was still held, so nothing was pasted and the clipboard is untouched.</summary>
     ModifiersHeld,
 
-    /// <summary>The clipboard couldn't be read or written, so nothing was pasted.</summary>
+    /// <summary>
+    /// The clipboard couldn't be used and typing the text was rejected too: nothing was inserted.
+    /// </summary>
     ClipboardUnavailable,
+
+    /// <summary>The clipboard couldn't be used, so the text was typed as Unicode keys instead.</summary>
+    Typed,
+
+    /// <summary>Typing was cut short: part of the text may have reached the window.</summary>
+    TypedPartially,
+
+    /// <summary>The target lost focus or can't take input any more; nothing was sent.</summary>
+    TargetChanged,
 
     /// <summary>Windows rejected the Ctrl+V input; the user's clipboard was put back.</summary>
     PasteRejected,
@@ -35,12 +46,14 @@ internal enum InsertionOutcome
 /// Puts text into the focused app through the clipboard and a synthetic Ctrl+V, then puts the
 /// user's clipboard back. The clipboard is shared with every app, so the original is restored
 /// only if nothing else wrote to it after Naad did; newer content the user copied always wins.
-/// Call on the UI thread.
+/// When the clipboard can't be used at all, the text is typed as Unicode keys instead. Only
+/// one of the two ever runs for a text, so it is never inserted twice. Call on the UI thread.
 /// </summary>
 internal sealed class TextInserter(
     IClipboard clipboard,
     Func<bool> anyModifierDown,
     Func<bool> sendPaste,
+    Func<string, TypingResult> typeText,
     TimeSpan? restoreDelay = null)
 {
     // The target reads the clipboard when it handles the Ctrl+V, not when it is sent, and
@@ -64,10 +77,13 @@ internal sealed class TextInserter(
     /// <summary>
     /// Pastes <paramref name="text"/>. The clipboard is touched only once no modifier is held,
     /// and every outcome except a successful paste leaves the user's clipboard as it was.
-    /// Cancellation after the paste still restores the clipboard, at once. <paramref name="pasted"/>
-    /// is called as soon as Ctrl+V is sent, before the restore delay.
+    /// Cancellation after the paste still restores the clipboard, at once.
+    /// <paramref name="canInsert"/> is asked right before any input is sent, so focus moving
+    /// during the wait is caught. <paramref name="pasted"/> is called as soon as the text is
+    /// sent, before the restore delay.
     /// </summary>
-    public async Task<InsertionOutcome> PasteAsync(string text, Action? pasted, CancellationToken cancellationToken)
+    public async Task<InsertionOutcome> PasteAsync(
+        string text, Func<bool> canInsert, Action? pasted, CancellationToken cancellationToken)
     {
         if (_busy)
         {
@@ -77,7 +93,7 @@ internal sealed class TextInserter(
         _busy = true;
         try
         {
-            return await PasteCoreAsync(text, pasted, cancellationToken);
+            return await PasteCoreAsync(text, canInsert, pasted, cancellationToken);
         }
         finally
         {
@@ -112,7 +128,7 @@ internal sealed class TextInserter(
     }
 
     private async Task<InsertionOutcome> PasteCoreAsync(
-        string text, Action? pasted, CancellationToken cancellationToken)
+        string text, Func<bool> canInsert, Action? pasted, CancellationToken cancellationToken)
     {
         // Waiting first means an abandoned paste never touches the clipboard. A held modifier
         // would turn Ctrl+V into Ctrl+Shift+V or Ctrl+Alt+V.
@@ -125,7 +141,7 @@ internal sealed class TextInserter(
 
         if (await clipboard.CaptureAsync() is not { } original)
         {
-            return InsertionOutcome.ClipboardUnavailable;
+            return TypeInstead(text, canInsert, pasted, cancellationToken);
         }
 
         LastSkippedFormats = original.Skipped;
@@ -133,13 +149,19 @@ internal sealed class TextInserter(
         {
             // The failed write may have emptied the clipboard already.
             await clipboard.RestoreAsync(original);
-            return InsertionOutcome.ClipboardUnavailable;
+            return TypeInstead(text, canInsert, pasted, cancellationToken);
         }
 
         if (cancellationToken.IsCancellationRequested)
         {
             await RestoreIfUnchangedAsync(original, written);
             return InsertionOutcome.Cancelled;
+        }
+
+        if (!canInsert())
+        {
+            await RestoreIfUnchangedAsync(original, written);
+            return InsertionOutcome.TargetChanged;
         }
 
         if (!sendPaste())
@@ -165,6 +187,32 @@ internal sealed class TextInserter(
             true => InsertionOutcome.Pasted,
             false => InsertionOutcome.PastedRestoreFailed,
         };
+    }
+
+    // Only reached when nothing was pasted, so typing can't duplicate text.
+    private InsertionOutcome TypeInstead(
+        string text, Func<bool> canInsert, Action? pasted, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return InsertionOutcome.Cancelled;
+        }
+
+        if (!canInsert())
+        {
+            return InsertionOutcome.TargetChanged;
+        }
+
+        switch (typeText(text))
+        {
+            case TypingResult.Typed:
+                pasted?.Invoke();
+                return InsertionOutcome.Typed;
+            case TypingResult.Partial:
+                return InsertionOutcome.TypedPartially;
+            default:
+                return InsertionOutcome.ClipboardUnavailable;
+        }
     }
 
     // Null when the clipboard changed since Naad wrote it: that content is newer and stays.

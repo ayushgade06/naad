@@ -349,9 +349,9 @@ of these against a fake clipboard. `WindowsClipboardTests` runs the real
 clipboard and is explicit: it never runs in CI. Run it by hand with the
 command in its comment.
 
-Until P15 keeps transcripts itself, a transcript that isn't pasted
-(focus changed, a modifier held, or the input rejected) is left on the
-clipboard so it isn't lost, replacing what you had copied.
+Until P15, a transcript that wasn't pasted (focus changed, a modifier
+held, or the input rejected) was left on the clipboard. Since P15 it is
+kept by Naad instead and the clipboard isn't touched; see M-F1 to M-F5.
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
@@ -367,8 +367,59 @@ clipboard so it isn't lost, replacing what you had copied.
 was written with the history markers, and all 9 formats on the clipboard
 at the time came back byte for byte. No contents were printed.
 
-## Known limits of the slice
+## Focus guard (P15): M-F1 to M-F5
 
-These are fixed in later phases:
+Since P15, Naad remembers the window you were in when you pressed the
+shortcut: its handle, thread and process, so a reused handle doesn't
+count. Right before any text is sent, after waiting for the modifier keys,
+it checks that this window still has focus, still exists, and doesn't run
+at a higher integrity level (as administrator), where Windows silently
+drops Naad's input. If any check fails, Naad doesn't paste, doesn't switch
+windows and doesn't touch the clipboard. It keeps the transcript in
+memory and shows a notification titled **Naad kept your text**.
 
-- Pasting into an administrator window fails silently. P15 handles it.
+| Cause | Log event |
+|---|---|
+| Another window, or none, has focus | `WARN PasteSkippedFocusChanged` |
+| The window was closed | `WARN PasteSkippedTargetClosed` |
+| No window had focus when you pressed the shortcut | `WARN PasteSkippedNoTarget` |
+| The window runs as administrator | `WARN PasteSkippedTargetElevated` |
+| A modifier was held, the input was rejected, or the clipboard and typing both failed | `PasteSkippedModifiersHeld`, `PasteRejected`, `ClipboardUnavailable` or `TypingIncomplete` |
+
+To use the text, click the notification or choose **Copy last
+transcript** in the tray menu, then press Ctrl+V where you want it.
+Naad never pastes it itself: opening the menu takes focus away from your
+window. The copy stays out of clipboard history (`TranscriptCopied
+chars=N`). Only the latest kept transcript is held, in memory only, and
+it is gone when Naad exits. The menu item is greyed out until a
+transcript has been kept.
+
+If the clipboard can't be opened or written at all, Naad types the text
+as Unicode keys instead (`InsertedByTyping chars=N`). That works for any
+script and for emoji, and line breaks become Enter. Typing only happens
+when nothing was pasted, so text is never inserted twice. If Windows
+accepts only part of the keys, the transcript is kept as well
+(`TypingIncomplete`).
+
+`FocusGuardTests` covers the decision for every case, including a reused
+handle and an unknown integrity level, which never blocks. It also reads
+this process's real integrity level. `TextInserterTests` checks that
+focus is checked after the modifier wait and before Ctrl+V or typing, and
+when typing is used. `UnicodeTypingTests` covers the keys built for
+accents, Devanagari, CJK, emoji and line breaks.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-F1 | Switching windows never pastes | In Notepad, dictate a long sentence. Release Right Ctrl and at once Alt+Tab to Chrome, before the text appears. Then click the notification, go back to Notepad and press Ctrl+V. | Nothing is pasted into Chrome or Notepad automatically. `WARN PasteSkippedFocusChanged` appears, then the notification. After the click, `TranscriptCopied` appears and Ctrl+V pastes the sentence. | **No.** It needs physical keys and a microphone. |
+| M-F2 | Closed window | Open a second Notepad window, dictate a long sentence into it, and close it (Ctrl+W or the X, choose Don't save) before the text appears. | `WARN PasteSkippedTargetClosed` and the notification. Nothing is pasted anywhere. Copy last transcript works. | **No.** |
+| M-F3 | Administrator terminal | Open Windows Terminal or PowerShell with **Run as administrator**. Click in it and dictate a sentence. | `WARN PasteSkippedTargetElevated` and a notification saying Naad can't type into administrator apps. Nothing is typed. Copy last transcript, then Ctrl+V in the terminal, pastes it. | **No.** It needs an elevated window and physical keys. |
+| M-F4 | Unicode text | Dictate a sentence with an accented name, such as "Café Müller", into Notepad, and paste a kept transcript with emoji. Then, to check typing, hold the clipboard open with another app if you can, or skip this part and note it. | The accents survive in the paste. If typing ran, `InsertedByTyping` appears and the text matches. | **No.** Forcing the clipboard to be unavailable needs a helper app. |
+| M-F5 | Copy last transcript menu | Before any kept transcript, open the tray menu. Then do M-F1 and open it again. Choose the item twice. | First the item is greyed out. Afterwards it is enabled, and choosing it twice copies the same text both times. Nothing is ever pasted by the menu itself. | **No.** It needs the tray menu. |
+
+**Status after P15:** M-F1 to M-F5 have **not been run**. On 2026-10-28 the
+explicit `FocusGuardTests.Check_CurrentForegroundWindow_Inserts` passed
+against the real desktop: the focused window was identified and accepted,
+and a mismatched process id was reported as closed.
+
+M-S4's last expectation (Ctrl+V pastes the transcript) applied before
+P15; since P15, M-F1 replaces it.

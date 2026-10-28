@@ -34,8 +34,11 @@ internal static partial class User32
     public const ushort VkRWin = 0x5C;
     public const ushort VkV = 0x56;
 
+    public const ushort VkReturn = 0x0D;
+
     public const uint InputKeyboard = 1;
     public const uint KeyEventFKeyUp = 0x0002;
+    public const uint KeyEventFUnicode = 0x0004;
 
     public delegate nint HookProc(int code, nint wParam, nint lParam);
 
@@ -51,6 +54,13 @@ internal static partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindow(nint hWnd);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
 
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int vKey);

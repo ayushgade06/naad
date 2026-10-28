@@ -425,6 +425,14 @@ production-quality code, and keeps the slice working at every commit.
     "paste last transcript".
   - Detect an elevated target window.
   - Fall back to Unicode `SendInput` typing.
+  - **As built:** the kept transcript is offered as **Copy last
+    transcript** (tray menu, or click the notification), not "paste".
+    Opening the tray menu moves focus to the taskbar, so a paste from it
+    would either go to the wrong window or have to steal focus back,
+    which this phase forbids. Copying puts it on the clipboard, out of
+    clipboard history, for the user to paste with Ctrl+V. Unicode typing
+    is used only when the clipboard can't be opened or written, so
+    nothing was pasted and the text can't be inserted twice.
 - **Out:** none.
 - **Needs:** P14.
 - **Done when:**
