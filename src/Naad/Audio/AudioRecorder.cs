@@ -8,7 +8,7 @@ namespace Naad.Audio;
 /// Records the default microphone into memory. Audio never touches the disk. Start, StopAsync
 /// and Dispose may be called from different threads; one recording runs at a time.
 /// </summary>
-internal sealed class AudioRecorder : IDisposable
+internal sealed class AudioRecorder : IAudioRecorder, IDisposable
 {
     // 16 kHz mono 16-bit PCM is Whisper's native input, so providers never resample.
     public static readonly WaveFormat Format = new(16000, 16, 1);

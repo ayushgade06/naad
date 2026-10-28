@@ -1,4 +1,3 @@
-using System.Text;
 using Naad.Insertion;
 
 namespace Naad.Tests.Insertion;
@@ -7,7 +6,7 @@ namespace Naad.Tests.Insertion;
 public sealed class TextInserterTests
 {
     private const string Transcript = "synthetic transcript";
-    private static readonly ClipboardSnapshot Original = TextSnapshot("synthetic previous clipboard");
+    private static readonly ClipboardSnapshot Original = FakeClipboard.TextSnapshot("synthetic previous clipboard");
 
     [Fact]
     public async Task Paste_Success_PastesOnceAndRestoresOriginal()
@@ -17,7 +16,7 @@ public sealed class TextInserterTests
         var callbacks = 0;
         var inserter = Inserter(clipboard, sendPaste: () =>
         {
-            Assert.Equal(Transcript, ReadText(clipboard.Contents));
+            Assert.Equal(Transcript, FakeClipboard.ReadText(clipboard.Contents));
             pastes++;
             return true;
         });
@@ -99,7 +98,7 @@ public sealed class TextInserterTests
     public async Task Paste_UserCopiesBeforeRestore_KeepsTheNewContent()
     {
         var clipboard = new FakeClipboard(Original);
-        var copiedByUser = TextSnapshot("synthetic newer copy");
+        var copiedByUser = FakeClipboard.TextSnapshot("synthetic newer copy");
         var inserter = Inserter(clipboard, sendPaste: () =>
         {
             // The user copies something while the target is still pasting.
@@ -118,7 +117,7 @@ public sealed class TextInserterTests
     public async Task Paste_InputRejectedAfterUserCopied_KeepsTheNewContent()
     {
         var clipboard = new FakeClipboard(Original);
-        var copiedByUser = TextSnapshot("synthetic newer copy");
+        var copiedByUser = FakeClipboard.TextSnapshot("synthetic newer copy");
 
         var outcome = await Inserter(clipboard, sendPaste: () =>
         {
@@ -363,7 +362,7 @@ public sealed class TextInserterTests
 
         Assert.True(await Inserter(clipboard).CopyAsync(Transcript));
 
-        Assert.Equal(Transcript, ReadText(clipboard.Contents));
+        Assert.Equal(Transcript, FakeClipboard.ReadText(clipboard.Contents));
     }
 
     [Fact]
@@ -383,66 +382,4 @@ public sealed class TextInserterTests
     // Typing must never run when the clipboard works; reaching it is a test failure.
     private static TypingResult NoTyping(string text) =>
         throw new InvalidOperationException("Typing ran although the clipboard worked.");
-
-    private static string ReadText(ClipboardSnapshot snapshot) =>
-        Encoding.Unicode.GetString(Assert.Single(snapshot.Formats).Data).TrimEnd('\0');
-
-    private static ClipboardSnapshot TextSnapshot(string text) =>
-        new([new ClipboardFormatData(13, Encoding.Unicode.GetBytes(text + "\0"))], 0);
-
-    private sealed class FakeClipboard(ClipboardSnapshot contents) : IClipboard
-    {
-        public ClipboardSnapshot Contents { get; private set; } = contents;
-
-        public List<string> Calls { get; } = [];
-
-        public bool CaptureFails { get; init; }
-
-        public bool SetFails { get; init; }
-
-        public bool RestoreFails { get; init; }
-
-        public Action? Captured { get; set; }
-
-        public uint SequenceNumber { get; private set; } = 100;
-
-        public Task<ClipboardSnapshot?> CaptureAsync()
-        {
-            Calls.Add("capture");
-            Captured?.Invoke();
-            return Task.FromResult(CaptureFails ? null : Contents);
-        }
-
-        public Task<uint?> SetTextAsync(string text)
-        {
-            Calls.Add("set");
-            if (SetFails)
-            {
-                // Like a real failure after EmptyClipboard: the user's data is already gone.
-                Write(ClipboardSnapshot.Empty);
-                return Task.FromResult<uint?>(null);
-            }
-
-            Write(TextSnapshot(text));
-            return Task.FromResult<uint?>(SequenceNumber);
-        }
-
-        public Task<bool> RestoreAsync(ClipboardSnapshot snapshot)
-        {
-            Calls.Add("restore");
-            if (RestoreFails)
-            {
-                return Task.FromResult(false);
-            }
-
-            Write(snapshot);
-            return Task.FromResult(true);
-        }
-
-        public void Write(ClipboardSnapshot snapshot)
-        {
-            Contents = snapshot;
-            SequenceNumber++;
-        }
-    }
 }

@@ -7,18 +7,44 @@ shortcut (Right Ctrl by default), talk naturally, and let go. Naad
 transcribes what you said and types it into the app you are using, such as
 Notepad, Chrome or VS Code.
 
-> **Status: early development.** Nothing is usable yet. The plan is in
-> [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: 0.1.0 MVP, not yet released.** Dictation works end to end in
+> development builds, and its manual checks are still being run. There is
+> no installer yet: build it from source. See [CHANGELOG.md](CHANGELOG.md)
+> and the plan in [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Planned first release
+## Try it from source
+
+You need Windows 11 (or Windows 10 22H2), the .NET 10 SDK, a microphone and
+a Groq API key from https://console.groq.com/keys.
+
+1. Build it: `dotnet build -c Release` from the repository root.
+2. Store your key once, encrypted for your Windows account, as
+   [docs/settings.md](docs/settings.md#the-api-key) describes. Never paste
+   it on a command line.
+3. Start `src\Naad\bin\Release\net10.0-windows\Naad.exe`. A teal icon
+   appears in the notification area.
+4. Click into any text field, hold **Right Ctrl**, speak, and let go.
+
+While you hold the key the icon shows a red dot; while Naad transcribes, an
+amber one. If your text can't be pasted safely (you switched windows, or
+the app runs as administrator), Naad keeps it and tells you. Choose
+**Copy last transcript** in the tray menu, then paste it with Ctrl+V.
+Settings such as the shortcut, the provider and the sounds are in
+`%APPDATA%\Naad\settings.json`; see [docs/settings.md](docs/settings.md).
+
+## What 0.1.0 does
 
 - Hold-to-talk global shortcut, configurable, Right Ctrl by default.
 - Speech-to-text through any OpenAI-compatible transcription API, with
   [Groq](https://console.groq.com/keys) (free tier) as the default.
   Local, offline transcription comes in a later release.
-- Pastes into the focused app and puts your clipboard back afterwards.
+- Pastes into the focused app and puts your clipboard back afterwards,
+  unless you copied something new in the meantime. Transcripts stay out of
+  Windows clipboard history.
 - Never pastes into a different window: if focus changes while Naad is
   transcribing, the text is kept safe and Naad tells you.
+- Doesn't upload silence or very short clips, and drops a few phrases
+  Whisper is known to invent for noise.
 
 AI rewriting, grammar correction and translation are not part of the first
 release.

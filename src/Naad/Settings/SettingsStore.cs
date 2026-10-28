@@ -277,6 +277,19 @@ internal sealed class SettingsStore(string path)
             }
         }
 
+        var playSounds = AppSettings.Defaults.PlaySounds;
+        if (root.TryGetPropertyValue("playSounds", out node))
+        {
+            if (node?.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
+            {
+                playSounds = node.GetValue<bool>();
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
         var shortcut = AppSettings.Defaults.DictationShortcut;
         if (root.TryGetPropertyValue("dictationShortcut", out node))
         {
@@ -319,6 +332,7 @@ internal sealed class SettingsStore(string path)
         var settings = AppSettings.Defaults with
         {
             FileLogging = fileLogging,
+            PlaySounds = playSounds,
             DictationShortcut = shortcut,
             TranscriptionBaseUrl = baseUrl,
             TranscriptionModel = model,

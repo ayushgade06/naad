@@ -423,3 +423,63 @@ and a mismatched process id was reported as closed.
 
 M-S4's last expectation (Ctrl+V pastes the transcript) applied before
 P15; since P15, M-F1 replaces it.
+
+## MVP integration (P16): M-M1 to M-M8
+
+Since P16, `DictationController` receives everything it uses (microphone,
+transcriber, inserter, focus checks, clock) through its constructor and
+holds no Win32 code. `DictationControllerTests` runs whole dictations on a
+single-threaded stand-in for the UI thread, with fakes only for the
+microphone, the transcription service, the clipboard, input and focus. It
+covers a normal dictation (one paste, clipboard restored, back to Idle,
+and a second dictation), silent and too-short recordings (never
+uploaded), short holds and cancels, microphone and recorder failures,
+each transcription failure, an empty transcript, every focus decision,
+focus lost during the modifier wait, a rejected paste, a busy clipboard
+(typed instead), a press while transcribing (ignored, one paste), and
+exit during transcription (cancelled, nothing inserted).
+
+The tray icon shows the state: a red dot while listening, an amber dot
+while transcribing, and the plain icon when idle; the tooltip says the
+same. A soft tone plays when listening starts and when it stops
+(`playSounds`, on by default). Notifications explain microphone errors,
+transcription failures, silent recordings and kept transcripts.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-M1 | Tray state | Hold Right Ctrl for 3 s while watching the icon, speak, release. | Red dot while holding, amber dot after release, plain icon once the text is pasted. The tooltip changes with it. | **No.** It needs physical keys and a microphone. |
+| M-M2 | Sounds | Dictate once with `"playSounds": true`, then once with `false` (restart Naad in between). | With `true`, a short high tone on press and a lower one on release; neither appears in the pasted text. With `false`, no tones. | **No.** |
+| M-M3 | Transcription error notification | Repeat M-G2 (wrong key). | A notification titled **Naad couldn't transcribe** says the key was rejected and how to store one. It shows no key and no server text. | **No.** |
+| M-M4 | Nothing heard | Mute the microphone, hold Right Ctrl for 2 s, release. | A notification says Naad didn't hear anything. Nothing is uploaded or pasted (M-W1's log). | **No.** |
+| M-M5 | Exit while recording | Hold Right Ctrl, and while holding, right-click the tray icon and choose Exit with the mouse. Then release. | Naad exits. Nothing is pasted, the microphone indicator disappears, and the log ends with `AppStopped`. (The click may cancel the dictation first; that is fine.) | **No.** |
+| M-M6 | Exit while transcribing | Dictate a long sentence, release, and at once choose tray > Exit. | Naad exits. Nothing is pasted after Exit, and your clipboard is what it was. | **No.** |
+| M-M7 | Ten dictations in a row | Dictate ten short sentences into Notepad, one after another, as fast as feels natural. | Each sentence appears exactly once, in order. No `DictationFailed`. The icon ends plain. | **No.** |
+| M-M8 | End to end in three apps | Run M-I1 to M-I3 (Notepad, Chrome, VS Code) with M-H1 in one sitting. | Text appears once in each app, and the clipboard comes back each time. | **No.** |
+
+**Status after P16:** M-M1 to M-M8 have **not been run**. A smoke run of
+the Release exe passed (start, `AppStarted`, no errors); the state icons
+and tones are created at startup, so that run also covered their creation.
+
+## v0.1.0 checklist
+
+`v0.1.0` is tagged only after every check below has passed on Windows 11
+in Notepad, Chrome and VS Code, and the maintainer approves. Status as of
+2026-10-28. "Partly" means an automated harness covered part of it and the
+rest still needs a person.
+
+| Area | Checks | Status |
+|---|---|---|
+| Vertical slice | M-S1 to M-S5 | M-S1 passed (P3). M-S2 to M-S5: reported passing in P3 without numbers; rerun with the current build. |
+| Tray and lifecycle | M-T1 to M-T6 | M-T1 to M-T4 passed (P4 harness). M-T5, M-T6: NOT RUN. |
+| Log | M-L1 | Partly (P5 harness). Dictation part: NOT RUN. |
+| Settings | M-C1 to M-C4 | Passed (P6 harness). |
+| Shortcut | M-SC1, M-SC2 | M-SC1 partly (P7 harness). M-SC2: NOT RUN. |
+| Keyboard hook | M-H1 to M-H5 | M-H4 partly (P8 harness). Others: NOT RUN. |
+| Dictation state | M-D1, M-D2 | NOT RUN. |
+| Microphone | M-A1 to M-A3 | NOT RUN. |
+| Recording gates | M-W1 to M-W3 | NOT RUN. |
+| API key | M-K1 | Partly (P12 harness, synthetic key). Real key: NOT RUN. |
+| Provider | M-G1 to M-G3 | NOT RUN. M-G1 needs a stored real key. |
+| Clipboard | M-I1 to M-I6 | NOT RUN. Real-clipboard harness passed (P14). |
+| Focus guard | M-F1 to M-F5 | NOT RUN. Real-desktop focus check passed (P15). |
+| MVP | M-M1 to M-M8 | NOT RUN. |

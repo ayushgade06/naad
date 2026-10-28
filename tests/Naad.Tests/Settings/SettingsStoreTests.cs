@@ -158,6 +158,29 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.False(result.Settings.FileLogging);
     }
 
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public void Load_PlaySounds_ReturnsIt(string value, bool expected)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "playSounds": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(expected, result.Settings.PlaySounds);
+    }
+
+    [Theory]
+    [InlineData("\"no\"")]
+    [InlineData("0")]
+    [InlineData("null")]
+    public void Load_InvalidPlaySounds_FallsBackToOnAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "playSounds": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.True(result.Settings.PlaySounds);
+    }
+
     [Fact]
     public void Load_NoTranscriptionSettings_UsesGroqDefaults()
     {
