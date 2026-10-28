@@ -189,26 +189,43 @@ internal sealed class SettingsStore(string path)
         }
     }
 
-    // The original is copied to a backup before anything is written, so a rewrite never loses
-    // what the user had. If the backup or the write fails, the settings still apply in memory.
-    private SettingsLoadResult Persist(SettingsLoadResult result, string? backupReason)
+    /// <summary>
+    /// Replaces settings.json with <paramref name="settings"/>, as the user chose them. Returns
+    /// null once saved, or the error that prevented it; a failed save leaves the previous file
+    /// intact. Unlike a repair, it makes no backup: the user asked for exactly this change.
+    /// </summary>
+    public Exception? Save(AppSettings settings)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            if (backupReason is not null)
+            Write(settings);
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return e;
+        }
+    }
+
+    // The original is copied to a backup before anything is written, so a rewrite never loses
+    // what the user had. If the backup or the write fails, the settings still apply in memory.
+    private SettingsLoadResult Persist(SettingsLoadResult result, string? backupReason)
+    {
+        if (backupReason is not null)
+        {
+            try
             {
                 var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture);
                 File.Copy(path, $"{path}.{backupReason}-{stamp}.bak");
             }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return result with { Error = e };
+            }
+        }
 
-            Write(result.Settings);
-            return result with { Saved = true };
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            return result with { Error = e };
-        }
+        return Save(result.Settings) is { } error ? result with { Error = error } : result with { Saved = true };
     }
 
     // Serialize first, write a temporary file, then swap it in, so a crash or a full disk

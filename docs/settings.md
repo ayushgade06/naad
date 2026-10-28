@@ -134,8 +134,8 @@ A setting is added only when the app actually reads it.
   the current version.
 - A file without `version` comes from before versioning and is treated as
   version 0.
-- Before Naad rewrites a file for any reason, it copies the original next to
-  it (see below), so nothing is lost.
+- Before Naad migrates or repairs a file, it copies the original next to it
+  (see below), so nothing is lost.
 - A file with a **newer** version than this build supports was written by a
   newer Naad. This build never modifies or replaces it. It runs with defaults
   in memory and logs `SettingsFutureVersion`.
@@ -161,6 +161,10 @@ Naad always starts in all of these cases.
 `settings.json.corrupt-20261025T101530123Z.bak`. The reason is `v<N>`,
 `invalid` or `corrupt`. Naad never deletes backups; remove them yourself
 once you no longer need them.
+
+**Saving.** When you change settings in Naad itself, Naad replaces the file
+with your new settings and makes no backup: the file then holds exactly what
+you chose. Comments and unknown settings in a hand-edited file are not kept.
 
 **Safe writes.** Naad writes the new content to `settings.json.tmp`, flushes
 it to disk, and only then replaces `settings.json`. If that fails part-way,

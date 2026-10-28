@@ -134,6 +134,48 @@ public sealed class SettingsStoreWriteTests : IDisposable
     }
 
     [Fact]
+    public void Save_ChangedSettings_RoundTripWithoutBackup()
+    {
+        new SettingsStore(SettingsPath).Load();
+        var changed = AppSettings.Defaults with
+        {
+            PlaySounds = false,
+            Language = "hi",
+            Microphone = "Microphone (Test Device)",
+        };
+
+        var error = new SettingsStore(SettingsPath).Save(changed);
+
+        Assert.Null(error);
+        var reloaded = new SettingsStore(SettingsPath).Load();
+        Assert.Equal(SettingsStatus.Loaded, reloaded.Status);
+        Assert.Equal(changed, reloaded.Settings);
+        Assert.Empty(Directory.GetFiles(_directory, "*.bak"));
+    }
+
+    [Fact]
+    public void Save_NoFolder_CreatesIt()
+    {
+        var nested = Path.Combine(_directory, "Naad", "settings.json");
+
+        Assert.Null(new SettingsStore(nested).Save(AppSettings.Defaults));
+        Assert.True(File.Exists(nested));
+    }
+
+    [Fact]
+    public void Save_WriteFails_ReturnsErrorAndKeepsPreviousFile()
+    {
+        const string Original = """{ "version": 1, "fileLogging": false }""";
+        File.WriteAllText(SettingsPath, Original);
+        BlockWrites();
+
+        var error = new SettingsStore(SettingsPath).Save(AppSettings.Defaults);
+
+        Assert.NotNull(error);
+        Assert.Equal(Original, File.ReadAllText(SettingsPath));
+    }
+
+    [Fact]
     public void Load_RewrittenFile_HoldsOnlyKnownSettingsNeverOtherContent()
     {
         // Someone pasted a key into the file; a rewrite must not carry it forward.
