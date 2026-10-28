@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Naad.Settings;
 
 namespace Naad.Transcription;
 
@@ -28,6 +29,13 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         HttpClient http, string apiKey, Uri baseUrl, string model, TimeSpan? timeout = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+
+        // A key that can't go in a header fails every request before it is sent, which would
+        // otherwise surface as a vague network error. SecretStore rejects such keys earlier.
+        if (!SecretStore.IsValidKey(apiKey))
+        {
+            throw new ArgumentException("The API key holds characters an HTTP header can't carry.", nameof(apiKey));
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         if (!baseUrl.IsAbsoluteUri || (baseUrl.Scheme != Uri.UriSchemeHttps && baseUrl.Scheme != Uri.UriSchemeHttp))
         {
