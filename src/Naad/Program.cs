@@ -147,7 +147,9 @@ internal static class Program
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
         using var hook = new KeyboardHook(settings.DictationShortcut);
-        using var controller = new DictationController(hook, recorder, new OpenAiCompatibleTranscriber(http, apiKey));
+        var transcriber = new OpenAiCompatibleTranscriber(
+            http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel);
+        using var controller = new DictationController(hook, recorder, transcriber);
         controller.MicrophoneFailed += tray.ShowMicrophoneError;
         controller.Listen();
 

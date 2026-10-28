@@ -290,6 +290,56 @@ internal sealed class SettingsStore(string path)
             }
         }
 
-        return (AppSettings.Defaults with { FileLogging = fileLogging, DictationShortcut = shortcut }, repaired);
+        var baseUrl = AppSettings.Defaults.TranscriptionBaseUrl;
+        if (TryReadString(root, "transcriptionBaseUrl", ref repaired) is { } urlText)
+        {
+            if (AppSettings.TryParseBaseUrl(urlText, out var url))
+            {
+                baseUrl = url;
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
+        var model = AppSettings.Defaults.TranscriptionModel;
+        if (TryReadString(root, "transcriptionModel", ref repaired) is { } modelText)
+        {
+            if (AppSettings.IsValidModel(modelText))
+            {
+                model = modelText;
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
+        var settings = AppSettings.Defaults with
+        {
+            FileLogging = fileLogging,
+            DictationShortcut = shortcut,
+            TranscriptionBaseUrl = baseUrl,
+            TranscriptionModel = model,
+        };
+        return (settings, repaired);
+    }
+
+    // Null when the field is absent, or present but not a string (which marks it repaired).
+    private static string? TryReadString(JsonObject root, string name, ref bool repaired)
+    {
+        if (!root.TryGetPropertyValue(name, out var node))
+        {
+            return null;
+        }
+
+        if (node is JsonValue value && value.TryGetValue(out string? text))
+        {
+            return text;
+        }
+
+        repaired = true;
+        return null;
     }
 }

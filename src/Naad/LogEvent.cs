@@ -47,6 +47,8 @@ internal enum LogEvent
     TranscriptionEmpty,
     TranscriptionFailed,
     TranscriptionTimedOut,
+    TranscriptionMalformedResponse,
+    TranscriptionFiltered,
     DictationCancelledByShutdown,
     DictationFailed,
 

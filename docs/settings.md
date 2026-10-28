@@ -9,7 +9,9 @@ editor while Naad is closed; changes apply the next time Naad starts.
 {
   "version": 1,
   "fileLogging": true,
-  "dictationShortcut": "RightCtrl"
+  "dictationShortcut": "RightCtrl",
+  "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
+  "transcriptionModel": "whisper-large-v3-turbo"
 }
 ```
 
@@ -18,6 +20,8 @@ editor while Naad is closed; changes apply the next time Naad starts.
 | `version` | integer | `1` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
+| `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
+| `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
 
 Hand edits are forgiving. Property names may use any casing, and `//`
 comments and trailing commas are accepted. Naad keeps the file as you wrote
@@ -110,8 +114,7 @@ files. To remove it, delete `api-key.dpapi` while Naad is closed.
 | Value | Why it is not in settings.json |
 |---|---|
 | API key | It is a secret, and settings.json is plain text. It is stored encrypted on its own; see [The API key](#the-api-key). It must never be added to this file. |
-| Transcription endpoint and model | Fixed to Groq `whisper-large-v3-turbo` until P13 makes the provider configurable. |
-| Timeouts, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
+| Timeouts (20 s per transcription request), the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
 
 A setting is added only when the app actually reads it.
 

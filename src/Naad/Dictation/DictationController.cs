@@ -16,7 +16,7 @@ namespace Naad.Dictation;
 internal sealed class DictationController(
     KeyboardHook hook,
     AudioRecorder recorder,
-    OpenAiCompatibleTranscriber transcriber) : IDisposable
+    ITranscriber transcriber) : IDisposable
 {
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
@@ -223,7 +223,14 @@ internal sealed class DictationController(
                 ("rms", check.Rms));
 
             var requestStart = Stopwatch.GetTimestamp();
-            var text = await transcriber.TranscribeAsync(wav, shutdown);
+            var result = await transcriber.TranscribeAsync(wav, shutdown);
+            if (result.Failure is { } failure)
+            {
+                LogFailure(failure);
+                return;
+            }
+
+            var text = result.Text;
             Log.Info(
                 LogEvent.TranscriptionCompleted,
                 ("request_ms", Milliseconds(Stopwatch.GetElapsedTime(requestStart))),
@@ -246,24 +253,9 @@ internal sealed class DictationController(
                 Insert(text, modifiersReleased, releasedAt);
             }
         }
-        catch (HttpRequestException e)
-        {
-            if (e.StatusCode is { } status)
-            {
-                Log.Warn(LogEvent.TranscriptionFailed, ("http_status", (long)status));
-            }
-            else
-            {
-                Log.Warn(LogEvent.TranscriptionFailed, ("network_error", (long)e.HttpRequestError));
-            }
-        }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
             Log.Info(LogEvent.DictationCancelledByShutdown);
-        }
-        catch (OperationCanceledException)
-        {
-            Log.Warn(LogEvent.TranscriptionTimedOut);
         }
         catch (Exception e)
         {
@@ -278,6 +270,25 @@ internal sealed class DictationController(
                 ? DictationEvent.Inserted
                 : DictationEvent.TranscriptionFailed;
             Apply(end, job);
+        }
+    }
+
+    private static void LogFailure(TranscriptionFailure failure)
+    {
+        switch (failure.Error)
+        {
+            case TranscriptionError.Timeout:
+                Log.Warn(LogEvent.TranscriptionTimedOut);
+                break;
+            case TranscriptionError.MalformedResponse:
+                Log.Warn(LogEvent.TranscriptionMalformedResponse);
+                break;
+            case TranscriptionError.Network:
+                Log.Warn(LogEvent.TranscriptionFailed, ("network_error", failure.Code));
+                break;
+            default:
+                Log.Warn(LogEvent.TranscriptionFailed, ("http_status", failure.Code));
+                break;
         }
     }
 
