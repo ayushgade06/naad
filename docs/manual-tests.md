@@ -287,6 +287,39 @@ the key.
 **Status after P12:** M-K1 has **not been run** with a real key; the
 harness parts above passed on 2026-10-28.
 
+## Transcription provider (P13): M-G1 to M-G3
+
+Since P13, the provider's base URL and model are settings
+(`transcriptionBaseUrl`, `transcriptionModel`; see `docs/settings.md`),
+and every expected failure comes back as a typed result instead of an
+exception. What the log shows:
+
+| Cause | Log event |
+|---|---|
+| 401 or 403 (wrong or revoked key), 413, 429, 5xx, other 4xx | `WARN TranscriptionFailed http_status=N` |
+| No response: DNS, connection, TLS | `WARN TranscriptionFailed network_error=N` (an `HttpRequestError` value) |
+| No answer within 20 s | `WARN TranscriptionTimedOut` |
+| A success status with an unexpected body | `WARN TranscriptionMalformedResponse` |
+| The whole transcript is a known Whisper filler, such as "Thanks for watching!" | `INFO TranscriptionFiltered chars=N`, then `TranscriptionEmpty` |
+| Exit during the request | `INFO DictationCancelledByShutdown` |
+
+Nothing is pasted in any of these cases. Response bodies are never read
+for an error status. `OpenAiCompatibleTranscriberTests` covers each
+status, the network, the timeout, cancellation, empty and malformed
+bodies, and the multipart request, all with a fake HTTP handler.
+`FillerFilterTests` checks that real speech such as "Thank you." or
+"Hello world. Thanks for watching!" is never filtered: the filter drops a
+transcript only when all of it is one known filler phrase. P16 adds
+notifications for these failures; until then they are only logged.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-G1 | One live Groq call | With a real key stored (M-K1) and default settings, dictate "testing one two three" into Notepad. | The text is pasted. The log shows `TranscriptionCompleted request_ms=N chars=N`. Record `request_ms`. | **No.** It needs a real key, physical keys and a microphone. |
+| M-G2 | Wrong key | In a new terminal, set `NAAD_GROQ_API_KEY` to `wrong-key-for-testing`, start Naad and dictate a sentence. | The log shows `WARN TranscriptionFailed http_status=401`. Nothing is pasted, Naad keeps running, and the next dictation is accepted. | **No.** It needs physical keys and a microphone. |
+| M-G3 | Offline | Turn on airplane mode, dictate a sentence, then turn it off and dictate again. | First `WARN TranscriptionFailed network_error=N` (or `TranscriptionTimedOut`), and nothing is pasted. The second dictation works. | **No.** It changes the network and needs physical keys. |
+
+**Status after P13:** M-G1 to M-G3 have **not been run**.
+
 ## Known limits of the slice
 
 These are fixed in later phases:
