@@ -35,6 +35,7 @@ internal enum LogEvent
     MicrophoneBlocked,
     MicrophoneInUse,
     MicrophoneUnavailable,
+    MicrophoneFallbackToDefault,
     RecordingStopTimedOut,
     DictationCancelledByKey,
     DictationCancelledByMouse,

@@ -162,6 +162,7 @@ internal static class Program
             exit: Application.ExitThread);
         using var http = new HttpClient();
         using var recorder = new AudioRecorder();
+        recorder.UseMicrophone(settings.Microphone);
         using var hook = new KeyboardHook(settings.DictationShortcut);
         var transcriber = new OpenAiCompatibleTranscriber(
             http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel, settings.Language);
