@@ -65,8 +65,22 @@ public sealed class SingleInstanceGuardTests
         using var crashed = new Mutex(initiallyOwned: false, name);
         OnOtherThread(() => crashed.WaitOne(TimeSpan.Zero));
 
-        using var guard = SingleInstanceGuard.TryAcquire(name);
+        // Join returns when the managed thread is done, slightly before Windows finishes ending
+        // the OS thread and marks the mutex abandoned; until then it still looks owned. A real
+        // crash ends the whole process first, so only the test has to wait.
+        SingleInstanceGuard? guard = null;
+        for (var attempt = 0; attempt < 100 && guard is null; attempt++)
+        {
+            guard = SingleInstanceGuard.TryAcquire(name);
+            if (guard is null)
+            {
+                Thread.Sleep(10);
+            }
+        }
 
-        Assert.NotNull(guard);
+        using (guard)
+        {
+            Assert.NotNull(guard);
+        }
     }
 }

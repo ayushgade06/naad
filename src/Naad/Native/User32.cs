@@ -58,6 +58,34 @@ internal static partial class User32
     [LibraryImport("user32.dll", SetLastError = true)]
     public static partial uint SendInput(uint cInputs, [In] Input[] pInputs, int cbSize);
 
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool OpenClipboard(nint hWndNewOwner);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool CloseClipboard();
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EmptyClipboard();
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial uint EnumClipboardFormats(uint format);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint GetClipboardData(uint uFormat);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint SetClipboardData(uint uFormat, nint hMem);
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetClipboardSequenceNumber();
+
+    [LibraryImport("user32.dll", EntryPoint = "RegisterClipboardFormatW", SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf16)]
+    public static partial uint RegisterClipboardFormat(string lpszFormat);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct KbdLlHookStruct
     {

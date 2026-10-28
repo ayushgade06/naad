@@ -6,7 +6,9 @@ using Naad.Transcription;
 
 namespace Naad.Tests.Transcription;
 
-// Every test runs against a fake HttpMessageHandler; nothing here touches the network.
+// Every test runs against a fake HttpMessageHandler; nothing here touches the network. The
+// filler tests write to the shared Log, so they must not run alongside tests that read its file.
+[Collection("Log")]
 public sealed class OpenAiCompatibleTranscriberTests
 {
     // Deliberately not shaped like a real provider key, so secret scanners stay quiet.
