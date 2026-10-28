@@ -201,8 +201,26 @@ internal sealed class DictationController(
                 return;
             }
 
+            // Silence and slivers of audio are never uploaded: Whisper invents text for them.
+            // Returning ends the job in the finally block below.
+            var check = SilenceGate.Check(pcm, AudioRecorder.Format);
+            if (check.Verdict != RecordingVerdict.Accepted)
+            {
+                Log.Info(
+                    check.Verdict == RecordingVerdict.TooShort ? LogEvent.RecordingTooShort : LogEvent.RecordingSilent,
+                    ("audio_ms", Milliseconds(check.Duration)),
+                    ("peak", check.Peak),
+                    ("rms", check.Rms));
+                return;
+            }
+
             var wav = Wav.Encode(pcm, AudioRecorder.Format);
-            Log.Info(LogEvent.RecordingStopped, ("held_ms", Milliseconds(step.Held)), ("wav_bytes", wav.Length));
+            Log.Info(
+                LogEvent.RecordingStopped,
+                ("held_ms", Milliseconds(step.Held)),
+                ("wav_bytes", wav.Length),
+                ("peak", check.Peak),
+                ("rms", check.Rms));
 
             var requestStart = Stopwatch.GetTimestamp();
             var text = await transcriber.TranscribeAsync(wav, shutdown);

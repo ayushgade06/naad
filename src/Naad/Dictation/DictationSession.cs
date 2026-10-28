@@ -34,7 +34,9 @@ internal enum DictationEvent
     /// <summary>The transcript arrived empty.</summary>
     TranscribedEmpty,
 
-    /// <summary>Transcription failed, timed out or was cancelled.</summary>
+    /// <summary>
+    /// Transcription failed, timed out or was cancelled, or the recording was rejected before upload.
+    /// </summary>
     TranscriptionFailed,
 
     /// <summary>Insertion finished, whether or not the text could be pasted.</summary>
