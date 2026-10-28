@@ -60,6 +60,10 @@ internal static partial class User32
     public static partial bool IsWindow(nint hWnd);
 
     [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyIcon(nint hIcon);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
     public static partial uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
 
     [LibraryImport("user32.dll")]

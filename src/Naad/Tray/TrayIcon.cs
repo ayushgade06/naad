@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using System.Drawing.Drawing2D;
 using Naad.Audio;
 using Naad.Dictation;
 using Naad.Hotkey;
+using Naad.Native;
+using Naad.Transcription;
 
 namespace Naad.Tray;
 
@@ -17,7 +20,18 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>The menu item that puts a kept transcript on the clipboard.</summary>
     public const string CopyLastTranscriptText = "Copy last transcript";
 
+    /// <summary>Title of the notification shown when a recording couldn't be transcribed.</summary>
+    public const string TranscriptionErrorTitle = "Naad couldn't transcribe";
+
     private const string CopyFailedMessage = "The clipboard is busy. Try Copy last transcript again.";
+
+    private const string NothingHeardMessage = "Naad didn't hear anything. Check that your microphone is " +
+        "on, not muted and close enough, then try again.";
+
+    // State dots drawn over the icon: red while listening, amber while transcribing. Both read
+    // against light and dark taskbars thanks to a white ring.
+    private static readonly Color RecordingColor = Color.FromArgb(0xD3, 0x2F, 0x2F);
+    private static readonly Color TranscribingColor = Color.FromArgb(0xF9, 0xA8, 0x25);
 
     // Windows' microphone privacy page; the URI is documented as ms-settings:privacy-microphone.
     private const string MicrophonePrivacySettings = "ms-settings:privacy-microphone";
@@ -26,6 +40,9 @@ internal sealed class TrayIcon : IDisposable
     private const int NotificationMilliseconds = 10_000;
 
     private readonly Icon _image = LoadIcon();
+    private readonly Icon _recordingImage;
+    private readonly Icon _transcribingImage;
+    private readonly string _idleTooltip;
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _copyLastTranscript;
@@ -38,13 +55,16 @@ internal sealed class TrayIcon : IDisposable
     public TrayIcon(Chord shortcut, Func<Task<bool>> copyLastTranscript, Action exit)
     {
         _copy = copyLastTranscript;
+        _idleTooltip = Tooltip(shortcut);
+        _recordingImage = WithDot(_image, RecordingColor);
+        _transcribingImage = WithDot(_image, TranscribingColor);
         _copyLastTranscript = new ToolStripMenuItem(CopyLastTranscriptText, null, (_, _) => _ = CopyAsync())
         {
             Enabled = false,
         };
         _menu.Items.Add(_copyLastTranscript);
         _menu.Items.Add("Exit", null, (_, _) => exit());
-        _icon = new NotifyIcon { Icon = _image, Text = Tooltip(shortcut), ContextMenuStrip = _menu, Visible = true };
+        _icon = new NotifyIcon { Icon = _image, Text = _idleTooltip, ContextMenuStrip = _menu, Visible = true };
         _icon.BalloonTipClicked += (_, _) => _notificationClicked?.Invoke();
     }
 
@@ -63,6 +83,33 @@ internal sealed class TrayIcon : IDisposable
             "Settings > System > Sound.",
         MicrophoneError.InUse => "Another app is using the microphone. Close it, then try again.",
         _ => "The microphone could not be opened. Check it in Settings > System > Sound, then try again.",
+    };
+
+    /// <summary>The tooltip while dictating; the idle tooltip otherwise.</summary>
+    public static string StateTooltip(DictationState state, string idleTooltip) => state switch
+    {
+        DictationState.Recording => "Naad: listening. Release to transcribe.",
+        DictationState.Transcribing or DictationState.Inserting => "Naad: transcribing",
+        _ => idleTooltip,
+    };
+
+    /// <summary>What to tell the user when transcription fails. Never includes a response body.</summary>
+    public static string TranscriptionErrorMessage(TranscriptionError error) => error switch
+    {
+        TranscriptionError.Unauthorized => "The API key was rejected. Store a valid key with " +
+            "Naad.exe --set-api-key (see docs/settings.md), then restart Naad.",
+        TranscriptionError.RateLimited => "The transcription service's rate limit was reached. Wait a " +
+            "moment, then try again.",
+        TranscriptionError.TooLarge => "The recording was too large for the transcription service. Try a " +
+            "shorter dictation.",
+        TranscriptionError.ServerError => "The transcription service had a problem. Try again in a moment.",
+        TranscriptionError.Rejected => "The transcription service refused the request. Check " +
+            "transcriptionBaseUrl and transcriptionModel in settings.json.",
+        TranscriptionError.Network => "Naad couldn't reach the transcription service. Check your internet " +
+            "connection.",
+        TranscriptionError.Timeout => "The transcription service didn't answer in time. Try again.",
+        _ => "The transcription service sent an unexpected answer. Check transcriptionBaseUrl in " +
+            "settings.json.",
     };
 
     /// <summary>What to tell the user when a transcript is kept. Windows cuts it at 255 characters.</summary>
@@ -95,6 +142,26 @@ internal sealed class TrayIcon : IDisposable
             NotificationMilliseconds, MicrophoneErrorTitle, MicrophoneErrorMessage(error), ToolTipIcon.Warning);
     }
 
+    /// <summary>Shows the dictation state in the icon and its tooltip.</summary>
+    public void ShowState(DictationState state)
+    {
+        _icon.Icon = state switch
+        {
+            DictationState.Recording => _recordingImage,
+            DictationState.Transcribing or DictationState.Inserting => _transcribingImage,
+            _ => _image,
+        };
+        _icon.Text = StateTooltip(state, _idleTooltip);
+    }
+
+    /// <summary>Tells the user why a recording couldn't be transcribed.</summary>
+    public void ShowTranscriptionError(TranscriptionError error) =>
+        Notify(TranscriptionErrorTitle, TranscriptionErrorMessage(error), ToolTipIcon.Warning, clicked: null);
+
+    /// <summary>Tells the user a recording was silent, so nothing was sent.</summary>
+    public void ShowNothingHeard() =>
+        Notify(TranscriptionErrorTitle, NothingHeardMessage, ToolTipIcon.Info, clicked: null);
+
     /// <summary>
     /// Tells the user their text was kept, and enables Copy last transcript. Clicking the
     /// notification copies it too.
@@ -105,6 +172,41 @@ internal sealed class TrayIcon : IDisposable
         _notificationClicked = () => _ = CopyAsync();
         _icon.ShowBalloonTip(
             NotificationMilliseconds, TranscriptKeptTitle, TranscriptKeptMessage(reason), ToolTipIcon.Info);
+    }
+
+    // Draws a coloured dot with a white ring in the bottom-right quarter of the icon.
+    private static Icon WithDot(Icon icon, Color color)
+    {
+        using var bitmap = icon.ToBitmap();
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var size = bitmap.Width / 2;
+            var dot = new Rectangle(bitmap.Width - size, bitmap.Height - size, size - 1, size - 1);
+            using var ring = new SolidBrush(Color.White);
+            using var fill = new SolidBrush(color);
+            graphics.FillEllipse(ring, dot);
+            dot.Inflate(-Math.Max(1, size / 6), -Math.Max(1, size / 6));
+            graphics.FillEllipse(fill, dot);
+        }
+
+        // GetHicon makes an icon handle Naad owns; the clone copies it, so the handle is freed.
+        var handle = bitmap.GetHicon();
+        try
+        {
+            using var borrowed = Icon.FromHandle(handle);
+            return (Icon)borrowed.Clone();
+        }
+        finally
+        {
+            User32.DestroyIcon(handle);
+        }
+    }
+
+    private void Notify(string title, string message, ToolTipIcon kind, Action? clicked)
+    {
+        _notificationClicked = clicked;
+        _icon.ShowBalloonTip(NotificationMilliseconds, title, message, kind);
     }
 
     private static void OpenPrivacySettings() =>
@@ -136,5 +238,7 @@ internal sealed class TrayIcon : IDisposable
         _icon.Dispose();
         _menu.Dispose();
         _image.Dispose();
+        _recordingImage.Dispose();
+        _transcribingImage.Dispose();
     }
 }

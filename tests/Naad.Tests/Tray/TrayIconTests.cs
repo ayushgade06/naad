@@ -2,6 +2,7 @@ using System.Windows.Forms;
 using Naad.Audio;
 using Naad.Dictation;
 using Naad.Hotkey;
+using Naad.Transcription;
 using Naad.Tray;
 
 namespace Naad.Tests.Tray;
@@ -82,4 +83,28 @@ public sealed class TrayIconTests
             Assert.Contains(TrayIcon.CopyLastTranscriptText, message, StringComparison.Ordinal);
         });
     }
+
+    [Fact]
+    public void TranscriptionErrorMessage_EveryError_IsDistinctAndFits()
+    {
+        var messages = Enum.GetValues<TranscriptionError>().Select(TrayIcon.TranscriptionErrorMessage).ToList();
+
+        Assert.Equal(messages.Count, messages.Distinct().Count());
+        Assert.All(messages, message => Assert.InRange(message.Length, 1, 255));
+    }
+
+    [Fact]
+    public void TranscriptionErrorMessage_Unauthorized_SaysHowToStoreAKey() =>
+        Assert.Contains(
+            "--set-api-key",
+            TrayIcon.TranscriptionErrorMessage(TranscriptionError.Unauthorized),
+            StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("Recording", "Naad: listening. Release to transcribe.")]
+    [InlineData("Transcribing", "Naad: transcribing")]
+    [InlineData("Inserting", "Naad: transcribing")]
+    [InlineData("Idle", "idle tooltip")]
+    public void StateTooltip_EachState_DescribesIt(string state, string expected) =>
+        Assert.Equal(expected, TrayIcon.StateTooltip(Enum.Parse<DictationState>(state), "idle tooltip"));
 }
