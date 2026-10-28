@@ -452,6 +452,13 @@ production-quality code, and keeps the slice working at every commit.
   - Start and stop sounds (original or public-domain assets).
   - Notifications for errors.
   - `CHANGELOG.md` and the `v0.1.0` tag.
+  - **As built:** the controller takes its collaborators (recorder,
+    transcriber, inserter, focus checks, clock) through its constructor,
+    so `DictationControllerTests` runs whole dictations without a
+    keyboard, microphone, network or real clipboard. Tones are
+    synthesized at startup and state dots are drawn over the icon, so
+    there are no new asset files. The `v0.1.0` tag is created only once
+    the manual checklist has passed and the maintainer says to.
 - **Out:** installer (P22).
 - **Needs:** P4–P15.
 - **Done when:** the full manual checklist passes in Notepad, Chrome and

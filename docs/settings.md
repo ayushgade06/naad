@@ -9,6 +9,7 @@ editor while Naad is closed; changes apply the next time Naad starts.
 {
   "version": 1,
   "fileLogging": true,
+  "playSounds": true,
   "dictationShortcut": "RightCtrl",
   "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
   "transcriptionModel": "whisper-large-v3-turbo"
@@ -19,6 +20,7 @@ editor while Naad is closed; changes apply the next time Naad starts.
 |---|---|---|---|
 | `version` | integer | `1` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
+| `playSounds` | `true` or `false` | `true` | Play a short, soft tone when Naad starts listening and when it stops. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 | `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
 | `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
