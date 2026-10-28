@@ -18,6 +18,8 @@ internal static class StartupError
     public static string ApiKeyProblem(SecretStatus status) => status switch
     {
         SecretStatus.Missing => $"No API key is stored. {HowToStoreKey}",
+        SecretStatus.Invalid => $"{SecretStore.OverrideVariable} contains characters an API key can't have, " +
+            "such as spaces or invisible characters. Set it again, or remove it to use the stored key.",
         _ => "The stored API key can't be read. It may be damaged, or another Windows user saved it. " +
             HowToStoreKey,
     };

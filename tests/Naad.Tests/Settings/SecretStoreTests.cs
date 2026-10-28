@@ -77,6 +77,79 @@ public sealed class SecretStoreTests : IDisposable
     public void Save_BlankKey_Throws(string key) =>
         Assert.Throws<ArgumentException>(() => new SecretStore(KeyPath).Save(key));
 
+    // PowerShell 5.1 pipes text to a native program as UTF-8 with a byte-order mark. Read with
+    // the console's code page, the mark became three stray characters at the start of the key,
+    // and every request then failed because the header wasn't ASCII.
+    [Fact]
+    public void ReadKey_PowerShellPipeWithUtf8Mark_ReturnsJustTheKey()
+    {
+        byte[] piped = [0xEF, 0xBB, 0xBF, .. Encoding.ASCII.GetBytes(FakeKey + "\r\n")];
+
+        Assert.Equal(FakeKey, SecretStore.ReadKey(new MemoryStream(piped)));
+    }
+
+    [Fact]
+    public void ReadKey_Utf16WithMark_ReturnsJustTheKey()
+    {
+        byte[] piped = [0xFF, 0xFE, .. Encoding.Unicode.GetBytes(FakeKey + "\n")];
+
+        Assert.Equal(FakeKey, SecretStore.ReadKey(new MemoryStream(piped)));
+    }
+
+    [Fact]
+    public void ReadKey_PlainAscii_ReturnsTheKeyTrimmed() =>
+        Assert.Equal(FakeKey, SecretStore.ReadKey(new MemoryStream(Encoding.ASCII.GetBytes($"  {FakeKey}\n"))));
+
+    [Theory]
+    [InlineData("fake-api-key-0123456789", true)]
+    [InlineData("A1_b2-C3.d4", true)]
+    [InlineData("", false)]
+    [InlineData("has space", false)]
+    [InlineData("ï»¿fake-key", false)]
+    [InlineData("﻿fake-key", false)]
+    [InlineData("fake key", false)]
+    [InlineData("fake\tkey", false)]
+    [InlineData("café", false)]
+    public void IsValidKey_OnlyVisibleAscii_IsValid(string key, bool expected) =>
+        Assert.Equal(expected, SecretStore.IsValidKey(key));
+
+    [Fact]
+    public void Save_KeyWithStrayCharacters_ThrowsAndWritesNothing()
+    {
+        Assert.Throws<ArgumentException>(() => new SecretStore(KeyPath).Save("ï»¿" + FakeKey));
+
+        Assert.False(File.Exists(KeyPath));
+    }
+
+    [Fact]
+    public void Resolve_OverrideWithStrayCharacters_IsInvalidAndNotUsed()
+    {
+        var store = new SecretStore(KeyPath);
+        store.Save(FakeKey);
+
+        var result = store.Resolve("﻿" + OtherFakeKey);
+
+        Assert.Equal(new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Invalid), result);
+    }
+
+    [Fact]
+    public void Resolve_StoredKeyWithStrayCharacters_IsUnreadable()
+    {
+        // A key saved by --set-api-key before stdin was read as UTF-8.
+        Directory.CreateDirectory(_directory);
+        File.WriteAllBytes(
+            KeyPath,
+            ProtectedData.Protect(
+                Encoding.UTF8.GetBytes("ï»¿" + FakeKey),
+                "Naad API key v1"u8.ToArray(),
+                DataProtectionScope.CurrentUser));
+
+        var result = new SecretStore(KeyPath).Resolve(null);
+
+        Assert.Equal(SecretStatus.Unreadable, result.Status);
+        Assert.Null(result.Key);
+    }
+
     [Fact]
     public void Resolve_NoFile_IsMissing()
     {
@@ -221,6 +294,7 @@ public sealed class SecretStoreTests : IDisposable
             (new(FakeKey, ApiKeySource.Environment, SecretStatus.Loaded), "INFO ApiKeyFromEnvironment"),
             (new(FakeKey, ApiKeySource.Stored, SecretStatus.Loaded), "INFO ApiKeyLoaded"),
             (new(null, ApiKeySource.None, SecretStatus.Missing), "ERROR ApiKeyMissing"),
+            (new(null, ApiKeySource.None, SecretStatus.Invalid), "ERROR ApiKeyInvalid"),
             (new(null, ApiKeySource.None, SecretStatus.Unreadable, new CryptographicException(FakeKey)),
                 "ERROR ApiKeyUnreadable exception=System.Security.Cryptography.CryptographicException"),
             (new(null, ApiKeySource.None, SecretStatus.ReadFailed, new IOException(FakeKey)),
