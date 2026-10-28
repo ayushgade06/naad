@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Naad.Audio;
 using Naad.Hotkey;
 using Naad.Insertion;
-using Naad.Native;
 using Naad.Transcription;
 
 namespace Naad.Dictation;
@@ -26,10 +25,20 @@ internal sealed class DictationController(
     // Completes once the last recording has fully stopped. A new recording waits for it, so a
     // quick press after a discarded one never opens the microphone while it is still closing.
     private Task _stopped = Task.CompletedTask;
-    private nint _targetWindow;
+    private WindowTarget _target = WindowTarget.None;
+
+    // The last transcript that couldn't be inserted, for the user to copy. Memory only, one at a
+    // time: a newer kept transcript replaces it, and it is gone when Naad exits.
+    private string? _keptTranscript;
 
     /// <summary>The microphone could not be opened for a dictation. Raised on the UI thread.</summary>
     public event Action<MicrophoneError>? MicrophoneFailed;
+
+    /// <summary>
+    /// A transcript wasn't inserted and is kept for <see cref="CopyKeptTranscriptAsync"/>. Raised
+    /// on the UI thread.
+    /// </summary>
+    public event Action<TranscriptKeptReason>? TranscriptKept;
 
     public void Listen()
     {
@@ -65,7 +74,7 @@ internal sealed class DictationController(
         switch (step.Action)
         {
             case DictationAction.StartRecording:
-                _targetWindow = User32.GetForegroundWindow();
+                _target = FocusGuard.Foreground();
                 _starting = StartRecordingAsync(step.Job, _stopped, Stopwatch.GetTimestamp());
                 _ = StopAtMaxDurationAsync(step.Job, _shutdown.Token);
                 break;
@@ -194,6 +203,9 @@ internal sealed class DictationController(
         // Read before the first await: Dispose may dispose the source later.
         var shutdown = _shutdown.Token;
         var job = step.Job;
+
+        // The window the user was in when they pressed the shortcut, never whatever has focus now.
+        var target = _target;
         try
         {
             // Null: the microphone never opened, and the session already ended the job.
@@ -248,7 +260,7 @@ internal sealed class DictationController(
                 return;
             }
 
-            await InsertAsync(text, releasedAt, shutdown);
+            await InsertAsync(text, target, releasedAt, shutdown);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
@@ -291,19 +303,43 @@ internal sealed class DictationController(
 
     // Never paste into a window the user didn't dictate into; the transcript stays on
     // the clipboard so nothing is lost.
-    // ponytail: until P15 keeps the transcript itself, a transcript that can't be pasted is left
-    // on the clipboard so nothing is lost, at the cost of the user's clipboard.
-    private async Task InsertAsync(string text, long releasedAt, CancellationToken shutdown)
+    /// <summary>
+    /// Puts the kept transcript on the clipboard, out of clipboard history, for the user to
+    /// paste themselves. Naad never pastes it: the user may be anywhere by then, and the tray
+    /// menu itself takes focus. Returns false if there is none or the clipboard is busy.
+    /// Call on the UI thread.
+    /// </summary>
+    public async Task<bool> CopyKeptTranscriptAsync()
     {
-        if (User32.GetForegroundWindow() != _targetWindow)
+        if (_keptTranscript is not { } text)
         {
-            Log.Warn(LogEvent.PasteSkippedFocusChanged);
-            await inserter.CopyAsync(text);
+            return false;
+        }
+
+        if (!await inserter.CopyAsync(text))
+        {
+            Log.Warn(LogEvent.TranscriptCopyFailed);
+            return false;
+        }
+
+        Log.Info(LogEvent.TranscriptCopied, ("chars", text.Length));
+        return true;
+    }
+
+    // Text goes only into the window the user dictated into, and only if it can take input.
+    // Otherwise the transcript is kept and the user is told; focus is never switched.
+    private async Task InsertAsync(string text, WindowTarget target, long releasedAt, CancellationToken shutdown)
+    {
+        var decision = FocusGuard.Check(target);
+        if (decision != InsertionDecision.Insert)
+        {
+            KeepForDecision(text, decision);
             return;
         }
 
         var outcome = await inserter.PasteAsync(
             text,
+            canInsert: () => FocusGuard.Check(target) == InsertionDecision.Insert,
             pasted: () => Log.Info(
                 LogEvent.Pasted, ("release_to_text_ms", Milliseconds(Stopwatch.GetElapsedTime(releasedAt)))),
             shutdown);
@@ -322,16 +358,25 @@ internal sealed class DictationController(
             case InsertionOutcome.PastedRestoreFailed:
                 Log.Warn(LogEvent.ClipboardRestoreFailed);
                 break;
+            case InsertionOutcome.Typed:
+                Log.Info(LogEvent.InsertedByTyping, ("chars", text.Length));
+                break;
+            case InsertionOutcome.TargetChanged:
+                // Focus moved while waiting for the modifiers; say why as precisely as possible.
+                var now = FocusGuard.Check(target);
+                KeepForDecision(text, now == InsertionDecision.Insert ? InsertionDecision.FocusChanged : now);
+                break;
             case InsertionOutcome.ModifiersHeld:
-                Log.Warn(LogEvent.PasteSkippedModifiersHeld);
-                await inserter.CopyAsync(text);
+                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.PasteSkippedModifiersHeld);
                 break;
             case InsertionOutcome.PasteRejected:
-                Log.Warn(LogEvent.PasteRejected);
-                await inserter.CopyAsync(text);
+                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.PasteRejected);
                 break;
             case InsertionOutcome.ClipboardUnavailable:
-                Log.Warn(LogEvent.ClipboardUnavailable);
+                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.ClipboardUnavailable);
+                break;
+            case InsertionOutcome.TypedPartially:
+                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.TypingIncomplete);
                 break;
             case InsertionOutcome.Cancelled:
                 Log.Info(LogEvent.DictationCancelledByShutdown);
@@ -340,6 +385,32 @@ internal sealed class DictationController(
                 // The session allows one insertion at a time, so the inserter is never busy here.
                 throw new UnreachableException($"Unexpected insertion outcome {outcome}.");
         }
+    }
+
+    private void KeepForDecision(string text, InsertionDecision decision)
+    {
+        switch (decision)
+        {
+            case InsertionDecision.TargetElevated:
+                Keep(text, TranscriptKeptReason.TargetElevated, LogEvent.PasteSkippedTargetElevated);
+                break;
+            case InsertionDecision.TargetClosed:
+                Keep(text, TranscriptKeptReason.WindowChanged, LogEvent.PasteSkippedTargetClosed);
+                break;
+            case InsertionDecision.NoTarget:
+                Keep(text, TranscriptKeptReason.WindowChanged, LogEvent.PasteSkippedNoTarget);
+                break;
+            default:
+                Keep(text, TranscriptKeptReason.WindowChanged, LogEvent.PasteSkippedFocusChanged);
+                break;
+        }
+    }
+
+    private void Keep(string text, TranscriptKeptReason reason, LogEvent logEvent)
+    {
+        _keptTranscript = text;
+        Log.Warn(logEvent);
+        TranscriptKept?.Invoke(reason);
     }
 
     private static long Milliseconds(TimeSpan duration) => (long)duration.TotalMilliseconds;

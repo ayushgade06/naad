@@ -53,6 +53,9 @@ internal enum LogEvent
     DictationFailed,
 
     PasteSkippedFocusChanged,
+    PasteSkippedTargetClosed,
+    PasteSkippedNoTarget,
+    PasteSkippedTargetElevated,
     PasteSkippedModifiersHeld,
     PasteRejected,
     Pasted,
@@ -60,4 +63,8 @@ internal enum LogEvent
     ClipboardRestoreSkippedChanged,
     ClipboardRestoreFailed,
     ClipboardFormatsSkipped,
+    InsertedByTyping,
+    TypingIncomplete,
+    TranscriptCopied,
+    TranscriptCopyFailed,
 }
