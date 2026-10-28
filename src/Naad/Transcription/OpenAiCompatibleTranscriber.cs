@@ -13,6 +13,10 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
     // Long enough for minutes of audio on Groq, short enough not to leave the user waiting.
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(20);
 
+    // Listing models is a tiny request; any provider answers it within a few seconds, and the
+    // user is watching the settings window while it runs.
+    public static readonly TimeSpan KeyTestTimeout = TimeSpan.FromSeconds(10);
+
     private readonly HttpClient _http;
     private readonly string _apiKey;
     private readonly string _model;
@@ -54,10 +58,53 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         _model = model;
         _language = language;
         _timeout = timeout ?? DefaultTimeout;
-        Endpoint = new Uri(baseUrl.AbsoluteUri.TrimEnd('/') + "/audio/transcriptions");
+        Endpoint = Under(baseUrl, "audio/transcriptions");
     }
 
     public Uri Endpoint { get; }
+
+    /// <summary>
+    /// Asks the provider whether <paramref name="apiKey"/> works, with GET {baseUrl}/models: an
+    /// OpenAI-compatible request that needs the key and uploads nothing. Only the status is read,
+    /// never the body. Expected failures come back as values, as for transcription.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    /// <exception cref="ArgumentException">The key isn't <see cref="SecretStore.IsValidKey"/>.</exception>
+    public static async Task<KeyTestResult> TestKeyAsync(
+        HttpClient http, string apiKey, Uri baseUrl, CancellationToken cancellationToken, TimeSpan? timeout = null)
+    {
+        if (!SecretStore.IsValidKey(apiKey))
+        {
+            throw new ArgumentException("Not a valid API key.", nameof(apiKey));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout ?? KeyTestTimeout);
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, Under(baseUrl, "models"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            using var response = await http.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, timeoutSource.Token);
+            return (int)response.StatusCode switch
+            {
+                >= 200 and < 300 => new(KeyTestOutcome.Accepted),
+
+                // Not every OpenAI-compatible server lists models; that says nothing about the key.
+                404 or 405 => new(KeyTestOutcome.CannotVerify),
+                _ => new(KeyTestOutcome.Failed, TranscriptionFailure.FromStatus(response.StatusCode)),
+            };
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new(KeyTestOutcome.Failed, new(TranscriptionError.Timeout));
+        }
+        catch (HttpRequestException e)
+        {
+            return new(KeyTestOutcome.Failed, new(TranscriptionError.Network, (int)e.HttpRequestError));
+        }
+    }
 
     public async Task<TranscriptionResult> TranscribeAsync(byte[] wav, CancellationToken cancellationToken)
     {
@@ -119,6 +166,8 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         return request;
     }
+
+    private static Uri Under(Uri baseUrl, string path) => new(baseUrl.AbsoluteUri.TrimEnd('/') + "/" + path);
 
     private static TranscriptionResult ReadTranscript(JsonDocument json)
     {

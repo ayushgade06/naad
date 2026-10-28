@@ -232,6 +232,102 @@ public sealed class OpenAiCompatibleTranscriberTests
         Assert.Throws<ArgumentException>(() => new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, "m", language));
     }
 
+    [Theory]
+    [InlineData(200, "Accepted", null)]
+    [InlineData(204, "Accepted", null)]
+    [InlineData(404, "CannotVerify", null)]
+    [InlineData(405, "CannotVerify", null)]
+    [InlineData(401, "Failed", "Unauthorized")]
+    [InlineData(403, "Failed", "Unauthorized")]
+    [InlineData(429, "Failed", "RateLimited")]
+    [InlineData(500, "Failed", "ServerError")]
+    public async Task TestKey_Status_MapsToOutcome(int status, string outcome, string? error)
+    {
+        using var handler = new FakeHandler(_ => Json((HttpStatusCode)status, """{ "data": [] }"""));
+
+        var result = await TestKey(handler);
+
+        Assert.Equal(outcome, result.Outcome.ToString());
+        Assert.Equal(error, result.Failure?.Error.ToString());
+    }
+
+    [Fact]
+    public async Task TestKey_SendsGetToModelsWithTheKeyAndNoBody()
+    {
+        using var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, "{}"));
+
+        await TestKey(handler);
+
+        Assert.Equal(HttpMethod.Get, handler.Method);
+        Assert.Equal("https://stt.example.test/openai/v1/models", handler.Uri?.AbsoluteUri);
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", FakeKey), handler.Authorization);
+        Assert.Null(handler.ContentType);
+    }
+
+    [Fact]
+    public async Task TestKey_AnyResponse_DisposesItUnread()
+    {
+        var content = new TrackedContent("""{ "data": [] }""");
+        using var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+
+        await TestKey(handler);
+
+        Assert.True(content.Disposed);
+    }
+
+    [Fact]
+    public async Task TestKey_NoResponseBeforeTimeout_FailsWithTimeout()
+    {
+        using var handler = new FakeHandler(async token =>
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            throw new UnreachableException();
+        });
+
+        var result = await TestKey(handler, TimeSpan.FromMilliseconds(50));
+
+        Assert.Equal(new KeyTestResult(KeyTestOutcome.Failed, new(TranscriptionError.Timeout)), result);
+    }
+
+    [Fact]
+    public async Task TestKey_ConnectionFails_FailsWithNetwork()
+    {
+        using var handler = FakeHandler.Throwing(
+            new HttpRequestException(HttpRequestError.ConnectionError, "refused"));
+
+        var result = await TestKey(handler);
+
+        Assert.Equal(
+            new KeyTestResult(
+                KeyTestOutcome.Failed, new(TranscriptionError.Network, (int)HttpRequestError.ConnectionError)),
+            result);
+    }
+
+    [Fact]
+    public async Task TestKey_AlreadyCancelled_ThrowsWithoutSending()
+    {
+        using var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, "{}"));
+        using var http = new HttpClient(handler);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OpenAiCompatibleTranscriber.TestKeyAsync(
+            http, FakeKey, BaseUrl, new CancellationToken(canceled: true)));
+        Assert.Null(handler.Method);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("fake key")]
+    public async Task TestKey_InvalidKey_ThrowsWithoutSendingOrEchoingIt(string key)
+    {
+        using var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, "{}"));
+        using var http = new HttpClient(handler);
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(
+            () => OpenAiCompatibleTranscriber.TestKeyAsync(http, key, BaseUrl, CancellationToken.None));
+        Assert.Null(handler.Method);
+        Assert.DoesNotContain("fake", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Constructor_RelativeBaseUrl_Throws()
     {
@@ -256,6 +352,12 @@ public sealed class OpenAiCompatibleTranscriberTests
         using var http = new HttpClient(handler);
         var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, model, language, timeout);
         return await transcriber.TranscribeAsync(Wav, CancellationToken.None);
+    }
+
+    private static async Task<KeyTestResult> TestKey(FakeHandler handler, TimeSpan? timeout = null)
+    {
+        using var http = new HttpClient(handler);
+        return await OpenAiCompatibleTranscriber.TestKeyAsync(http, FakeKey, BaseUrl, CancellationToken.None, timeout);
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
