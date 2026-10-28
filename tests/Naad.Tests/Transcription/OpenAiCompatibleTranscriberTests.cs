@@ -44,6 +44,17 @@ public sealed class OpenAiCompatibleTranscriberTests
             part => Assert.Equal(new Part("file", "audio.wav", "audio/wav", Wav), part));
     }
 
+    [Fact]
+    public async Task Transcribe_WithLanguage_SendsItBeforeTheAudio()
+    {
+        using var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, """{ "text": "hi" }"""));
+
+        await Transcribe(handler, language: "hi");
+
+        Assert.Equal(["model", "response_format", "language", "file"], handler.Parts.Select(p => p.Name));
+        Assert.Equal("hi"u8.ToArray(), handler.Parts[2].Bytes);
+    }
+
     [Theory]
     [InlineData("https://stt.example.test/openai/v1")]
     [InlineData("https://stt.example.test/openai/v1/")]
@@ -140,7 +151,7 @@ public sealed class OpenAiCompatibleTranscriberTests
             throw new UnreachableException();
         });
         using var http = new HttpClient(handler);
-        var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, "m", TimeSpan.FromHours(1));
+        var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, "m", timeout: TimeSpan.FromHours(1));
         using var cancel = new CancellationTokenSource();
 
         var transcribing = transcriber.TranscribeAsync(Wav, cancel.Token);
@@ -210,6 +221,17 @@ public sealed class OpenAiCompatibleTranscriberTests
         Assert.DoesNotContain(FakeKey, error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("EN")]
+    [InlineData("english")]
+    [InlineData("")]
+    public void Constructor_InvalidLanguage_Throws(string language)
+    {
+        using var http = new HttpClient();
+
+        Assert.Throws<ArgumentException>(() => new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, "m", language));
+    }
+
     [Fact]
     public void Constructor_RelativeBaseUrl_Throws()
     {
@@ -229,10 +251,10 @@ public sealed class OpenAiCompatibleTranscriberTests
     }
 
     private static async Task<TranscriptionResult> Transcribe(
-        FakeHandler handler, string model = "whisper-large-v3-turbo", TimeSpan? timeout = null)
+        FakeHandler handler, string model = "whisper-large-v3-turbo", string? language = null, TimeSpan? timeout = null)
     {
         using var http = new HttpClient(handler);
-        var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, model, timeout);
+        var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, model, language, timeout);
         return await transcriber.TranscribeAsync(Wav, CancellationToken.None);
     }
 

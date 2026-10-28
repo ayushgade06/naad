@@ -16,17 +16,19 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
     private readonly HttpClient _http;
     private readonly string _apiKey;
     private readonly string _model;
+    private readonly string? _language;
     private readonly TimeSpan _timeout;
 
     /// <param name="http">Shared and owned by the caller; one client serves every request.</param>
     /// <param name="apiKey">Sent as a bearer token; never logged.</param>
     /// <param name="baseUrl">The API root, such as https://api.groq.com/openai/v1.</param>
     /// <param name="model">The provider's model id, such as whisper-large-v3-turbo.</param>
+    /// <param name="language">An ISO 639-1 code such as "en", or null to let the provider detect it.</param>
     /// <param name="timeout">Tests shorten it; the app uses <see cref="DefaultTimeout"/>.</param>
-    /// <exception cref="ArgumentException">A blank key or model, or a base URL that isn't an
-    /// absolute http(s) URL. Settings validation keeps these from reaching here.</exception>
+    /// <exception cref="ArgumentException">A blank key or model, an invalid language, or a base URL
+    /// that isn't an absolute http(s) URL. Settings validation keeps these from reaching here.</exception>
     public OpenAiCompatibleTranscriber(
-        HttpClient http, string apiKey, Uri baseUrl, string model, TimeSpan? timeout = null)
+        HttpClient http, string apiKey, Uri baseUrl, string model, string? language = null, TimeSpan? timeout = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
 
@@ -42,9 +44,15 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
             throw new ArgumentException("The base URL must be an absolute http or https URL.", nameof(baseUrl));
         }
 
+        if (language is not null && !AppSettings.IsValidLanguage(language))
+        {
+            throw new ArgumentException("The language must be an ISO 639-1 code.", nameof(language));
+        }
+
         _http = http;
         _apiKey = apiKey;
         _model = model;
+        _language = language;
         _timeout = timeout ?? DefaultTimeout;
         Endpoint = new Uri(baseUrl.AbsoluteUri.TrimEnd('/') + "/audio/transcriptions");
     }
@@ -97,6 +105,11 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
             { new StringContent(_model), "model" },
             { new StringContent("json"), "response_format" },
         };
+        if (_language is not null)
+        {
+            content.Add(new StringContent(_language), "language");
+        }
+
         var file = new ByteArrayContent(wav);
         file.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
         content.Add(file, "file", "audio.wav");

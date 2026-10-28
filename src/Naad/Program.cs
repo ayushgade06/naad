@@ -164,7 +164,7 @@ internal static class Program
         using var recorder = new AudioRecorder();
         using var hook = new KeyboardHook(settings.DictationShortcut);
         var transcriber = new OpenAiCompatibleTranscriber(
-            http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel);
+            http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel, settings.Language);
         using var clipboard = new WindowsClipboard();
         var inserter = new TextInserter(
             clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
