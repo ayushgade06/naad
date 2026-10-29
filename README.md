@@ -8,9 +8,30 @@ transcribes what you said and types it into the app you are using, such as
 Notepad, Chrome or VS Code.
 
 > **Status: 0.1.0 MVP, not yet released.** Dictation works end to end in
-> development builds, and its manual checks are still being run. There is
-> no installer yet: build it from source. See [CHANGELOG.md](CHANGELOG.md)
-> and the plan in [docs/ROADMAP.md](docs/ROADMAP.md).
+> development builds, and its manual checks are still being run. No release
+> has been published yet, so build it from source for now. See
+> [CHANGELOG.md](CHANGELOG.md) and the plan in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Install
+
+Once a release is published, download `Naad.App-win-Setup.exe` from the
+[Releases page](https://github.com/ayushgade06/naad/releases) and run it.
+It installs Naad for your Windows account only, needs no administrator
+rights, and starts it.
+
+**Windows SmartScreen.** Naad isn't code-signed yet, so the first time you
+run the installer Windows may say "Windows protected your PC". Click
+**More info**, check that the publisher is unknown and the file is
+`Naad.App-win-Setup.exe` from this repository's Releases page, then click
+**Run anyway**. Only do this for files you downloaded from that page.
+
+**Uninstall** from Settings > Apps > Installed apps > Naad. It removes the
+app and stops it starting at sign-in. Your data stays, in case you
+reinstall; delete these folders to remove it too:
+
+- `%APPDATA%\Naad`: settings.json and its backups.
+- `%LOCALAPPDATA%\Naad`: the encrypted API key, logs and the local
+  Whisper model.
 
 ## Try it from source
 

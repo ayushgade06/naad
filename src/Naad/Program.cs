@@ -7,6 +7,7 @@ using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
 using NAudio;
+using Velopack;
 
 namespace Naad;
 
@@ -22,6 +23,14 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // First, before anything else: the installer starts Naad.exe with its own arguments to
+        // run these hooks, and Run exits the process once they are done. A build that wasn't
+        // installed (dotnet run, CI) continues at once. Uninstalling stops Naad starting at sign-in;
+        // settings, the key, the model and logs are user data and stay (see README).
+        VelopackApp.Build()
+            .OnBeforeUninstallFastCallback(_ => StartupEntry.ForThisApp().Set(false))
+            .Run();
+
         ApplicationConfiguration.Initialize();
         HandleUnhandledExceptions();
 

@@ -29,6 +29,9 @@ All notable changes to Naad are listed here. The format follows
 - Hands-free mode (`handsFree`): press the shortcut to start and again to
   stop.
 - Start Naad when you sign in, from Settings.
+- Installer: a per-user Velopack setup, built and published by a release
+  workflow when a version tag is pushed. Uninstalling stops Naad starting
+  at sign-in and keeps your settings and key.
 - Robustness: a microphone unplugged mid-dictation keeps what was heard;
   the shortcut keeps working after sleep, unlock and Ctrl+Alt+Del; a
   transcription request that never reached the server is retried once.

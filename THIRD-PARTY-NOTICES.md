@@ -56,6 +56,15 @@ Suki's name, icons, sounds and artwork are not used in Naad.
 - Source: https://github.com/naudio/NAudio
 - Used for microphone capture and WAV encoding. Ships with Naad.
 
+## Velopack
+
+- Package: `Velopack` 1.2.161, and the `vpk` 1.2.161 command-line tool used
+  only by the release workflow
+- License: MIT, © 2021 Caelan Sayler, © 2024 Velopack Ltd.
+- Source: https://github.com/velopack/velopack
+- Used for the installer, uninstaller and updates (P22, P23). Ships with
+  Naad.
+
 ## Whisper.net
 
 - Packages: `Whisper.net` 1.9.1 and `Whisper.net.Runtime` 1.9.1, with their
