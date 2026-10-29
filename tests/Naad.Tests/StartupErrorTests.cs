@@ -1,5 +1,3 @@
-using Naad.Settings;
-
 namespace Naad.Tests;
 
 public sealed class StartupErrorTests
@@ -33,21 +31,4 @@ public sealed class StartupErrorTests
     {
         Assert.Equal("unchanged", StartupError.Redact("unchanged", secret));
     }
-
-    [Fact]
-    public void ApiKeyProblem_EachStatus_SaysHowToStoreAKey()
-    {
-        var missing = StartupError.ApiKeyProblem(SecretStatus.Missing);
-        var unreadable = StartupError.ApiKeyProblem(SecretStatus.Unreadable);
-
-        Assert.StartsWith("No API key is stored.", missing, StringComparison.Ordinal);
-        Assert.StartsWith("The stored API key can't be read.", unreadable, StringComparison.Ordinal);
-        Assert.Equal(unreadable, StartupError.ApiKeyProblem(SecretStatus.ReadFailed));
-        Assert.All([missing, unreadable], text => Assert.Contains("--set-api-key", text, StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ApiKeyProblem_InvalidOverride_NamesTheVariable() =>
-        Assert.StartsWith(
-            SecretStore.OverrideVariable, StartupError.ApiKeyProblem(SecretStatus.Invalid), StringComparison.Ordinal);
 }

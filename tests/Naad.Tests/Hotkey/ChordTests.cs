@@ -43,6 +43,27 @@ public sealed class ChordTests
         Assert.Null(chord);
     }
 
+    [Fact]
+    public void TryCreate_CapturedKeys_MatchesParsedText()
+    {
+        Assert.True(Chord.TryCreate([Key.LControlKey, Key.Space], out var chord));
+
+        Assert.Equal("LeftCtrl+Space", chord.ToString());
+    }
+
+    [Theory]
+    [InlineData(new Key[0])]
+    [InlineData(new[] { Key.ControlKey })]
+    [InlineData(new[] { Key.LButton })]
+    [InlineData(new[] { Key.Control })]
+    [InlineData(new[] { Key.A, Key.A })]
+    [InlineData(new[] { Key.A, Key.B, Key.C, Key.D, Key.E })]
+    public void TryCreate_KeysNoChordCanHold_Fails(Key[] keys)
+    {
+        Assert.False(Chord.TryCreate(keys, out var chord));
+        Assert.Null(chord);
+    }
+
     [Theory]
     [InlineData("RightCtrl")]
     [InlineData("LeftCtrl+LeftShift+Space")]

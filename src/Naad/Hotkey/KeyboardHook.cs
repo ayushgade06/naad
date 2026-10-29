@@ -60,6 +60,25 @@ internal sealed class KeyboardHook : IDisposable
     /// </summary>
     public event Action<CancelCause>? TriggerCancelled;
 
+    /// <summary>A capture started by <see cref="BeginCapture"/> captured, rejected or cancelled.</summary>
+    public event Action<CaptureStep>? CaptureEnded;
+
+    /// <summary>
+    /// Takes the next keys pressed as a new shortcut and reports it through
+    /// <see cref="CaptureEnded"/>. Until then every key pressed is swallowed and no dictation can
+    /// start. Call on the UI thread while no dictation runs, and call <see cref="CancelCapture"/>
+    /// as soon as the window asking for it closes or loses focus, since keys typed in other apps
+    /// are swallowed too.
+    /// </summary>
+    public void BeginCapture()
+    {
+        _matcher.BeginCapture();
+        SyncMouseHook();
+    }
+
+    /// <summary>Ends a capture early, without an event; harmless when none runs. Call on the UI thread.</summary>
+    public void CancelCapture() => _matcher.CancelCapture();
+
     /// <summary>
     /// Watches for <paramref name="shortcut"/> from now on, without reinstalling the hook. Call on
     /// the UI thread while no dictation runs: a shortcut held right now ends without an event.
@@ -115,6 +134,11 @@ internal sealed class KeyboardHook : IDisposable
     {
         var outcome = _matcher.OnKey((Keys)vk, down);
         Raise(outcome.Events, CancelCause.OtherKey);
+        if (outcome.Capture is { Status: not CaptureStatus.Capturing } step && CaptureEnded is { } ended)
+        {
+            _ui.Post(_ => ended(step), null);
+        }
+
         return outcome.Swallow;
     }
 

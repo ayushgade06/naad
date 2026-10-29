@@ -174,6 +174,89 @@ public sealed class ChordMatcherTests
         Assert.True(matcher.OnKey(Key.F9, down: false).Swallow);
     }
 
+    [Theory]
+    // Capture never raises dictation events, whatever is pressed, and swallows every key.
+    [InlineData("RightCtrl", "+RightCtrl -RightCtrl")]
+    [InlineData("RightCtrl", "+RightCtrl +C -C -RightCtrl")]
+    [InlineData("LeftCtrl+Space", "+LeftCtrl +Space -Space -LeftCtrl")]
+    [InlineData("RightCtrl", "+Escape -Escape")]
+    public void OnKey_WhileCapturing_RaisesNoEventsAndSwallowsKeys(string chord, string steps)
+    {
+        var matcher = new ChordMatcher([Parse(chord)]);
+        matcher.BeginCapture();
+
+        var outcomes = steps.Split(' ')
+            .Select(step => matcher.OnKey(Parse(step[1..]).Keys.Single(), down: step[0] == '+'))
+            .ToList();
+
+        Assert.All(outcomes, outcome => Assert.Empty(outcome.Events));
+        Assert.All(outcomes, outcome => Assert.True(outcome.Swallow));
+        Assert.False(matcher.IsCapturing);
+    }
+
+    [Fact]
+    public void OnKey_AfterCapture_ChordsMatchAgain()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.BeginCapture();
+        matcher.OnKey(Key.F9, down: true);
+
+        var captured = matcher.OnKey(Key.F9, down: false).Capture;
+
+        Assert.Equal(new CaptureStep(CaptureStatus.Captured, Parse("F9")), captured);
+        Assert.Equal(ChordEventKind.Pressed, Assert.Single(matcher.OnKey(Key.RControlKey, down: true).Events).Kind);
+    }
+
+    [Fact]
+    public void OnKey_CapturedKeyStillHeldAfterCapture_KeyUpStaysSwallowed()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.BeginCapture();
+        matcher.OnKey(Key.LControlKey, down: true);
+        matcher.OnKey(Key.Space, down: true);
+        matcher.OnKey(Key.Space, down: false);
+
+        var lateKeyUp = matcher.OnKey(Key.LControlKey, down: false);
+
+        Assert.True(lateKeyUp.Swallow);
+        Assert.Null(lateKeyUp.Capture);
+    }
+
+    [Fact]
+    public void OnKey_KeyHeldBeforeCapture_ItsKeyUpReachesApps()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.LShiftKey, down: true);
+        matcher.BeginCapture();
+
+        Assert.False(matcher.OnKey(Key.LShiftKey, down: false).Swallow);
+    }
+
+    [Fact]
+    public void CancelCapture_MidCapture_ChordsMatchAgain()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.BeginCapture();
+        matcher.OnKey(Key.A, down: true);
+
+        matcher.CancelCapture();
+
+        Assert.True(matcher.OnKey(Key.A, down: false).Swallow);
+        Assert.Equal(ChordEventKind.Pressed, Assert.Single(matcher.OnKey(Key.RControlKey, down: true).Events).Kind);
+    }
+
+    [Fact]
+    public void BeginCapture_WhileChordActive_EndsItWithoutEvents()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.RControlKey, down: true);
+
+        matcher.BeginCapture();
+
+        Assert.False(matcher.IsActive);
+        Assert.Empty(matcher.OnKey(Key.RControlKey, down: false).Events);
+    }
+
     private static string Mouse(ChordMatcher matcher)
     {
         matcher.OnMouseButton();

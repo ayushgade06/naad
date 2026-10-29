@@ -293,6 +293,37 @@ public sealed class DictationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Press_WithoutTranscriber_NeverRecordsAndAsksForAKey()
+    {
+        var missing = 0;
+        _h.Controller.TranscriberMissing += () => missing++;
+        await _h.Ui.RunAsync(() => _h.Controller.UseTranscriber(null));
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        _h.Time.Advance(LongHold);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+
+        Assert.Equal(1, missing);
+        Assert.Equal(0, _h.Recorder.Starts);
+        Assert.Empty(_h.States);
+        Assert.Equal(DictationState.Idle, _h.Controller.State);
+    }
+
+    [Fact]
+    public async Task UseTranscriber_AfterMissingOne_NextPressDictates()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseTranscriber(null));
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+
+        await _h.Ui.RunAsync(() => _h.Controller.UseTranscriber(_h.Transcriber));
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(1, _h.Recorder.Starts);
+        Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
     public async Task Dispose_DuringTranscription_CancelsItAndInsertsNothing()
     {
         var started = new TaskCompletionSource();

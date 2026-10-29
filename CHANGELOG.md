@@ -6,14 +6,23 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
-Work toward the settings window (P17). Nothing here is visible yet: settings
-still apply when Naad starts.
-
 ### Added
 
+- Settings window (tray menu > **Settings...**) for the API key, the
+  shortcut, the microphone, the language, the transcription base URL and
+  model, sounds and the log file. Changes apply at once, without a restart.
+- **Test key** asks the provider whether it accepts a key. The window never
+  shows a stored key.
+- Shortcut capture: press the new shortcut instead of typing key names.
 - `language` setting: the language you speak, sent with each recording.
 - `microphone` setting: record from a named device instead of the Windows
   default. A device that isn't connected falls back to the default.
+
+### Changed
+
+- Without a usable API key, Naad starts and opens Settings instead of
+  exiting. Pressing the shortcut without a key shows a notification and
+  records nothing.
 
 ## [0.1.0] - Unreleased
 

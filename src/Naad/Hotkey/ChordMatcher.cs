@@ -21,7 +21,8 @@ internal readonly record struct ChordEvent(ChordEventKind Kind, Chord Chord);
 
 /// <param name="Events">The chord events this key event caused, in order; usually none.</param>
 /// <param name="Swallow">Keep the key event from reaching apps.</param>
-internal readonly record struct KeyOutcome(IReadOnlyList<ChordEvent> Events, bool Swallow);
+/// <param name="Capture">While capturing a new shortcut, where the capture stands; otherwise null.</param>
+internal readonly record struct KeyOutcome(IReadOnlyList<ChordEvent> Events, bool Swallow, CaptureStep? Capture = null);
 
 /// <summary>
 /// Turns physical key presses into chord events. Pure: it never calls Windows, so every rule
@@ -41,6 +42,9 @@ internal readonly record struct KeyOutcome(IReadOnlyList<ChordEvent> Events, boo
 /// <item>A chord's non-modifier keys (Space in Left Ctrl+Space) are swallowed: the key-down that
 /// activates the chord, its repeats and its key-up never reach apps. Modifiers always pass
 /// through, so Right Ctrl+C still copies and no app is left seeing a modifier held.</item>
+/// <item>While capturing a new shortcut (<see cref="BeginCapture"/>), keys go to a
+/// <see cref="ChordCapture"/> instead: no chord events at all, and every key pressed during the
+/// capture is swallowed, key-up included, so no app reacts to the keys being tried.</item>
 /// </list>
 /// </summary>
 internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
@@ -52,9 +56,26 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     // the chord ends, so an app never sees half of a key press.
     private readonly HashSet<Key> _swallowed = [];
     private Chord? _active;
+    private ChordCapture? _capture;
 
     /// <summary>Whether a chord is active, so the hook knows when to watch the mouse.</summary>
     public bool IsActive => _active is not null;
+
+    /// <summary>Whether keys go to a shortcut capture rather than to the chords.</summary>
+    public bool IsCapturing => _capture is not null;
+
+    /// <summary>
+    /// Sends keys to a new <see cref="ChordCapture"/> until it captures, rejects or cancels. An
+    /// active chord ends without an event, so call it only while no dictation runs.
+    /// </summary>
+    public void BeginCapture()
+    {
+        _capture = new();
+        _active = null;
+    }
+
+    /// <summary>Ends a capture early, as when the settings window closes; chords match again.</summary>
+    public void CancelCapture() => _capture = null;
 
     /// <summary>Feeds one physical key event.</summary>
     // ponytail: a key-up lost while the secure desktop (Ctrl+Alt+Del, UAC) was shown leaves the
@@ -89,7 +110,13 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     {
         if (!_held.Add(key))
         {
-            return new([], _swallowed.Contains(key));
+            return new([], _swallowed.Contains(key), _capture?.OnKey(key, down: true));
+        }
+
+        if (_capture is not null)
+        {
+            _swallowed.Add(key);
+            return Captured(_capture.OnKey(key, down: true), swallow: true);
         }
 
         var events = new List<ChordEvent>(2);
@@ -122,6 +149,11 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     private KeyOutcome OnKeyUp(Key key)
     {
         var swallow = _swallowed.Remove(key);
+        if (_capture is not null)
+        {
+            _held.Remove(key);
+            return Captured(_capture.OnKey(key, down: false), swallow);
+        }
 
         // A key-up without a key-down: the key was held when the hook started.
         if (!_held.Remove(key) || _active is null || !_active.Contains(key))
@@ -132,5 +164,16 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
         var released = new ChordEvent(ChordEventKind.Released, _active);
         _active = null;
         return new([released], swallow);
+    }
+
+    // A finished capture hands the keys back to the chords.
+    private KeyOutcome Captured(CaptureStep step, bool swallow)
+    {
+        if (step.Status != CaptureStatus.Capturing)
+        {
+            _capture = null;
+        }
+
+        return new([], swallow, step);
     }
 }

@@ -20,6 +20,16 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>The menu item that puts a kept transcript on the clipboard.</summary>
     public const string CopyLastTranscriptText = "Copy last transcript";
 
+    /// <summary>The menu item that opens the settings window.</summary>
+    public const string SettingsText = "Settings...";
+
+    /// <summary>Title of the notification shown when the shortcut is pressed without an API key.</summary>
+    public const string ApiKeyNeededTitle = "Naad needs an API key";
+
+    /// <summary>What that notification says; clicking it opens Settings.</summary>
+    public const string ApiKeyNeededMessage = "Click here to open Settings and add your transcription API key. " +
+        "Nothing was recorded.";
+
     /// <summary>Title of the notification shown when a recording couldn't be transcribed.</summary>
     public const string TranscriptionErrorTitle = "Naad couldn't transcribe";
 
@@ -42,19 +52,22 @@ internal sealed class TrayIcon : IDisposable
     private readonly Icon _image = LoadIcon();
     private readonly Icon _recordingImage;
     private readonly Icon _transcribingImage;
-    private readonly string _idleTooltip;
+    private string _idleTooltip;
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _copyLastTranscript;
     private readonly Func<Task<bool>> _copy;
+    private readonly Action _openSettings;
     private Action? _notificationClicked;
 
     /// <param name="shortcut">Named in the tooltip.</param>
     /// <param name="copyLastTranscript">Copies the kept transcript; false if it couldn't.</param>
+    /// <param name="openSettings">Opens the settings window.</param>
     /// <param name="exit">Ends the app.</param>
-    public TrayIcon(Chord shortcut, Func<Task<bool>> copyLastTranscript, Action exit)
+    public TrayIcon(Chord shortcut, Func<Task<bool>> copyLastTranscript, Action openSettings, Action exit)
     {
         _copy = copyLastTranscript;
+        _openSettings = openSettings;
         _idleTooltip = Tooltip(shortcut);
         _recordingImage = WithDot(_image, RecordingColor);
         _transcribingImage = WithDot(_image, TranscribingColor);
@@ -62,6 +75,7 @@ internal sealed class TrayIcon : IDisposable
         {
             Enabled = false,
         };
+        _menu.Items.Add(SettingsText, null, (_, _) => openSettings());
         _menu.Items.Add(_copyLastTranscript);
         _menu.Items.Add("Exit", null, (_, _) => exit());
         _icon = new NotifyIcon { Icon = _image, Text = _idleTooltip, ContextMenuStrip = _menu, Visible = true };
@@ -96,20 +110,19 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>What to tell the user when transcription fails. Never includes a response body.</summary>
     public static string TranscriptionErrorMessage(TranscriptionError error) => error switch
     {
-        TranscriptionError.Unauthorized => "The API key was rejected. Store a valid key with " +
-            "Naad.exe --set-api-key (see docs/settings.md), then restart Naad.",
+        TranscriptionError.Unauthorized => "The API key was rejected. Open Settings from the Naad menu to " +
+            "enter a valid key.",
         TranscriptionError.RateLimited => "The transcription service's rate limit was reached. Wait a " +
             "moment, then try again.",
         TranscriptionError.TooLarge => "The recording was too large for the transcription service. Try a " +
             "shorter dictation.",
         TranscriptionError.ServerError => "The transcription service had a problem. Try again in a moment.",
-        TranscriptionError.Rejected => "The transcription service refused the request. Check " +
-            "transcriptionBaseUrl and transcriptionModel in settings.json.",
+        TranscriptionError.Rejected => "The transcription service refused the request. Check the base URL " +
+            "and model in Settings.",
         TranscriptionError.Network => "Naad couldn't reach the transcription service. Check your internet " +
             "connection.",
         TranscriptionError.Timeout => "The transcription service didn't answer in time. Try again.",
-        _ => "The transcription service sent an unexpected answer. Check transcriptionBaseUrl in " +
-            "settings.json.",
+        _ => "The transcription service sent an unexpected answer. Check the base URL in Settings.",
     };
 
     /// <summary>What to tell the user when a transcript is kept. Windows cuts it at 255 characters.</summary>
@@ -141,6 +154,17 @@ internal sealed class TrayIcon : IDisposable
         _icon.ShowBalloonTip(
             NotificationMilliseconds, MicrophoneErrorTitle, MicrophoneErrorMessage(error), ToolTipIcon.Warning);
     }
+
+    /// <summary>Names a new shortcut in the tooltip. Call while idle.</summary>
+    public void SetShortcut(Chord shortcut)
+    {
+        _idleTooltip = Tooltip(shortcut);
+        _icon.Text = _idleTooltip;
+    }
+
+    /// <summary>Tells the user to add an API key; clicking the notification opens Settings.</summary>
+    public void ShowApiKeyNeeded() =>
+        Notify(ApiKeyNeededTitle, ApiKeyNeededMessage, ToolTipIcon.Warning, clicked: _openSettings);
 
     /// <summary>Shows the dictation state in the icon and its tooltip.</summary>
     public void ShowState(DictationState state)

@@ -287,6 +287,10 @@ the key.
 **Status after P12:** M-K1 has **not been run** with a real key; the
 harness parts above passed on 2026-10-28.
 
+Since P17, a missing or unreadable key no longer stops Naad: instead of the
+dialog in step 4, Naad starts and opens its settings window, where the key
+can be entered again (M-U1).
+
 **Real key, 2026-10-28 (after P16).** Storing a real Groq key through the
 documented PowerShell pipe produced a key that every request rejected
 before sending it ("Request headers must contain only ASCII characters").
@@ -490,6 +494,35 @@ transcription failures, silent recordings and kept transcripts.
 **Status after P16:** M-M1 to M-M8 have **not been run**. A smoke run of
 the Release exe passed (start, `AppStarted`, no errors); the state icons
 and tones are created at startup, so that run also covered their creation.
+
+## Settings window (P17): M-U1 to M-U6
+
+Since P17, **Settings...** in the tray menu opens a window for every setting
+and the API key. Saving applies the change at once, without a restart; if a
+dictation is running, the change waits until it ends (`SettingsApplyDeferred`,
+then `SettingsApplied`). The key is write-only: the window says where the key
+comes from (stored, missing, unreadable, or `NAAD_GROQ_API_KEY`) and never
+shows it. Without a usable key Naad still starts and opens the window, and
+pressing the shortcut shows **Naad needs an API key** instead of recording.
+Unit tests cover the field checks and every message (`SettingsInputTests`),
+shortcut capture (`ChordCaptureTests`, and `ChordMatcherTests` for capture
+never raising dictation events), the key test against a fake server
+(`OpenAiCompatibleTranscriberTests`), and the controller without a
+transcriber (`DictationControllerTests`).
+
+Before these checks, copy `%APPDATA%\Naad\settings.json` somewhere safe, and
+restore it afterwards.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-U1 | No key at startup | 1. Exit Naad. In a new PowerShell window, run `$env:NAAD_GROQ_API_KEY = 'not a key'` and start Naad from it. 2. Hold Right Ctrl in Notepad for 2 s. 3. Close Settings, exit Naad, close that PowerShell window. | 1. Naad starts and opens **Naad settings** at once; the API key line says the variable holds characters a key can't have. The log shows `ApiKeyInvalid`, `AppStarted`, `SettingsWindowOpened`. 2. A **Naad needs an API key** notification; the microphone indicator never appears; the log shows `DictationNeedsApiKey`. Clicking the notification brings Settings back. | Partly: the startup half (window opens, log events) can be checked by starting the exe and reading its window and log. |
+| M-U2 | Key: save and test | 1. In Settings, paste a wrong key and click **Test key**. 2. Paste your real key, click **Test key**. 3. Click **Save**, then dictate a sentence into Notepad. 4. Open Settings again. 5. Restart Naad and dictate again. | 1. "The provider rejected the key." 2. "The provider accepted the key." 3. The window closes; the log shows `ApiKeyStored`, `ApiKeyLoaded`, `SettingsSaved`, `SettingsApplied`; the text is pasted without a restart. 4. The key box is empty and the status says a key is stored. 5. It still works. The key never appears on screen, in `naad.log` or in settings.json. | **No.** It needs a real key and a voice. |
+| M-U3 | Shortcut capture | 1. Click **Change...**, hold Left Ctrl, press Space, release. 2. Click **Save**. Hold Left Ctrl+Space in Notepad and dictate. 3. Click **Change...** again, press Esc. 4. Click **Change...**, then click another app's window and type a few letters there. 5. Click **Change...**, hold Right Ctrl and speak. | 1. The shortcut reads "Left Ctrl+Space"; no space is typed anywhere. 2. Dictation starts with the new shortcut, and the tray tooltip names it; Right Ctrl alone no longer dictates. 3. The old shortcut is shown again; the window stays open. 4. Capture ends as the window loses focus; the letters appear in the other app. 5. Nothing is recorded: no tone, no red dot, no microphone indicator; releasing captures "Right Ctrl". | **No.** Physical keys. |
+| M-U4 | Other settings apply live | Change, one at a time and saving each: the microphone (to another device), the language (`en`), the model (`whisper-large-v3`), **Play a tone** off, **Write a diagnostic log** off then on. Dictate after each. | Each change works on the next dictation without a restart: the other device is used, transcripts come back, the tones stop, and `naad.log` stops growing while logging is off. After a restart every change is still there, and settings.json holds them. | **No.** |
+| M-U5 | Change during a dictation | Open Settings and leave it open. Click in Notepad, hold Right Ctrl and speak; while holding, click the settings window, change the language and click **Save**. Release. | The click cancels the dictation (as in M-M5) and nothing is pasted. If a dictation is still running when **Save** is clicked, the log shows `SettingsApplyDeferred` and then `SettingsApplied` once it ends; otherwise `SettingsApplied` at once. The next dictation uses the new language. | **No.** |
+| M-U6 | Bad values are refused | Type `http://example.com/v1` as the base URL and click **Save**; then `whisper large` as the model; then `english` as the language; then a key with a space in it. | Each time the window stays open and names the field to fix; settings.json and the stored key are unchanged. | **No.** The rules are unit tested in `SettingsInputTests`. |
+
+**Status after P17:** M-U1 to M-U6 have **not been run** by a person.
 
 ## v0.1.0 checklist
 
