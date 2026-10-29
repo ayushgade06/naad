@@ -21,6 +21,10 @@ All notable changes to Naad are listed here. The format follows
 - `microphone` setting: record from a named device instead of the Windows
   default. A device that isn't connected falls back to the default.
 
+- Robustness: a microphone unplugged mid-dictation keeps what was heard;
+  the shortcut keeps working after sleep, unlock and Ctrl+Alt+Del; a
+  transcription request that never reached the server is retried once.
+
 ### Changed
 
 - Without a usable API key, Naad starts and opens Settings instead of

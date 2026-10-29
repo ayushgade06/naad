@@ -519,6 +519,16 @@ production-quality code, and keeps the slice working at every commit.
   - Reinstall the hook after sleep and resume, plus a hook health check.
   - Network loss, with one retry on connection failure.
   - A "paste last transcript" tray action.
+  - **As built:** the microphone is opened afresh per recording, so
+    hot-plug needs no device watcher; a device that fails mid-recording
+    keeps the audio heard so far. The hook is reinstalled on resume and
+    unlock, and the health check is a 2-second resync of held keys
+    against `GetAsyncKeyState` (pure `ChordMatcher.Resync`), which also
+    lifts P7's lost-key-up limit for keys that aren't swallowed. The pure
+    `RetryPolicy` retries once, after 1 s, only when the request never
+    reached the server, within the same 20-second limit. "Paste last
+    transcript" stays **Copy last transcript** from P15: a paste from the
+    tray menu would go to the wrong window.
 - **Needs:** P16.
 - **Done when:** every scenario in the robustness section of the manual
   checks passes.
