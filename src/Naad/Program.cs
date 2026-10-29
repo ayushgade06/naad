@@ -182,7 +182,7 @@ internal static class Program
         {
             // Exit ends the message loop; the usings below then dispose in reverse order:
             // controller (ignore triggers, cancel transcription and paste), clipboard window, hook
-            // (unhook), recorder (microphone), HTTP client, tray icon. The finally block then
+            // (unhook), recorder (microphone), HTTP client, overlay, tray icon. The finally block then
             // disposes the sounds, and Main releases the single-instance mutex. The tray's actions
             // reach objects that exist by the time the menu can be clicked.
             DictationController? dictation = null;
@@ -191,9 +191,14 @@ internal static class Program
                 copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
                 openSettings: () => openSettings?.Invoke(),
                 exit: Application.ExitThread);
+            using var overlay = new RecordingOverlay();
             using var http = new HttpClient();
             using var recorder = new AudioRecorder();
             recorder.UseMicrophone(settings.Microphone);
+
+            // Raised on the capture thread; the overlay is drawn on this one.
+            var ui = SynchronizationContext.Current!;
+            recorder.LevelMeasured += (rms, duration) => ui.Post(_ => overlay.ShowLevel(rms, duration), null);
             using var hook = new KeyboardHook(settings.DictationShortcut);
             using var clipboard = new WindowsClipboard();
             var inserter = new TextInserter(
@@ -207,6 +212,10 @@ internal static class Program
                 TimeProvider.System);
             dictation = controller;
             controller.StateChanged += tray.ShowState;
+
+            // Recording starts with focus on the window being dictated into, so the overlay
+            // appears on that window's monitor.
+            controller.StateChanged += state => overlay.ShowState(state, FocusGuard.Foreground().Handle);
             if (sounds is not null)
             {
                 controller.StateChanged += sounds.OnStateChanged;

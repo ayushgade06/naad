@@ -33,6 +33,13 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
     private Recording? _current;
     private bool _disposed;
 
+    /// <summary>
+    /// The loudness of each buffer as it arrives: its RMS (0 to 32768) and how much audio it
+    /// held. Raised on NAudio's capture thread, about every 50 ms; handlers must be quick and
+    /// marshal to the UI thread themselves. Carries a number only, never audio.
+    /// </summary>
+    public event Action<double, TimeSpan>? LevelMeasured;
+
     /// <summary>The recording devices' names, in Windows' device order.</summary>
     /// <exception cref="MmException">A device disappeared while the list was read.</exception>
     public static IReadOnlyList<string> DeviceNames() =>
@@ -80,7 +87,7 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
                 return new(MicrophoneError.NotFound);
             }
 
-            var recording = new Recording(ChooseDevice());
+            var recording = new Recording(ChooseDevice(), (rms, duration) => LevelMeasured?.Invoke(rms, duration));
             try
             {
                 recording.Start();
@@ -196,7 +203,7 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
         private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly WaveIn _waveIn;
 
-        public Recording(int device)
+        public Recording(int device, Action<double, TimeSpan> levelMeasured)
         {
             _waveIn = new()
             {
@@ -212,6 +219,9 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
                 {
                     _pcm.Write(e.BufferSpan);
                 }
+
+                var samples = e.BytesRecorded / Format.BlockAlign;
+                levelMeasured(LevelMeter.Rms(e.BufferSpan), TimeSpan.FromSeconds((double)samples / Format.SampleRate));
             };
             _waveIn.RecordingStopped += (_, e) =>
             {

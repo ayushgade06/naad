@@ -27,6 +27,12 @@ internal static partial class User32
     // The mouse hook's equivalent of LlkhfLowerIlInjected.
     public const uint LlmhfLowerIlInjected = 0x02;
 
+    // Extended window styles for the recording overlay.
+    public const int WsExTopmost = 0x0000_0008;
+    public const int WsExTransparent = 0x0000_0020;
+    public const int WsExToolWindow = 0x0000_0080;
+    public const int WsExNoActivate = 0x0800_0000;
+
     public const ushort VkShift = 0x10;
     public const ushort VkControl = 0x11;
     public const ushort VkMenu = 0x12;
