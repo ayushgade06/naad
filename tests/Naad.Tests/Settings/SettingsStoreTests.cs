@@ -248,6 +248,59 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(SettingsStatus.Repaired, result.Status);
     }
 
+    [Theory]
+    [InlineData("""{ "version": 1 }""")]
+    [InlineData("""{ "version": 1, "language": null, "microphone": null }""")]
+    [InlineData("""{ "version": 1, "language": "", "microphone": "" }""")]
+    public void Load_LanguageAndMicrophoneUnset_LeavesThemNull(string json)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Null(result.Settings.Language);
+        Assert.Null(result.Settings.Microphone);
+    }
+
+    [Theory]
+    [InlineData("en", "Microphone (Test Device)")]
+    [InlineData("haw", "M")]
+    [InlineData("hi", "Thirty-one characters, exactly.")]
+    public void Load_ValidLanguageAndMicrophone_ReturnsThem(string language, string microphone)
+    {
+        var result = LoadFrom(
+            $$"""{ "version": 1, "language": "{{language}}", "microphone": "{{microphone}}" }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(language, result.Settings.Language);
+        Assert.Equal(microphone, result.Settings.Microphone);
+    }
+
+    [Theory]
+    [InlineData("\"EN\"")]
+    [InlineData("\"e\"")]
+    [InlineData("\"english\"")]
+    [InlineData("\"en-US\"")]
+    [InlineData("5")]
+    public void Load_InvalidLanguage_FallsBackToUnsetAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "language": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Null(result.Settings.Language);
+    }
+
+    [Theory]
+    [InlineData("\"Thirty-two characters, exactly!!\"")]
+    [InlineData("\"Mic\\u0007\"")]
+    [InlineData("true")]
+    public void Load_InvalidMicrophone_FallsBackToDefaultDeviceAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "microphone": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Null(result.Settings.Microphone);
+    }
+
     [Fact]
     public void Load_RewrittenFile_KeepsShortcutReadable()
     {

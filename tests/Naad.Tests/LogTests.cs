@@ -11,6 +11,8 @@ public sealed class LogTests : IDisposable
 
     public void Dispose()
     {
+        // Later tests would otherwise log into this deleted directory.
+        Log.StopFileLogging();
         if (Directory.Exists(_directory))
         {
             Directory.Delete(_directory, recursive: true);
@@ -44,6 +46,19 @@ public sealed class LogTests : IDisposable
         {
             Assert.DoesNotContain(mistake, LogText, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void StopFileLogging_LaterLines_AreNotWritten()
+    {
+        Log.Configure(_directory);
+        Log.Info(LogEvent.SettingsLoaded);
+
+        Log.StopFileLogging();
+        Log.Info(LogEvent.AppStopped);
+
+        Assert.Contains("SettingsLoaded", LogText, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppStopped", LogText, StringComparison.Ordinal);
     }
 
     [Fact]

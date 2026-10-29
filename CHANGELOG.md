@@ -4,6 +4,17 @@ All notable changes to Naad are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Work toward the settings window (P17). Nothing here is visible yet: settings
+still apply when Naad starts.
+
+### Added
+
+- `language` setting: the language you speak, sent with each recording.
+- `microphone` setting: record from a named device instead of the Windows
+  default. A device that isn't connected falls back to the default.
+
 ## [0.1.0] - Unreleased
 
 The first milestone, the MVP: hold-to-talk dictation that works end to end

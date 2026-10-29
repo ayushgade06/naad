@@ -37,6 +37,15 @@ internal static class Log
         }
     }
 
+    /// <summary>Stops writing to the file, as when file logging is turned off; lines go to the console only.</summary>
+    public static void StopFileLogging()
+    {
+        lock (Gate)
+        {
+            _directory = null;
+        }
+    }
+
     public static void Info(LogEvent logEvent, params ReadOnlySpan<(string Name, long Value)> fields) =>
         Write("INFO", logEvent, null, fields);
 

@@ -5,8 +5,9 @@ using NAudio.Wave;
 namespace Naad.Audio;
 
 /// <summary>
-/// Records the default microphone into memory. Audio never touches the disk. Start, StopAsync
-/// and Dispose may be called from different threads; one recording runs at a time.
+/// Records the chosen microphone, or the Windows default, into memory. Audio never touches the
+/// disk. Start, StopAsync and Dispose may be called from different threads; one recording runs
+/// at a time.
 /// </summary>
 internal sealed class AudioRecorder : IAudioRecorder, IDisposable
 {
@@ -28,8 +29,35 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
 
     private readonly Lock _gate = new();
+    private string? _microphone;
     private Recording? _current;
     private bool _disposed;
+
+    /// <summary>The recording devices' names, in Windows' device order.</summary>
+    /// <exception cref="MmException">A device disappeared while the list was read.</exception>
+    public static IReadOnlyList<string> DeviceNames() =>
+        [.. Enumerable.Range(0, WaveIn.DeviceCount).Select(i => WaveIn.GetCapabilities(i).ProductName)];
+
+    /// <summary>
+    /// The device number for <paramref name="microphone"/>, or the Windows default (-1) when it is
+    /// null or not connected.
+    /// </summary>
+    // ponytail: WinMM cuts device names to 31 characters, so two devices that share those characters
+    // can't be told apart and the first wins; WASAPI endpoint IDs are the upgrade path.
+    public static int DeviceNumber(IReadOnlyList<string> names, string? microphone)
+    {
+        var index = microphone is null ? -1 : names.ToList().IndexOf(microphone);
+        return index < 0 ? DefaultDevice : index;
+    }
+
+    /// <summary>Records from <paramref name="microphone"/>, or the default when null, from the next Start.</summary>
+    public void UseMicrophone(string? microphone)
+    {
+        lock (_gate)
+        {
+            _microphone = microphone;
+        }
+    }
 
     /// <summary>Starts recording, or returns why it can't. Returns null once recording.</summary>
     public MicrophoneFailure? Start()
@@ -52,7 +80,7 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
                 return new(MicrophoneError.NotFound);
             }
 
-            var recording = new Recording();
+            var recording = new Recording(ChooseDevice());
             try
             {
                 recording.Start();
@@ -105,6 +133,34 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
         recording?.Dispose();
     }
 
+    // A chosen microphone that isn't connected falls back to the default rather than failing:
+    // the user is holding the shortcut and expects to be heard. Called with _gate held.
+    private int ChooseDevice()
+    {
+        if (_microphone is null)
+        {
+            return DefaultDevice;
+        }
+
+        int device;
+        try
+        {
+            device = DeviceNumber(DeviceNames(), _microphone);
+        }
+        catch (MmException)
+        {
+            device = DefaultDevice;
+        }
+
+        if (device == DefaultDevice)
+        {
+            // The device count only; a device's name can identify its owner.
+            Log.Warn(LogEvent.MicrophoneFallbackToDefault, ("devices", WaveIn.DeviceCount));
+        }
+
+        return device;
+    }
+
     private static bool IsBlockedByPrivacySettings()
     {
         try
@@ -138,15 +194,17 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
     {
         private readonly MemoryStream _pcm = new();
         private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly WaveIn _waveIn = new()
-        {
-            DeviceNumber = DefaultDevice,
-            WaveFormat = Format,
-            BufferMilliseconds = BufferMilliseconds,
-        };
+        private readonly WaveIn _waveIn;
 
-        public Recording()
+        public Recording(int device)
         {
+            _waveIn = new()
+            {
+                DeviceNumber = device,
+                WaveFormat = Format,
+                BufferMilliseconds = BufferMilliseconds,
+            };
+
             // NAudio raises these on its capture thread.
             _waveIn.DataAvailable += (_, e) =>
             {

@@ -34,7 +34,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "playSounds": true,
               "dictationShortcut": "RightCtrl",
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
-              "transcriptionModel": "whisper-large-v3-turbo"
+              "transcriptionModel": "whisper-large-v3-turbo",
+              "language": null,
+              "microphone": null
             }
             """.ReplaceLineEndings(), File.ReadAllText(SettingsPath).ReplaceLineEndings());
     }
@@ -132,6 +134,48 @@ public sealed class SettingsStoreWriteTests : IDisposable
     }
 
     [Fact]
+    public void Save_ChangedSettings_RoundTripWithoutBackup()
+    {
+        new SettingsStore(SettingsPath).Load();
+        var changed = AppSettings.Defaults with
+        {
+            PlaySounds = false,
+            Language = "hi",
+            Microphone = "Microphone (Test Device)",
+        };
+
+        var error = new SettingsStore(SettingsPath).Save(changed);
+
+        Assert.Null(error);
+        var reloaded = new SettingsStore(SettingsPath).Load();
+        Assert.Equal(SettingsStatus.Loaded, reloaded.Status);
+        Assert.Equal(changed, reloaded.Settings);
+        Assert.Empty(Directory.GetFiles(_directory, "*.bak"));
+    }
+
+    [Fact]
+    public void Save_NoFolder_CreatesIt()
+    {
+        var nested = Path.Combine(_directory, "Naad", "settings.json");
+
+        Assert.Null(new SettingsStore(nested).Save(AppSettings.Defaults));
+        Assert.True(File.Exists(nested));
+    }
+
+    [Fact]
+    public void Save_WriteFails_ReturnsErrorAndKeepsPreviousFile()
+    {
+        const string Original = """{ "version": 1, "fileLogging": false }""";
+        File.WriteAllText(SettingsPath, Original);
+        BlockWrites();
+
+        var error = new SettingsStore(SettingsPath).Save(AppSettings.Defaults);
+
+        Assert.NotNull(error);
+        Assert.Equal(Original, File.ReadAllText(SettingsPath));
+    }
+
+    [Fact]
     public void Load_RewrittenFile_HoldsOnlyKnownSettingsNeverOtherContent()
     {
         // Someone pasted a key into the file; a rewrite must not carry it forward.
@@ -145,7 +189,10 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("fake-api-key-0123", written, StringComparison.Ordinal);
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
-            ["dictationShortcut", "fileLogging", "playSounds", "transcriptionBaseUrl", "transcriptionModel", "version"],
+            [
+                "dictationShortcut", "fileLogging", "language", "microphone", "playSounds", "transcriptionBaseUrl",
+                "transcriptionModel", "version",
+            ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }
 }

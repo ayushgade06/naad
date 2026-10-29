@@ -46,6 +46,7 @@ internal readonly record struct KeyOutcome(IReadOnlyList<ChordEvent> Events, boo
 internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
 {
     private readonly HashSet<Key> _held = [];
+    private IReadOnlyList<Chord> _chords = chords;
 
     // Keys whose key-down was swallowed. Their repeats and key-up are swallowed too, even after
     // the chord ends, so an app never sees half of a key press.
@@ -59,6 +60,17 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     // ponytail: a key-up lost while the secure desktop (Ctrl+Alt+Del, UAC) was shown leaves the
     // key marked held, so its next press is taken as auto-repeat; P19's hook health check can resync.
     public KeyOutcome OnKey(Key key, bool down) => down ? OnKeyDown(key) : OnKeyUp(key);
+
+    /// <summary>
+    /// Matches <paramref name="replacement"/> from now on. An active chord ends without an event,
+    /// so call it only while no dictation runs. Keys stay tracked as held, so a key whose key-down
+    /// was swallowed still has its key-up swallowed.
+    /// </summary>
+    public void SetChords(IReadOnlyList<Chord> replacement)
+    {
+        _chords = replacement;
+        _active = null;
+    }
 
     /// <summary>Feeds a mouse button press or wheel turn.</summary>
     public IReadOnlyList<ChordEvent> OnMouseButton()
@@ -88,7 +100,7 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
         }
 
         Chord? best = null;
-        foreach (var chord in chords)
+        foreach (var chord in _chords)
         {
             if (chord.Contains(key) && chord.Keys.All(_held.Contains) && chord.Keys.Count > (best?.Keys.Count ?? 0))
             {
