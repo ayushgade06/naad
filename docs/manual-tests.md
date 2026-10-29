@@ -649,6 +649,37 @@ passed its checksum on the same day.
 
 **Status after P20:** M-LW1 to M-LW4 have **not been run** by a person.
 
+## Packaging (P22): M-P1 to M-P4
+
+Since P22, pushing a version tag such as `v0.2.0` runs
+`.github/workflows/release.yml`: it tests, publishes a self-contained
+win-x64 build stamped with the tag's version, packs it with Velopack
+(`vpk pack`, package id `Naad.App`) and publishes a GitHub Release with
+`Naad.App-win-Setup.exe`, a portable zip and the update feed. The
+installer is per user: it installs into `%LOCALAPPDATA%\Naad.App`, which is
+deliberately not `%LOCALAPPDATA%\Naad`, where Naad keeps its user data.
+Uninstalling runs Naad's hook, which removes the start-at-sign-in entry.
+
+**Dry run, 2026-10-29:** the workflow's publish and pack commands, run
+locally with version 0.0.1, produced `Naad.App-win-Setup.exe` (64 MB), the
+portable zip, the full package and `releases.win.json`; Naad.exe reported
+FileVersion 0.0.1.0, and the Whisper native libraries were included. The
+installer wasn't run on the maintainer's PC, and no tag was pushed, so the
+workflow itself hasn't run.
+
+Run these on a clean Windows 11 virtual machine, with a release built by
+the workflow.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-P1 | Install | Download `Naad.App-win-Setup.exe` from the release and run it; follow the SmartScreen steps in the README. | It installs without an administrator prompt and starts Naad: the tray icon appears and Settings opens to ask for a key. Settings > Apps lists **Naad** with the release's version. A Start menu shortcut exists. | **No.** It needs a clean VM. |
+| M-P2 | Run and dictate | Enter a key in Settings, then dictate into Notepad. Restart the VM; start Naad from the Start menu. | Dictation works, as in M-M8. After the restart, Naad starts from the shortcut with its settings and key. | **No.** |
+| M-P3 | Uninstall | Tick **Start Naad when I sign in**, save, then uninstall from Settings > Apps. Check `%LOCALAPPDATA%\Naad.App`, the Start menu and `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Naad`. | Naad exits and is removed. `%LOCALAPPDATA%\Naad.App` and the Start menu shortcut are gone, and the Run value no longer exists. | **No.** |
+| M-P4 | User data after uninstall | After M-P3, check `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad`, then reinstall. Then delete both folders. | Both folders are still there after uninstalling, and a reinstall picks up the settings and key. Once deleted, nothing of Naad is left. | **No.** |
+
+**Status after P22:** M-P1 to M-P4 have **not been run**: they need a clean
+VM and a published release.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11

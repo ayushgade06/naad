@@ -586,6 +586,15 @@ production-quality code, and keeps the slice working at every commit.
   - Version stamping.
   - Release workflow triggered by tags.
   - Unsigned (SmartScreen notes in the README).
+  - **As built:** `release.yml` runs only on `v*.*.*` tags: test, publish
+    self-contained win-x64 with `-p:Version` from the tag, `vpk pack` with
+    package id `Naad.App`, and `vpk upload github` with the built-in
+    token. The id isn't `Naad` because Velopack installs into
+    `%LOCALAPPDATA%\<id>` and would land on Naad's user data. `Program`
+    runs Velopack's hooks first; uninstalling removes the Run entry and
+    leaves user data, which the README tells users how to delete.
+    Packages are full only (no deltas yet). The workflow's commands were
+    dry-run locally; the workflow itself runs on the first tag.
 - **Needs:** P16.
 - **Done when:** a clean Windows 11 VM can install, run and uninstall Naad
   with nothing left behind except user data, which the user chooses to
