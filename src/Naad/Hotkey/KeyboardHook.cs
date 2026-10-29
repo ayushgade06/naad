@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using Naad.Native;
 
 namespace Naad.Hotkey;
@@ -27,10 +28,16 @@ internal sealed class KeyboardHook : IDisposable
     /// </summary>
     public const nuint OwnInputMarker = 0x4E41_4144;
 
+    // Lost key-ups are found within this long. A dictation whose key-up was lost then ends
+    // about two seconds late instead of running to its five-minute limit, and the check costs
+    // nothing while no key is held.
+    private const int HealthCheckMilliseconds = 2000;
+
     // Held in fields: Windows keeps only raw pointers, so the GC must not collect the delegates.
     private readonly User32.HookProc _proc;
     private readonly User32.HookProc _mouseProc;
-    private readonly nint _handle;
+    private readonly System.Windows.Forms.Timer _healthCheck = new() { Interval = HealthCheckMilliseconds };
+    private nint _handle;
     private readonly SynchronizationContext _ui;
     private readonly ChordMatcher _matcher;
     private nint _mouseHandle;
@@ -48,6 +55,15 @@ internal sealed class KeyboardHook : IDisposable
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         }
+
+        _healthCheck.Tick += (_, _) => Resync();
+        _healthCheck.Start();
+
+        // Windows can drop a low-level hook across sleep or a locked session without telling the
+        // program, so the hook is installed afresh whenever the user comes back. SystemEvents
+        // raises these on its own thread.
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
     }
 
     public event Action? TriggerPressed;
@@ -92,6 +108,11 @@ internal sealed class KeyboardHook : IDisposable
     public void Dispose()
     {
         _disposed = true;
+
+        // SystemEvents are static: an unremoved handler would outlive the hook.
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
+        _healthCheck.Dispose();
         User32.UnhookWindowsHookEx(_handle);
         RemoveMouseHook();
     }
@@ -155,6 +176,68 @@ internal sealed class KeyboardHook : IDisposable
         }
 
         return User32.CallNextHookEx(0, code, wParam, lParam);
+    }
+
+    /// <summary>
+    /// Replaces the keyboard hook with a new one and forgets keys whose key-up was missed. Keeps
+    /// the old hook if a new one can't be installed. Call on the UI thread.
+    /// </summary>
+    // ponytail: reinstalls on resume and unlock only; Windows can also drop a hook whose callback
+    // timed out, with no notice. A periodic reinstall would cover that if users report a dead shortcut.
+    public void Reinstall()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var replacement = Install(User32.WhKeyboardLl, _proc);
+        if (replacement == 0)
+        {
+            Log.Error(LogEvent.HookReinstallFailed, ("win32_error", Marshal.GetLastPInvokeError()));
+            return;
+        }
+
+        // The new hook goes in before the old one comes out, so no key goes unwatched. Hooks are
+        // only called while this thread pumps messages, which it doesn't do in between, so no key
+        // is seen twice either.
+        User32.UnhookWindowsHookEx(_handle);
+        _handle = replacement;
+        Log.Info(LogEvent.HookReinstalled);
+        Resync();
+    }
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Resume)
+        {
+            _ui.Post(_ => Reinstall(), null);
+        }
+    }
+
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason is SessionSwitchReason.SessionUnlock or SessionSwitchReason.ConsoleConnect)
+        {
+            _ui.Post(_ => Reinstall(), null);
+        }
+    }
+
+    private void Resync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        // The high bit of GetAsyncKeyState is set while the key is physically down.
+        var events = _matcher.Resync(key => User32.GetAsyncKeyState((int)key) < 0);
+        if (events.Count > 0)
+        {
+            Log.Info(LogEvent.ShortcutKeysResynced, ("events", events.Count));
+        }
+
+        Raise(events, CancelCause.OtherKey);
     }
 
     // Windows silently removes hooks whose callback is slow, so handlers run after the

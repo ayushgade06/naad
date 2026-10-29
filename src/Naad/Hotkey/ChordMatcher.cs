@@ -78,9 +78,27 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     public void CancelCapture() => _capture = null;
 
     /// <summary>Feeds one physical key event.</summary>
-    // ponytail: a key-up lost while the secure desktop (Ctrl+Alt+Del, UAC) was shown leaves the
-    // key marked held, so its next press is taken as auto-repeat; P19's hook health check can resync.
     public KeyOutcome OnKey(Key key, bool down) => down ? OnKeyDown(key) : OnKeyUp(key);
+
+    /// <summary>
+    /// Forgets held keys that Windows says are up: their key-up was lost, as happens while the
+    /// secure desktop (Ctrl+Alt+Del, UAC) has the keyboard. Without this, a lost key-up of the
+    /// shortcut would leave a dictation recording until its time limit, and the key's next press
+    /// would be taken as auto-repeat. Releasing a key of the active chord releases the chord.
+    /// </summary>
+    /// <param name="isDown">Whether Windows reports the key down now.</param>
+    // ponytail: swallowed keys (Space in Left Ctrl+Space) are skipped, because Windows never
+    // records a key the hook swallowed as down; a lost key-up of one still needs a fresh press.
+    public IReadOnlyList<ChordEvent> Resync(Func<Key, bool> isDown)
+    {
+        var events = new List<ChordEvent>();
+        foreach (var key in _held.Where(k => !_swallowed.Contains(k) && !isDown(k)).ToList())
+        {
+            events.AddRange(OnKeyUp(key).Events);
+        }
+
+        return events;
+    }
 
     /// <summary>
     /// Matches <paramref name="replacement"/> from now on. An active chord ends without an event,
