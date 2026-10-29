@@ -89,4 +89,10 @@ internal enum LogEvent
     TypingIncomplete,
     TranscriptCopied,
     TranscriptCopyFailed,
+
+    UpdateNotAvailable,
+    UpdateAvailable,
+    UpdateCheckFailed,
+    UpdateDownloadFailed,
+    UpdateReadyToApply,
 }

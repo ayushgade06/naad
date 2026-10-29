@@ -680,6 +680,30 @@ the workflow.
 **Status after P22:** M-P1 to M-P4 have **not been run**: they need a clean
 VM and a published release.
 
+## Auto-update (P23): M-P5 and M-P6
+
+Since P23, an installed Naad (one set up by `Naad.App-win-Setup.exe`)
+asks GitHub Releases for a newer version a minute after start, then once a
+day, and when **Check for updates** in the tray menu is clicked. A build
+run from source never checks, and the menu item isn't shown. When an update
+exists, a notification offers it; nothing is downloaded until it is
+clicked. Clicking during a dictation asks to click again afterwards. The
+update downloads, Naad exits the normal way, and Velopack installs the new
+version and starts it. Settings, the key and the model live outside the
+install folder, so they are kept. `AppUpdaterTests` checks that a copy
+that isn't installed does nothing; `TrayIconTests` the offer's text.
+
+These need two published releases, N and N+1, built by the release
+workflow, and a clean Windows 11 virtual machine.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-P5 | Update N to N+1 | 1. Install release N (M-P1), enter a key, change the shortcut and tick **Hands-free** in Settings. 2. Publish N+1. 3. Choose **Check for updates** in the tray menu. 4. Click the notification. | 3. **Naad update** offers N+1; nothing has been downloaded yet. The log shows `UpdateAvailable major=… minor=… patch=…`. 4. Naad closes, updates and starts again within a minute or so. Settings > Apps shows N+1. The shortcut, **Hands-free** and the key still work without being entered again. | **No.** It needs two releases. |
+| M-P6 | Up to date, offline and mid-dictation | 1. On N+1, choose **Check for updates**. 2. Disconnect the network and check again. 3. Reinstall N, start a hands-free dictation, and click an update notification while it records. | 1. "Naad is up to date." (`UpdateNotAvailable`). 2. A notification says the check failed (`UpdateCheckFailed`); Naad keeps working. 3. The dictation isn't interrupted; the notification asks to click again once it is done, and doing so updates. | **No.** |
+
+**Status after P23:** M-P5 and M-P6 have **not been run**: they need
+published releases and a clean VM.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11

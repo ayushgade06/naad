@@ -23,6 +23,20 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>The menu item that opens the settings window.</summary>
     public const string SettingsText = "Settings...";
 
+    /// <summary>The menu item that checks GitHub for a newer version; only in an installed copy.</summary>
+    public const string CheckForUpdatesText = "Check for updates";
+
+    /// <summary>Title of the notifications about updates.</summary>
+    public const string UpdateTitle = "Naad update";
+
+    private const string UpToDateMessage = "Naad is up to date.";
+
+    private const string UpdateFailedMessage = "Naad couldn't check for or download the update. Check your " +
+        "internet connection and try again from the Naad menu.";
+
+    private const string UpdateWaitsMessage = "Naad will update once your dictation is finished. Click the " +
+        "notification again then.";
+
     /// <summary>Title of the notification shown when the shortcut is pressed before setup is finished.</summary>
     public const string ApiKeyNeededTitle = "Naad isn't set up yet";
 
@@ -57,6 +71,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _copyLastTranscript;
+    private readonly ToolStripMenuItem _checkForUpdates = new(CheckForUpdatesText) { Visible = false };
     private readonly Func<Task<bool>> _copy;
     private readonly Action _openSettings;
     private Action? _notificationClicked;
@@ -81,6 +96,7 @@ internal sealed class TrayIcon : IDisposable
         };
         _menu.Items.Add(SettingsText, null, (_, _) => openSettings());
         _menu.Items.Add(_copyLastTranscript);
+        _menu.Items.Add(_checkForUpdates);
         _menu.Items.Add("Exit", null, (_, _) => exit());
         _icon = new NotifyIcon { Icon = _image, Text = _idleTooltip, ContextMenuStrip = _menu, Visible = true };
         _icon.BalloonTipClicked += (_, _) => _notificationClicked?.Invoke();
@@ -98,6 +114,10 @@ internal sealed class TrayIcon : IDisposable
     public static string RecordingTooltip(Chord shortcut, bool handsFree) => handsFree
         ? $"Naad: listening. Press {shortcut.Describe()} again to transcribe."
         : "Naad: listening. Release to transcribe.";
+
+    /// <summary>Asks before updating. Windows cuts notification text at 255 characters.</summary>
+    public static string UpdateAvailableMessage(string version) =>
+        $"Naad {version} is available. Click here to download and install it; Naad restarts by itself.";
 
     /// <summary>What to tell the user. Windows cuts notification text at 255 characters.</summary>
     public static string MicrophoneErrorMessage(MicrophoneError error) => error switch
@@ -175,6 +195,27 @@ internal sealed class TrayIcon : IDisposable
         _recordingTooltip = RecordingTooltip(shortcut, handsFree);
         _icon.Text = _idleTooltip;
     }
+
+    /// <summary>Shows Check for updates in the menu; only an installed copy can update.</summary>
+    public void EnableUpdateChecks(Action check)
+    {
+        _checkForUpdates.Click += (_, _) => check();
+        _checkForUpdates.Visible = true;
+    }
+
+    /// <summary>Offers an update; nothing is downloaded until the notification is clicked.</summary>
+    public void ShowUpdateAvailable(string version, Action install) =>
+        Notify(UpdateTitle, UpdateAvailableMessage(version), ToolTipIcon.Info, clicked: install);
+
+    /// <summary>Answers a check from the menu that found nothing new.</summary>
+    public void ShowUpToDate() => Notify(UpdateTitle, UpToDateMessage, ToolTipIcon.Info, clicked: null);
+
+    /// <summary>Tells the user an update check or download failed.</summary>
+    public void ShowUpdateFailed() => Notify(UpdateTitle, UpdateFailedMessage, ToolTipIcon.Warning, clicked: null);
+
+    /// <summary>The update was accepted during a dictation; clicking again later installs it.</summary>
+    public void ShowUpdateWaits(Action install) =>
+        Notify(UpdateTitle, UpdateWaitsMessage, ToolTipIcon.Info, clicked: install);
 
     /// <summary>Tells the user to add an API key; clicking the notification opens Settings.</summary>
     public void ShowApiKeyNeeded() =>
