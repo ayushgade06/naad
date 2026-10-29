@@ -107,6 +107,15 @@ public sealed class TrayIconTests
             StringComparison.Ordinal);
 
     [Fact]
+    public void UpdateAvailableMessage_LongVersion_FitsNotificationLimitAndNamesIt()
+    {
+        var message = TrayIcon.UpdateAvailableMessage("123.456.789-preview.1+abcdef");
+
+        Assert.InRange(message.Length, 1, 255);
+        Assert.Contains("123.456.789", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ApiKeyNeededMessage_FitsNotificationLimit() =>
         Assert.InRange(TrayIcon.ApiKeyNeededMessage.Length, 1, 255);
 

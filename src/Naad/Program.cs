@@ -6,6 +6,7 @@ using Naad.Insertion;
 using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
+using Naad.Updates;
 using NAudio;
 using Velopack;
 
@@ -265,6 +266,11 @@ internal static class Program
             hook.CaptureEnded += step => window?.ShowCapture(step);
 
             openSettings = OpenSettings;
+
+            // Only an installed copy updates, and only when the user clicks the offer.
+            using var updates = new UpdatePrompt(
+                new AppUpdater(), tray, () => controller.State == DictationState.Idle, Application.ExitThread);
+
             Log.Info(LogEvent.AppStarted);
             if (transcriber is null)
             {
