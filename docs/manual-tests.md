@@ -611,6 +611,44 @@ entry against a throwaway registry key (`StartupEntryTests`).
 
 **Status after P21:** M-Q1 to M-Q5 have **not been run** by a person.
 
+## Transcription on this PC (P20): M-LW1 to M-LW4
+
+The roadmap names these M-W1 to M-W4; they are M-LW here because P11's
+recording gates already use M-W1 to M-W3.
+
+Since P20, **Transcribe with** in Settings chooses between the cloud
+service and Whisper on this PC. **Download model** fetches whisper.cpp's
+`ggml-base.bin` (148 MB) from Hugging Face once, checks its SHA-256, and
+keeps it in `%LOCALAPPDATA%\Naad\models`. With **This PC** chosen, audio
+never leaves the machine. Naad never falls back from one provider to the
+other: without the model, the shortcut asks to finish setup and records
+nothing. Unit tests cover provider selection (`ProviderSelectionTests`),
+the download and checksum against a fake server (`LocalModelTests`), the
+setting (`SettingsStoreTests`) and a missing model
+(`LocalWhisperTranscriberTests`).
+
+**Measured, 2026-10-29,** by the explicit test in
+`LocalWhisperTranscriberTests`, on the maintainer's PC (12 logical
+processors), with 9.8 s of synthetic English speech:
+
+| Run | Wall time | CPU time | Average load |
+|---|---|---|---|
+| First dictation (loads the model) | 1.99 s | 8.9 s | 37% of 12 logical processors |
+| Later dictations | 1.49 s | 8.9 s | 50% of 12 logical processors |
+
+Whisper uses half the logical processors (at most 8) while it runs, and
+the model takes about 150 MB of memory once loaded. The real download
+passed its checksum on the same day.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-LW1 | Download the model | In Settings, choose **This PC**, click **Download model**, wait, then **Save**. Open `%LOCALAPPDATA%\Naad\models`. | The status counts up to 100% and says the model is downloaded. `ggml-base.bin` is 147,951,465 bytes; no `.download` file is left. The log shows `LocalModelDownloaded download_ms=N`. | Partly: the explicit test downloaded the real file through the same code and its checksum matched (2026-10-29). Settings UI: NOT RUN. |
+| M-LW2 | Dictate offline | Turn off Wi-Fi (or unplug the network). Dictate two sentences into Notepad. | Both are pasted. The first takes a moment longer while the model loads. No network error appears. | **No.** It needs a voice; the explicit test transcribed synthetic speech with no network code involved. |
+| M-LW3 | No silent fallback | Choose **This PC** and save, then exit Naad, delete `ggml-base.bin`, start Naad and hold the shortcut. Then choose **Cloud** with a valid key and dictate. | Without the model, Naad opens Settings at start, and the shortcut shows **Naad isn't set up yet**; nothing is recorded or uploaded. With **Cloud**, dictation works again. | **No.** |
+| M-LW4 | Interrupted or damaged download | 1. Start **Download model** and close the settings window half-way. 2. Start it again and turn off the network half-way. | 1. and 2. No `ggml-base.bin` or `.download` file is left; Settings says the download failed and offers it again. | **No.** The checksum rejection is unit tested. |
+
+**Status after P20:** M-LW1 to M-LW4 have **not been run** by a person.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11

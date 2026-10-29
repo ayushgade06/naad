@@ -21,6 +21,9 @@ All notable changes to Naad are listed here. The format follows
 - `microphone` setting: record from a named device instead of the Windows
   default. A device that isn't connected falls back to the default.
 
+- Transcribe on this PC, offline, with Whisper (`transcriptionProvider`).
+  Settings downloads the 148 MB model once and checks its SHA-256; audio
+  then never leaves the PC.
 - `vocabulary` setting: names and terms sent as Whisper's prompt so they
   are spelled right.
 - Hands-free mode (`handsFree`): press the shortcut to start and again to
