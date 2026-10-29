@@ -158,7 +158,7 @@ internal static class Program
     private static OpenAiCompatibleTranscriber? CreateTranscriber(HttpClient http, string? apiKey, AppSettings s) =>
         apiKey is null
             ? null
-            : new(http, apiKey, s.TranscriptionBaseUrl, s.TranscriptionModel, s.Language);
+            : new(http, apiKey, s.TranscriptionBaseUrl, s.TranscriptionModel, s.Language, s.Vocabulary);
 
     // Every local function below runs on this UI thread: the hook, the tray, the controller's
     // events and the settings window all live on it.
@@ -188,6 +188,7 @@ internal static class Program
             DictationController? dictation = null;
             using var tray = new TrayIcon(
                 settings.DictationShortcut,
+                settings.HandsFree,
                 copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
                 openSettings: () => openSettings?.Invoke(),
                 exit: Application.ExitThread);
@@ -211,6 +212,8 @@ internal static class Program
                 FocusGuard.Check,
                 TimeProvider.System);
             dictation = controller;
+            controller.UseHandsFree(settings.HandsFree);
+            var startup = StartupEntry.ForThisApp();
             controller.StateChanged += tray.ShowState;
 
             // Recording starts with focus on the window being dictated into, so the overlay
@@ -265,6 +268,7 @@ internal static class Program
                     pending ?? settings,
                     ResolveKey(keys, log: false),
                     Microphones(),
+                    startup.IsEnabled(),
                     TestKeyAsync,
                     Save,
                     beginCapture: () =>
@@ -306,7 +310,7 @@ internal static class Program
 
             // Saves the key first, so a key that can't be stored changes nothing else. Settings that
             // can't be written still apply until Naad exits, and the window says so.
-            string? Save(AppSettings next, string? newKey)
+            string? Save(AppSettings next, string? newKey, bool startAtLogin)
             {
                 if (newKey is not null)
                 {
@@ -321,16 +325,31 @@ internal static class Program
                 }
 
                 string? problem = null;
+                // Written whenever ticked, so an entry left by a moved copy points here again.
+                var startedAtLogin = startup.IsEnabled();
+                if (startAtLogin || startedAtLogin)
+                {
+                    if (startup.Set(startAtLogin) is { } startupError)
+                    {
+                        Log.Error(LogEvent.StartAtLoginFailed, startupError);
+                        problem = "Naad couldn't change whether it starts when you sign in. ";
+                    }
+                    else if (startAtLogin != startedAtLogin)
+                    {
+                        Log.Info(startAtLogin ? LogEvent.StartAtLoginEnabled : LogEvent.StartAtLoginDisabled);
+                    }
+                }
+
                 if (!canSave)
                 {
                     Log.Warn(LogEvent.SettingsSaveSkippedNewerFile);
-                    problem = "A newer version of Naad wrote settings.json, so these changes apply only until " +
+                    problem += "A newer version of Naad wrote settings.json, so these changes apply only until " +
                         "Naad exits.";
                 }
                 else if (store.Save(next) is { } writeError)
                 {
                     Log.Error(LogEvent.SettingsWriteFailed, writeError);
-                    problem = "settings.json couldn't be written, so these changes apply only until Naad exits.";
+                    problem += "settings.json couldn't be written, so these changes apply only until Naad exits.";
                 }
                 else
                 {
@@ -338,7 +357,7 @@ internal static class Program
                 }
 
                 Apply(next);
-                return problem;
+                return problem?.TrimEnd();
             }
 
             // A dictation keeps the settings it started with: during one, the change waits for Idle.
@@ -380,7 +399,8 @@ internal static class Program
                 }
 
                 hook.SetShortcut(next.DictationShortcut);
-                tray.SetShortcut(next.DictationShortcut);
+                tray.SetShortcut(next.DictationShortcut, next.HandsFree);
+                controller.UseHandsFree(next.HandsFree);
                 recorder.UseMicrophone(next.Microphone);
                 controller.UseTranscriber(CreateTranscriber(http, apiKey, next));
                 settings = next;

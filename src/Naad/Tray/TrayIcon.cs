@@ -53,6 +53,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly Icon _recordingImage;
     private readonly Icon _transcribingImage;
     private string _idleTooltip;
+    private string _recordingTooltip;
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _copyLastTranscript;
@@ -61,14 +62,17 @@ internal sealed class TrayIcon : IDisposable
     private Action? _notificationClicked;
 
     /// <param name="shortcut">Named in the tooltip.</param>
+    /// <param name="handsFree">Whether the shortcut is pressed to start and stop, rather than held.</param>
     /// <param name="copyLastTranscript">Copies the kept transcript; false if it couldn't.</param>
     /// <param name="openSettings">Opens the settings window.</param>
     /// <param name="exit">Ends the app.</param>
-    public TrayIcon(Chord shortcut, Func<Task<bool>> copyLastTranscript, Action openSettings, Action exit)
+    public TrayIcon(
+        Chord shortcut, bool handsFree, Func<Task<bool>> copyLastTranscript, Action openSettings, Action exit)
     {
         _copy = copyLastTranscript;
         _openSettings = openSettings;
-        _idleTooltip = Tooltip(shortcut);
+        _idleTooltip = Tooltip(shortcut, handsFree);
+        _recordingTooltip = RecordingTooltip(shortcut, handsFree);
         _recordingImage = WithDot(_image, RecordingColor);
         _transcribingImage = WithDot(_image, TranscribingColor);
         _copyLastTranscript = new ToolStripMenuItem(CopyLastTranscriptText, null, (_, _) => _ = CopyAsync())
@@ -86,7 +90,14 @@ internal sealed class TrayIcon : IDisposable
     /// Also the icon's accessible name, which UI tests use to find it. NotifyIcon refuses
     /// text over 127 characters; a chord's four-key limit keeps it well under that.
     /// </summary>
-    public static string Tooltip(Chord shortcut) => $"Naad: hold {shortcut.Describe()} to dictate";
+    public static string Tooltip(Chord shortcut, bool handsFree = false) => handsFree
+        ? $"Naad: press {shortcut.Describe()} to start and stop dictating"
+        : $"Naad: hold {shortcut.Describe()} to dictate";
+
+    /// <summary>The tooltip while listening: how to end the dictation.</summary>
+    public static string RecordingTooltip(Chord shortcut, bool handsFree) => handsFree
+        ? $"Naad: listening. Press {shortcut.Describe()} again to transcribe."
+        : "Naad: listening. Release to transcribe.";
 
     /// <summary>What to tell the user. Windows cuts notification text at 255 characters.</summary>
     public static string MicrophoneErrorMessage(MicrophoneError error) => error switch
@@ -100,9 +111,9 @@ internal sealed class TrayIcon : IDisposable
     };
 
     /// <summary>The tooltip while dictating; the idle tooltip otherwise.</summary>
-    public static string StateTooltip(DictationState state, string idleTooltip) => state switch
+    public static string StateTooltip(DictationState state, string idleTooltip, string recordingTooltip) => state switch
     {
-        DictationState.Recording => "Naad: listening. Release to transcribe.",
+        DictationState.Recording => recordingTooltip,
         DictationState.Transcribing or DictationState.Inserting => "Naad: transcribing",
         _ => idleTooltip,
     };
@@ -155,10 +166,11 @@ internal sealed class TrayIcon : IDisposable
             NotificationMilliseconds, MicrophoneErrorTitle, MicrophoneErrorMessage(error), ToolTipIcon.Warning);
     }
 
-    /// <summary>Names a new shortcut in the tooltip. Call while idle.</summary>
-    public void SetShortcut(Chord shortcut)
+    /// <summary>Names a new shortcut, or way of using it, in the tooltip. Call while idle.</summary>
+    public void SetShortcut(Chord shortcut, bool handsFree)
     {
-        _idleTooltip = Tooltip(shortcut);
+        _idleTooltip = Tooltip(shortcut, handsFree);
+        _recordingTooltip = RecordingTooltip(shortcut, handsFree);
         _icon.Text = _idleTooltip;
     }
 
@@ -175,7 +187,7 @@ internal sealed class TrayIcon : IDisposable
             DictationState.Transcribing or DictationState.Inserting => _transcribingImage,
             _ => _image,
         };
-        _icon.Text = StateTooltip(state, _idleTooltip);
+        _icon.Text = StateTooltip(state, _idleTooltip, _recordingTooltip);
     }
 
     /// <summary>Tells the user why a recording couldn't be transcribed.</summary>

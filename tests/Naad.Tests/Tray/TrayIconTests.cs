@@ -38,7 +38,13 @@ public sealed class TrayIconTests
             .Select(chord => chord.ToString());
         Assert.True(Chord.TryParse(string.Join('+', longest), out var widest));
 
-        Assert.True(TrayIcon.Tooltip(widest).Length <= NotifyIconTextLimit, TrayIcon.Tooltip(widest));
+        Assert.All(
+            [
+                TrayIcon.Tooltip(widest),
+                TrayIcon.Tooltip(widest, handsFree: true),
+                TrayIcon.RecordingTooltip(widest, handsFree: true),
+            ],
+            tooltip => Assert.True(tooltip.Length <= NotifyIconTextLimit, tooltip));
     }
 
     [Fact]
@@ -105,10 +111,22 @@ public sealed class TrayIconTests
         Assert.InRange(TrayIcon.ApiKeyNeededMessage.Length, 1, 255);
 
     [Theory]
-    [InlineData("Recording", "Naad: listening. Release to transcribe.")]
+    [InlineData("Recording", "recording tooltip")]
     [InlineData("Transcribing", "Naad: transcribing")]
     [InlineData("Inserting", "Naad: transcribing")]
     [InlineData("Idle", "idle tooltip")]
     public void StateTooltip_EachState_DescribesIt(string state, string expected) =>
-        Assert.Equal(expected, TrayIcon.StateTooltip(Enum.Parse<DictationState>(state), "idle tooltip"));
+        Assert.Equal(
+            expected,
+            TrayIcon.StateTooltip(Enum.Parse<DictationState>(state), "idle tooltip", "recording tooltip"));
+
+    [Theory]
+    [InlineData(false, "Naad: hold Right Ctrl to dictate", "Naad: listening. Release to transcribe.")]
+    [InlineData(true, "Naad: press Right Ctrl to start and stop dictating",
+        "Naad: listening. Press Right Ctrl again to transcribe.")]
+    public void Tooltips_EachMode_SayHowToDictate(bool handsFree, string idle, string recording)
+    {
+        Assert.Equal(idle, TrayIcon.Tooltip(Chord.RightCtrl, handsFree));
+        Assert.Equal(recording, TrayIcon.RecordingTooltip(Chord.RightCtrl, handsFree));
+    }
 }
