@@ -29,7 +29,7 @@ manual checks to it.
 | Topic | Decision |
 |---|---|
 | Stack | C# on .NET 10 LTS, WinForms tray app, NAudio, Win32 through P/Invoke, xUnit |
-| Speech-to-text | OpenAI-compatible HTTP API first, with Groq as the default. Local Whisper comes in P20. |
+| Speech-to-text | OpenAI-compatible HTTP API first, with Groq as the default. Local Whisper came in P20. Since P24 (decided 2026-10-30), Whisper on this PC is the default, so dictation costs nothing; the cloud API is the alternative. |
 | Shortcut | Hold Right Ctrl by default. The implementation must support configurable chords. |
 | Focus change | Never paste into a different window. Keep the transcript and notify the user. |
 | OS | Windows 11 first; Windows 10 22H2 where practical |
@@ -45,7 +45,7 @@ manual checks to it.
 | **M1: Vertical slice** | **P3** | Hold Right Ctrl → speak → text appears in Notepad. This is a go/no-go check of the stack. |
 | M2: MVP `v0.1.0` | P16 | Hardened end-to-end dictation in Notepad, Chrome and VS Code |
 | M3: Usable app | P19 | Settings window, overlay, robustness work |
-| M4: `v1.0.0` | P24 | Local Whisper option, installer, auto-update, documentation |
+| M4: `v1.0.0` | P25 | Local Whisper by default, installer, auto-update, documentation |
 
 ---
 
@@ -619,13 +619,35 @@ production-quality code, and keeps the slice working at every commit.
   settings.
 - **Verify:** manual checks M-P5 and M-P6.
 
-### P24: 1.0 hardening and documentation
+### P24: Local first
+
+- **Goal:** dictation costs nothing by default. Whisper on this PC is the
+  default provider, and on a PC with a graphics card it comes close to the
+  cloud's accuracy.
+- **In:**
+  - `transcriptionProvider` defaults to `Local`. Settings version 2: a
+    version-1 file without the field keeps `Cloud`, which it meant.
+  - First start opens Settings on **This PC**, with **Download model**.
+  - Whisper.net's Vulkan runtime, preferring a discrete graphics card
+    over an integrated one; the CPU runtime stays as the fallback.
+  - A choice of local model: base, or large-v3-turbo for PCs with a
+    graphics card.
+- **Out:** the CUDA runtime, more models, deleting a model that is no
+  longer chosen, loading the model before the first dictation.
+- **Needs:** P20.
+- **Done when:**
+  - A fresh install dictates without an API key after one download.
+  - An older settings file keeps the provider it was using.
+  - Latency is measured on the CPU and on a graphics card, per model.
+- **Verify:** `dotnet test`; manual checks M-LF1 to M-LF5.
+
+### P25: 1.0 hardening and documentation
 
 - **Goal:** ship `v1.0.0`.
 - **In:**
   - Privacy document, troubleshooting guide, architecture page.
   - A full manual pass on Windows 11 and Windows 10 22H2.
-- **Needs:** P17–P23.
+- **Needs:** P17–P24.
 - **Done when:** every manual check passes and the documentation matches
   the app's behaviour.
 - **Verify:** the full manual checklist; CI green.
