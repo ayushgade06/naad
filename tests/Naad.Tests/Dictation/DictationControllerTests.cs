@@ -324,6 +324,64 @@ public sealed class DictationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task HandsFree_PressReleasePress_TranscribesOnceAfterTheSecondPress()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
+        var idle = _h.NextIdle();
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+        _h.Time.Advance(LongHold);
+        var stillRecording = _h.Controller.State;
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+        await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(DictationState.Recording, stillRecording);
+        Assert.Equal(1, _h.Recorder.Starts);
+        Assert.Equal(1, _h.Transcriber.Calls);
+        Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
+    public async Task HandsFree_QuickSecondPress_IsAShortHoldAndUploadsNothing()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
+        var idle = _h.NextIdle();
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _h.Transcriber.Calls);
+    }
+
+    [Fact]
+    public async Task HandsFree_OtherKeyDuringTheFirstPress_CancelsLikeHold()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
+        var idle = _h.NextIdle();
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(() => _h.Controller.Cancel(CancelCause.OtherKey));
+        await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _h.Transcriber.Calls);
+        Assert.Equal(DictationState.Idle, _h.Controller.State);
+    }
+
+    [Fact]
+    public async Task HandsFree_TurnedOff_ReleaseEndsTheDictationAgain()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
+        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(false));
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
     public async Task Dispose_DuringTranscription_CancelsItAndInsertsNothing()
     {
         var started = new TaskCompletionSource();
