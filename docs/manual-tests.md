@@ -704,6 +704,41 @@ workflow, and a clean Windows 11 virtual machine.
 **Status after P23:** M-P5 and M-P6 have **not been run**: they need
 published releases and a clean VM.
 
+## Local first (P24): M-LF1 to M-LF5
+
+Since P24, Naad transcribes on this PC unless the user chooses the cloud,
+so the checks above that dictate through Groq (M-S2 to M-S5, M-G1 to M-G3
+and others) need **Cloud** chosen in Settings first. A settings file from
+before P24 (version 1) that never chose a provider keeps **Cloud**.
+`SettingsStoreTests` covers the default and the migration.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-LF1 | First start, no key | Exit Naad. Rename `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad\models`, and clear `NAAD_GROQ_API_KEY`. Start Naad. | Settings opens with **This PC** chosen and **Download model** offered. Holding the shortcut shows **Naad isn't set up yet** and records nothing. After **Download model** and **Save**, dictating into Notepad pastes the words. No API key was asked for. | **No.** The default is unit tested. |
+| M-LF2 | Older settings keep the cloud | Exit Naad. Write `{ "version": 1, "dictationShortcut": "RightCtrl" }` to `%APPDATA%\Naad\settings.json`, with a stored key. Start Naad and dictate. | Naad transcribes through the cloud, as before. settings.json now says `"version": 2` and `"transcriptionProvider": "Cloud"`; a `settings.json.v1-….bak` holds the original. The log shows `SettingsMigrated from_version=1`. | **No.** The migration is unit tested. |
+
+| M-LF3 | Graphics card | On a PC with a discrete graphics card, dictate twice into Notepad with **This PC** chosen, then open the log. | The log shows `LocalModelLoaded vulkan=1 discrete_gpu=1 gpu_device=N`. Both dictations are pasted; the second takes about a second. | Partly: the explicit test loaded Vulkan and picked the RTX 3050 (`gpu_device=1`) on the maintainer's PC (2026-10-30). Dictation by voice: NOT RUN. |
+| M-LF4 | No Vulkan driver | On a PC or VM without a Vulkan driver (`C:\Windows\System32\vulkan-1.dll` missing), dictate into Notepad with **This PC** chosen. | The words are pasted after about two seconds. The log shows `LocalModelLoaded vulkan=0`. | **No.** It needs a PC without Vulkan. |
+| M-LF5 | Choose the accurate model | In Settings, choose **Large v3 Turbo** under **Model on this PC**. Click **Download model**, wait, then **Save**. Dictate a sentence with a technical term (such as "Kubernetes") into Notepad, twice. Switch back to **Base** and save. | The status first asks for 574 MB; the model list is disabled while it downloads. After the download, `ggml-large-v3-turbo-q5_0.bin` (574,041,195 bytes) sits next to `ggml-base.bin`. On a PC with a discrete graphics card, the second dictation takes about 1.5 s and spells the term right. Switching back to **Base** needs no download. The log shows `LocalModelDownloaded model=1`. | Partly: on 2026-10-30, Naad's transcriber ran the turbo file (its SHA-256 checked by hand) on the RTX 3050: 1.3 s for 15.4 s of speech, after a 23 s first run, with "Kubernetes" right. Settings and voice: NOT RUN. |
+
+**Measured, 2026-10-30,** with Whisper.net 1.9.1 on the maintainer's PC
+(i5-13420H with 12 logical processors, Intel UHD Graphics, RTX 3050 6 GB
+Laptop), for Windows text-to-speech clips of 3.3 s and 15.4 s, with the
+model already loaded:
+
+| Model | Processor (6 threads) | Intel UHD (integrated) | RTX 3050 (discrete) |
+|---|---|---|---|
+| base | 1.8 to 2.3 s | 0.55 to 0.95 s | 0.4 to 0.8 s |
+| large-v3-turbo (q5_0) | 30 to 32 s | 4.5 to 16.5 s | 1.3 to 1.7 s |
+
+Loading the model took 1.3 to 2.3 s (base) and about 4 s (turbo) on the
+RTX 3050. The first run of each model on the RTX 3050 took 22 s (base) and
+58 s (turbo) more while the driver compiled shaders; later processes reused
+them. Both models spelled the sentences the same way except one term:
+base wrote "Kubernetes" as "Cabernet's", turbo got it right.
+
+**Status after P24:** M-LF1 to M-LF5 have **not been run** by a person.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11

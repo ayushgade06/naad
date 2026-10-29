@@ -42,16 +42,20 @@ reinstall; delete these folders to remove it too:
 
 ## Try it from source
 
-You need Windows 11 (or Windows 10 22H2), the .NET 10 SDK, a microphone and
-a Groq API key from https://console.groq.com/keys.
+You need Windows 11 (or Windows 10 22H2), the .NET 10 SDK and a microphone.
 
 1. Build it: `dotnet build -c Release` from the repository root.
-2. Store your key once, encrypted for your Windows account, as
-   [docs/settings.md](docs/settings.md#the-api-key) describes. Never paste
-   it on a command line.
-3. Start `src\Naad\bin\Release\net10.0-windows\Naad.exe`. A teal icon
-   appears in the notification area.
+2. Start `src\Naad\bin\Release\net10.0-windows\Naad.exe`. A teal icon
+   appears in the notification area, and Settings opens.
+3. Click **Download model**, wait for it to finish, then click **Save**.
+   This happens once; after that Naad transcribes on your PC, offline.
 4. Click into any text field, hold **Right Ctrl**, speak, and let go.
+
+To use a cloud service instead, choose **Cloud** under **Transcribe with**
+and store an API key, for example a free one from
+https://console.groq.com/keys, as
+[docs/settings.md](docs/settings.md#the-api-key) describes. Never paste a
+key on a command line.
 
 While you hold the key the icon shows a red dot; while Naad transcribes, an
 amber one. If your text can't be pasted safely (you switched windows, or
@@ -63,9 +67,10 @@ Settings such as the shortcut, the provider and the sounds are in
 ## What 0.1.0 does
 
 - Hold-to-talk global shortcut, configurable, Right Ctrl by default.
-- Speech-to-text through any OpenAI-compatible transcription API, with
-  [Groq](https://console.groq.com/keys) (free tier) as the default.
-  Local, offline transcription comes in a later release.
+- Speech-to-text on your PC with Whisper by default: free, offline, and
+  your audio never leaves the machine. Or, if you prefer, through any
+  OpenAI-compatible transcription API, such as
+  [Groq](https://console.groq.com/keys).
 - Pastes into the focused app and puts your clipboard back afterwards,
   unless you copied something new in the meantime. Transcripts stay out of
   Windows clipboard history.
@@ -81,7 +86,11 @@ release.
 
 - Windows 11. Windows 10 22H2 is supported where practical.
 - A microphone.
-- An API key from Groq or another OpenAI-compatible provider.
+- 150 MB of disk space for the Whisper model, downloaded once from
+  Settings; 574 MB for the more accurate model, which needs a graphics
+  card.
+- Only to transcribe in the cloud instead: an API key from Groq or another
+  OpenAI-compatible provider.
 
 ## Privacy
 

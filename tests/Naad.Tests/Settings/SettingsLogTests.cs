@@ -34,7 +34,7 @@ public sealed class SettingsLogTests : IDisposable
             (new(defaults, SettingsStatus.Repaired, 1, Saved: true), "WARN SettingsRepaired file_version=1"),
             (new(defaults, SettingsStatus.Corrupt, Saved: true), "WARN SettingsCorrupt"),
             (new(defaults, SettingsStatus.FutureVersion, 7),
-                "WARN SettingsFutureVersion file_version=7 supported_version=1"),
+                $"WARN SettingsFutureVersion file_version=7 supported_version={AppSettings.CurrentVersion}"),
             (new(defaults, SettingsStatus.ReadFailed, Error: new IOException("C:/Users/someone/secret")),
                 "ERROR SettingsReadFailed exception=System.IO.IOException"),
             (new(defaults, SettingsStatus.Corrupt, Error: new UnauthorizedAccessException("denied")),

@@ -24,6 +24,12 @@ All notable changes to Naad are listed here. The format follows
 - Transcribe on this PC, offline, with Whisper (`transcriptionProvider`).
   Settings downloads the 148 MB model once and checks its SHA-256; audio
   then never leaves the PC.
+- Transcribing on this PC uses the graphics card through Vulkan when there
+  is one, preferring a discrete card over an integrated one, and the
+  processor otherwise.
+- A choice of model for transcribing on this PC (`localModel`): base
+  (148 MB, fast on any PC) or large-v3-turbo (574 MB), which is about as
+  accurate as the cloud on a PC with a graphics card.
 - `vocabulary` setting: names and terms sent as Whisper's prompt so they
   are spelled right.
 - Hands-free mode (`handsFree`): press the shortcut to start and again to
@@ -41,6 +47,10 @@ All notable changes to Naad are listed here. The format follows
 
 ### Changed
 
+- Naad transcribes on this PC by default, so dictation costs nothing and
+  needs no account. On first start, Settings opens to download the model.
+  A settings file from an earlier build that never chose a provider keeps
+  the cloud (settings version 2).
 - Without a usable API key, Naad starts and opens Settings instead of
   exiting. Pressing the shortcut without a key shows a notification and
   records nothing.

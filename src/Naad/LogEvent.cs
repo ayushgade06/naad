@@ -68,6 +68,7 @@ internal enum LogEvent
     TranscriptionFiltered,
     TranscriptionRetried,
     LocalTranscriptionFailed,
+    LocalModelLoaded,
     LocalModelDownloaded,
     LocalModelDownloadFailed,
     DictationCancelledByShutdown,

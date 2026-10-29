@@ -41,8 +41,8 @@ internal sealed class TrayIcon : IDisposable
     public const string ApiKeyNeededTitle = "Naad isn't set up yet";
 
     /// <summary>What that notification says; clicking it opens Settings.</summary>
-    public const string ApiKeyNeededMessage = "Click here to open Settings and add your API key, or download " +
-        "the model to transcribe on this PC. Nothing was recorded.";
+    public const string ApiKeyNeededMessage = "Click here to open Settings and download the model to " +
+        "transcribe on this PC, or add an API key for the cloud. Nothing was recorded.";
 
     /// <summary>Title of the notification shown when a recording couldn't be transcribed.</summary>
     public const string TranscriptionErrorTitle = "Naad couldn't transcribe";

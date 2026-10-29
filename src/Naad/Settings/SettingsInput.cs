@@ -76,20 +76,22 @@ internal static class SettingsInput
             "again below.",
     };
 
-    /// <summary>Whether the model for transcribing on this PC is in place.</summary>
-    public static string ModelStatus(bool ready) => ready
+    /// <summary>Whether the chosen model for transcribing on this PC is in place, or its download size.</summary>
+    public static string ModelStatus(long size, bool ready) => ready
         ? "The model is downloaded. Transcription on this PC works offline."
-        : "Transcribing on this PC needs a one-time download of 148 MB.";
+        : $"Transcribing on this PC needs a one-time download of {(size + 500_000) / 1_000_000} MB.";
 
     /// <summary>The result of the Download button.</summary>
     public static string ModelDownloadMessage(ModelDownloadResult result) => result.Outcome switch
     {
-        ModelDownloadOutcome.Downloaded => ModelStatus(ready: true),
+        // The graphics driver compiles Whisper's shaders on first use and keeps them.
+        ModelDownloadOutcome.Downloaded => "Downloaded. The first dictation can take up to a minute while your " +
+            "graphics card prepares; after that, about a second.",
         ModelDownloadOutcome.ChecksumMismatch => "The download was damaged, so it was deleted. Try again.",
         ModelDownloadOutcome.HttpError => $"The download server refused the request (HTTP {result.Code}). Try " +
             "again later.",
         ModelDownloadOutcome.Network => "The download failed: check your internet connection and try again.",
-        _ => "The model couldn't be saved. Check that the disk has 150 MB free, then try again.",
+        _ => "The model couldn't be saved. Check that the disk has room for it, then try again.",
     };
 
     /// <summary>The result of the Test key button. Never includes a response body.</summary>

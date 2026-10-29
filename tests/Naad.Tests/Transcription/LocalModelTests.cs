@@ -36,6 +36,25 @@ public sealed class LocalModelTests : IDisposable
     }
 
     [Fact]
+    public void Turbo_PointsAtThePublishedQuantizedTurboModel()
+    {
+        Assert.Equal(
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+            LocalModel.Turbo.Source.AbsoluteUri);
+        Assert.EndsWith(
+            Path.Combine("Naad", "models", "ggml-large-v3-turbo-q5_0.bin"), LocalModel.Turbo.Path,
+            StringComparison.Ordinal);
+        Assert.Equal(574_041_195, LocalModel.Turbo.Size);
+    }
+
+    [Fact]
+    public void For_EachChoice_ReturnsItsOwnModel()
+    {
+        Assert.Same(LocalModel.Base, LocalModel.For(WhisperModel.Base));
+        Assert.Same(LocalModel.Turbo, LocalModel.For(WhisperModel.Turbo));
+    }
+
+    [Fact]
     public async Task Download_MatchingFile_PutsItInPlaceAndReportsProgress()
     {
         var model = Model(Sha(FakeModel));

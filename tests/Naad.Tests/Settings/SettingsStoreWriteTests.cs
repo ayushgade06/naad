@@ -29,11 +29,12 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.True(result.Saved);
         Assert.Equal("""
             {
-              "version": 1,
+              "version": 2,
               "fileLogging": true,
               "playSounds": true,
               "dictationShortcut": "RightCtrl",
-              "transcriptionProvider": "Cloud",
+              "transcriptionProvider": "Local",
+              "localModel": "Base",
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
               "transcriptionModel": "whisper-large-v3-turbo",
               "language": null,
@@ -69,7 +70,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
 
     [Theory]
     [InlineData("""{ "fileLogging": false }""", "v0")]
-    [InlineData("""{ "version": 1, "fileLogging": "no" }""", "invalid")]
+    [InlineData("""{ "version": 2, "fileLogging": "no" }""", "invalid")]
     [InlineData("{ not json", "corrupt")]
     public void Load_FileNeedingRewrite_BacksUpOriginalThenRewrites(string original, string reason)
     {
@@ -86,7 +87,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Load_ValidCurrentFile_IsNotRewritten()
     {
-        const string Original = """{ "version": 1, "fileLogging": false, "unknownKept": true }""";
+        const string Original = """{ "version": 2, "fileLogging": false, "unknownKept": true }""";
         File.WriteAllText(SettingsPath, Original);
 
         var result = new SettingsStore(SettingsPath).Load();
@@ -169,7 +170,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Save_WriteFails_ReturnsErrorAndKeepsPreviousFile()
     {
-        const string Original = """{ "version": 1, "fileLogging": false }""";
+        const string Original = """{ "version": 2, "fileLogging": false }""";
         File.WriteAllText(SettingsPath, Original);
         BlockWrites();
 
@@ -194,8 +195,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
             [
-                "dictationShortcut", "fileLogging", "handsFree", "language", "microphone", "playSounds",
-                "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "version", "vocabulary",
+                "dictationShortcut", "fileLogging", "handsFree", "language", "localModel", "microphone",
+                "playSounds", "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "version",
+                "vocabulary",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

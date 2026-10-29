@@ -15,7 +15,7 @@ internal sealed record AppSettings
     /// Bump when a property is renamed, removed or changes meaning, and add the matching
     /// migration to <see cref="SettingsStore"/>. Adding a property with a default needs no bump.
     /// </summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public static AppSettings Defaults { get; } = new();
 
@@ -30,9 +30,16 @@ internal sealed record AppSettings
     /// <summary>The keys to hold while dictating, written like "RightCtrl" (see Chord).</summary>
     public Chord DictationShortcut { get; init; } = Chord.RightCtrl;
 
-    /// <summary>Whether speech is transcribed by the cloud API or by Whisper on this PC.</summary>
+    /// <summary>
+    /// Whether speech is transcribed by Whisper on this PC or by the cloud API. On this PC by
+    /// default: it costs nothing and needs no account.
+    /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter<TranscriptionProvider>))]
-    public TranscriptionProvider TranscriptionProvider { get; init; } = TranscriptionProvider.Cloud;
+    public TranscriptionProvider TranscriptionProvider { get; init; } = TranscriptionProvider.Local;
+
+    /// <summary>The Whisper model that transcribes on this PC.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<WhisperModel>))]
+    public WhisperModel LocalModel { get; init; } = WhisperModel.Base;
 
     /// <summary>The OpenAI-compatible API root; "/audio/transcriptions" is appended to it.</summary>
     public Uri TranscriptionBaseUrl { get; init; } = new("https://api.groq.com/openai/v1");

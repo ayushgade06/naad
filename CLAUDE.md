@@ -2,8 +2,9 @@
 
 Naad is a Windows tray app for hold-to-talk voice typing. You hold a
 shortcut (Right Ctrl by default) and speak. When you release it, Naad
-transcribes the audio through an OpenAI-compatible API (Groq by default)
-and pastes the text into the focused app.
+transcribes the audio with Whisper on this PC by default, or through an
+OpenAI-compatible API such as Groq, and pastes the text into the focused
+app.
 
 **This repository is the source of truth.** The committed versions of this
 file, [docs/STYLE.md](docs/STYLE.md) and [docs/ROADMAP.md](docs/ROADMAP.md)
