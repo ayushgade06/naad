@@ -24,6 +24,9 @@ All notable changes to Naad are listed here. The format follows
 - Transcribe on this PC, offline, with Whisper (`transcriptionProvider`).
   Settings downloads the 148 MB model once and checks its SHA-256; audio
   then never leaves the PC.
+- Transcribing on this PC uses the graphics card through Vulkan when there
+  is one, preferring a discrete card over an integrated one, and the
+  processor otherwise.
 - `vocabulary` setting: names and terms sent as Whisper's prompt so they
   are spelled right.
 - Hands-free mode (`handsFree`): press the shortcut to start and again to

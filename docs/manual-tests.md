@@ -717,7 +717,26 @@ before P24 (version 1) that never chose a provider keeps **Cloud**.
 | M-LF1 | First start, no key | Exit Naad. Rename `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad\models`, and clear `NAAD_GROQ_API_KEY`. Start Naad. | Settings opens with **This PC** chosen and **Download model** offered. Holding the shortcut shows **Naad isn't set up yet** and records nothing. After **Download model** and **Save**, dictating into Notepad pastes the words. No API key was asked for. | **No.** The default is unit tested. |
 | M-LF2 | Older settings keep the cloud | Exit Naad. Write `{ "version": 1, "dictationShortcut": "RightCtrl" }` to `%APPDATA%\Naad\settings.json`, with a stored key. Start Naad and dictate. | Naad transcribes through the cloud, as before. settings.json now says `"version": 2` and `"transcriptionProvider": "Cloud"`; a `settings.json.v1-….bak` holds the original. The log shows `SettingsMigrated from_version=1`. | **No.** The migration is unit tested. |
 
-**Status after P24:** M-LF1 and M-LF2 have **not been run** by a person.
+| M-LF3 | Graphics card | On a PC with a discrete graphics card, dictate twice into Notepad with **This PC** chosen, then open the log. | The log shows `LocalModelLoaded vulkan=1 discrete_gpu=1 gpu_device=N`. Both dictations are pasted; the second takes about a second. | Partly: the explicit test loaded Vulkan and picked the RTX 3050 (`gpu_device=1`) on the maintainer's PC (2026-10-30). Dictation by voice: NOT RUN. |
+| M-LF4 | No Vulkan driver | On a PC or VM without a Vulkan driver (`C:\Windows\System32\vulkan-1.dll` missing), dictate into Notepad with **This PC** chosen. | The words are pasted after about two seconds. The log shows `LocalModelLoaded vulkan=0`. | **No.** It needs a PC without Vulkan. |
+
+**Measured, 2026-10-30,** with Whisper.net 1.9.1 on the maintainer's PC
+(i5-13420H with 12 logical processors, Intel UHD Graphics, RTX 3050 6 GB
+Laptop), for Windows text-to-speech clips of 3.3 s and 15.4 s, with the
+model already loaded:
+
+| Model | Processor (6 threads) | Intel UHD (integrated) | RTX 3050 (discrete) |
+|---|---|---|---|
+| base | 1.8 to 2.3 s | 0.55 to 0.95 s | 0.4 to 0.8 s |
+| large-v3-turbo (q5_0) | 30 to 32 s | 4.5 to 16.5 s | 1.3 to 1.7 s |
+
+Loading the model took 1.3 to 2.3 s (base) and about 4 s (turbo) on the
+RTX 3050. The first run of each model on the RTX 3050 took 22 s (base) and
+58 s (turbo) more while the driver compiled shaders; later processes reused
+them. Both models spelled the sentences the same way except one term:
+base wrote "Kubernetes" as "Cabernet's", turbo got it right.
+
+**Status after P24:** M-LF1 to M-LF4 have **not been run** by a person.
 
 ## v0.1.0 checklist
 

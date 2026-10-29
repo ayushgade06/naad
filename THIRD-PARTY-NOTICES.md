@@ -67,14 +67,19 @@ Suki's name, icons, sounds and artwork are not used in Naad.
 
 ## Whisper.net
 
-- Packages: `Whisper.net` 1.9.1 and `Whisper.net.Runtime` 1.9.1, with their
+- Packages: `Whisper.net` 1.9.1, `Whisper.net.Runtime` 1.9.1 and
+  `Whisper.net.Runtime.Vulkan` 1.9.1, with their
   dependencies `Whisper.net.Runtime.Metal` 1.9.1 (macOS only, unused on
   Windows) and `Microsoft.Extensions.AI.Abstractions` 10.2.0
 - License: MIT, © 2024 sandrohanea (Microsoft.Extensions.AI.Abstractions:
   MIT, © Microsoft Corporation)
 - Source: https://github.com/sandrohanea/whisper.net
-- The runtime package ships native builds of whisper.cpp and ggml
-  (MIT, © The ggml authors, https://github.com/ggml-org/whisper.cpp).
+- The runtime packages ship native builds of whisper.cpp and ggml
+  (MIT, © The ggml authors, https://github.com/ggml-org/whisper.cpp). The
+  Vulkan build is compiled against the Khronos Vulkan headers (Apache-2.0
+  or MIT, https://github.com/KhronosGroup/Vulkan-Headers) and uses the
+  Vulkan loader installed with the graphics driver; Naad doesn't ship the
+  loader.
 - Used for transcription on this PC (P20). Ships with Naad.
 
 ## Whisper base model (downloaded, not shipped)

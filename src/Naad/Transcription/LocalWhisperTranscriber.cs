@@ -1,12 +1,16 @@
+using System.Diagnostics;
 using System.Text;
+using Naad.Native;
 using Whisper.net;
+using Whisper.net.LibraryLoader;
 
 namespace Naad.Transcription;
 
 /// <summary>
 /// Transcribes on this PC with whisper.cpp through Whisper.net. Audio never leaves the machine,
-/// and nothing here touches the network. The model loads on the first dictation, not at start,
-/// and stays loaded until this transcriber is disposed.
+/// and nothing here touches the network. It runs on the graphics card through Vulkan when the PC
+/// has a Vulkan driver, preferring a discrete card, and on the processor otherwise. The model
+/// loads on the first dictation, not at start, and stays loaded until this transcriber is disposed.
 /// </summary>
 internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
 {
@@ -23,7 +27,7 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
     /// <param name="prompt">Names and terms to expect; never logged.</param>
     public LocalWhisperTranscriber(string modelPath, string? language, string? prompt)
     {
-        _factory = new(() => WhisperFactory.FromPath(modelPath));
+        _factory = new(() => Load(modelPath));
         _language = language;
         _prompt = prompt;
     }
@@ -54,6 +58,25 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
         {
             _factory.Value.Dispose();
         }
+    }
+
+    private static WhisperFactory Load(string modelPath)
+    {
+        var started = Stopwatch.GetTimestamp();
+
+        // Loads whisper.cpp's libraries (Vulkan's if the PC has a Vulkan driver, else the
+        // processor's), so ggml's device list can be read before the model is put on a device.
+        WhisperFactory.GetRuntimeInfo();
+        var devices = Ggml.DeviceTypes();
+        var device = GpuChoice.Pick(devices);
+        var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { GpuDevice = device });
+        Log.Info(
+            LogEvent.LocalModelLoaded,
+            ("vulkan", RuntimeOptions.LoadedLibrary == RuntimeLibrary.Vulkan ? 1 : 0),
+            ("discrete_gpu", devices.Contains(GgmlDeviceType.Gpu) ? 1 : 0),
+            ("gpu_device", device),
+            ("load_ms", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        return factory;
     }
 
     private async Task<TranscriptionResult> RunAsync(byte[] wav, CancellationToken cancellationToken)

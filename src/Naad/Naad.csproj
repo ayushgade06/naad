@@ -28,6 +28,16 @@
     <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
+
+  <!-- Whisper.net.Runtime.Vulkan copies its Linux build (59 MB) into every output, whatever the
+       target; Naad runs only on Windows. -->
+  <Target Name="DropLinuxVulkanRuntime" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <None Remove="@(None)"
+            Condition="$([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/vulkan/linux-x64/'))" />
+    </ItemGroup>
+  </Target>
 
 </Project>

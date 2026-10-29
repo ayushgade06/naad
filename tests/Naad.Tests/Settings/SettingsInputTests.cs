@@ -137,7 +137,7 @@ public sealed class SettingsInputTests
             .ToList();
 
         Assert.Equal(texts.Count, texts.Distinct().Count());
-        Assert.Equal(SettingsInput.ModelStatus(ready: true), texts[0]);
+        Assert.Contains("Downloaded", texts[0], StringComparison.Ordinal);
         Assert.Contains(texts, text => text.Contains("HTTP 503", StringComparison.Ordinal));
     }
 

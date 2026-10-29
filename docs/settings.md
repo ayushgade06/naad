@@ -145,9 +145,20 @@ keeps it in `%LOCALAPPDATA%\Naad\models`. A damaged or interrupted
 download is deleted and can be started again.
 
 After that, dictation needs no network and no API key, and audio never
-leaves your PC. A dictation takes a second or two, using half your
-processor's cores while it runs; the first one after starting Naad takes
-a little longer while the model loads. The base model is less accurate
+leaves your PC.
+
+**Graphics card.** If the PC has a graphics card with a Vulkan driver, as
+most from the last ten years do, Whisper runs on it, and prefers a
+discrete card (NVIDIA, AMD or Intel Arc) over the one built into the
+processor. Otherwise it runs on the processor, using half its cores. With
+the base model a dictation takes under a second on a graphics card, and
+about two seconds on the processor. The first dictation after starting
+Naad takes a second or two longer while the model loads. The very first
+one with a graphics card, and the first after a driver update, can take
+up to a minute while the driver compiles Whisper's shaders; it keeps them
+for next time. The log's `LocalModelLoaded` line says what was used:
+`vulkan=1` for the graphics card, `discrete_gpu=1` when a discrete card
+was found. The base model is less accurate
 than the cloud service, especially for quiet speech or unusual words, so
 **Vocabulary** helps more here.
 

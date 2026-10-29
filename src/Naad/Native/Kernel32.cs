@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace Naad.Native;
 
-/// <summary>kernel32.dll declarations: clipboard memory blocks and process handles.</summary>
+/// <summary>kernel32.dll declarations: clipboard memory blocks, process handles and loaded libraries.</summary>
 internal static partial class Kernel32
 {
     public const uint GmemMoveable = 0x0002;
@@ -33,4 +33,8 @@ internal static partial class Kernel32
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     public static partial nuint GlobalSize(nint hMem);
+
+    // Finds a library already in the process without loading it or holding a reference.
+    [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nint GetModuleHandle(string lpModuleName);
 }

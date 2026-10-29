@@ -84,7 +84,9 @@ internal static class SettingsInput
     /// <summary>The result of the Download button.</summary>
     public static string ModelDownloadMessage(ModelDownloadResult result) => result.Outcome switch
     {
-        ModelDownloadOutcome.Downloaded => ModelStatus(ready: true),
+        // The graphics driver compiles Whisper's shaders on first use and keeps them.
+        ModelDownloadOutcome.Downloaded => "Downloaded. The first dictation can take up to a minute while your " +
+            "graphics card prepares; after that, about a second.",
         ModelDownloadOutcome.ChecksumMismatch => "The download was damaged, so it was deleted. Try again.",
         ModelDownloadOutcome.HttpError => $"The download server refused the request (HTTP {result.Code}). Try " +
             "again later.",
