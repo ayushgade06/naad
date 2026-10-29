@@ -606,6 +606,14 @@ production-quality code, and keeps the slice working at every commit.
 - **Goal:** users get fixes without reinstalling.
 - **In:** Velopack updates from GitHub Releases, applied with the user's
   consent.
+  - **As built:** `Updates/AppUpdater.cs` wraps Velopack's
+    `UpdateManager` with `GithubSource` (stable releases only) and does
+    nothing in a copy that wasn't installed. `Updates/UpdatePrompt.cs`
+    checks a minute after start and daily, plus **Check for updates** in
+    the tray (moved out of `Program`, which had passed 500 lines). An
+    update is only downloaded when its notification is clicked, never
+    during a dictation; Naad then exits normally and Velopack applies it
+    and restarts. Logs carry the version as numbers only.
 - **Needs:** P22.
 - **Done when:** a release N installation updates to N+1 and keeps its
   settings.

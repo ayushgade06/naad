@@ -32,6 +32,9 @@ All notable changes to Naad are listed here. The format follows
 - Installer: a per-user Velopack setup, built and published by a release
   workflow when a version tag is pushed. Uninstalling stops Naad starting
   at sign-in and keeps your settings and key.
+- Updates: an installed Naad checks GitHub Releases daily and offers new
+  versions; it installs one only when you click the notification, and
+  keeps your settings.
 - Robustness: a microphone unplugged mid-dictation keeps what was heard;
   the shortcut keeps working after sleep, unlock and Ctrl+Alt+Del; a
   transcription request that never reached the server is retried once.

@@ -25,6 +25,13 @@ run the installer Windows may say "Windows protected your PC". Click
 `Naad.App-win-Setup.exe` from this repository's Releases page, then click
 **Run anyway**. Only do this for files you downloaded from that page.
 
+**Updates.** An installed Naad checks this repository's GitHub Releases a
+minute after it starts and then once a day, and **Check for updates** in
+its tray menu checks at once. When a newer version exists, a notification
+asks first; click it, and Naad downloads the update, closes, installs it
+and starts again. It never restarts during a dictation. Your settings and
+key are kept.
+
 **Uninstall** from Settings > Apps > Installed apps > Naad. It removes the
 app and stops it starting at sign-in. Your data stays, in case you
 reinstall; delete these folders to remove it too:
@@ -81,7 +88,11 @@ release.
 These are design rules that every change must keep:
 
 - Naad has no server and no account. Audio goes only to the transcription
-  provider you choose.
+  provider you choose, or nowhere when you transcribe on this PC.
+- Naad contacts nothing else, except when you ask: Hugging Face for the
+  local model when you click **Download model**, and, in an installed copy,
+  GitHub once a day to see whether a new release exists. That check sends
+  no data about you or your use.
 - Audio is kept in memory and never written to disk.
 - API keys are encrypted with Windows DPAPI for your user account.
 - Logs never contain your audio, transcripts, clipboard contents or keys.
