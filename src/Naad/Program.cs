@@ -5,6 +5,7 @@ using Naad.Insertion;
 using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
+using NAudio;
 
 namespace Naad;
 
@@ -13,14 +14,18 @@ internal static class Program
     // Stores the API key piped to standard input, then exits; see docs/settings.md.
     private const string SetApiKeyArgument = "--set-api-key";
 
+    // The key in use, kept only to redact it from the fatal-error dialog; it changes when the
+    // settings window saves a new one.
+    private static string? _apiKey;
+
     [STAThread]
     private static int Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         HandleUnhandledExceptions();
 
-        // Needs no single-instance check: it only writes the key file, which a running
-        // instance read at its start and never reads again.
+        // Needs no single-instance check: it only writes the key file. A running instance reads
+        // it again only when its settings window saves.
         if (args is [SetApiKeyArgument])
         {
             return StoreApiKey();
@@ -36,27 +41,21 @@ internal static class Program
             return 0;
         }
 
-        var settings = ApplySettings();
-
-        var resolved = new SecretStore(SecretStore.DefaultPath)
-            .Resolve(Environment.GetEnvironmentVariable(SecretStore.OverrideVariable));
-        SecretStore.LogOutcome(resolved);
-        if (resolved.Key is not { } apiKey)
-        {
-            StartupError.Show(StartupError.ApiKeyProblem(resolved.Status));
-            return 1;
-        }
+        var store = new SettingsStore(SettingsStore.DefaultPath);
+        var loaded = LoadSettings(store);
+        var keys = new SecretStore(SecretStore.DefaultPath);
 
         try
         {
-            Run(apiKey, settings);
+            // Without a usable key Naad still starts, and opens its settings window to ask for one.
+            Run(store, loaded, keys, ResolveKey(keys, log: true));
             Log.Info(LogEvent.AppStopped);
             return 0;
         }
         catch (Exception e)
         {
             Log.Error(LogEvent.FatalError, e);
-            StartupError.Show($"Naad stopped because of an error.\n\n{StartupError.Describe(e, apiKey)}");
+            StartupError.Show($"Naad stopped because of an error.\n\n{StartupError.Describe(e, _apiKey)}");
             return 1;
         }
     }
@@ -94,16 +93,28 @@ internal static class Program
     // Settings are loaded after the single-instance check, so only one instance ever
     // migrates or rewrites the file. The log file starts only if settings allow it; until
     // then, lines go to the console only.
-    private static AppSettings ApplySettings()
+    private static SettingsLoadResult LoadSettings(SettingsStore store)
     {
-        var result = new SettingsStore(SettingsStore.DefaultPath).Load();
+        var result = store.Load();
         if (result.Settings.FileLogging)
         {
             StartFileLogging();
         }
 
         SettingsStore.LogOutcome(result);
-        return result.Settings;
+        return result;
+    }
+
+    private static ApiKeyResult ResolveKey(SecretStore keys, bool log)
+    {
+        var resolved = keys.Resolve(Environment.GetEnvironmentVariable(SecretStore.OverrideVariable));
+        if (log)
+        {
+            SecretStore.LogOutcome(resolved);
+            _apiKey = resolved.Key;
+        }
+
+        return resolved;
     }
 
     private static void StartFileLogging()
@@ -144,52 +155,246 @@ internal static class Program
         };
     }
 
-    private static void Run(string apiKey, AppSettings settings)
+    private static OpenAiCompatibleTranscriber? CreateTranscriber(HttpClient http, string? apiKey, AppSettings s) =>
+        apiKey is null
+            ? null
+            : new(http, apiKey, s.TranscriptionBaseUrl, s.TranscriptionModel, s.Language);
+
+    // Every local function below runs on this UI thread: the hook, the tray, the controller's
+    // events and the settings window all live on it.
+    private static void Run(SettingsStore store, SettingsLoadResult loaded, SecretStore keys, ApiKeyResult key)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
-        // Exit ends the message loop; the usings below then dispose in reverse order:
-        // controller (ignore triggers, cancel transcription and paste), clipboard window, hook
-        // (unhook), recorder (microphone), HTTP client, tray icon, sounds. Main then releases the
-        // single-instance mutex. The tray's copy action reaches the controller, which exists by
-        // the time the menu can be clicked.
-        DictationController? dictation = null;
-        using var sounds = settings.PlaySounds ? new SoundCues() : null;
-        using var tray = new TrayIcon(
-            settings.DictationShortcut,
-            copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
-            exit: Application.ExitThread);
-        using var http = new HttpClient();
-        using var recorder = new AudioRecorder();
-        recorder.UseMicrophone(settings.Microphone);
-        using var hook = new KeyboardHook(settings.DictationShortcut);
-        var transcriber = new OpenAiCompatibleTranscriber(
-            http, apiKey, settings.TranscriptionBaseUrl, settings.TranscriptionModel, settings.Language);
-        using var clipboard = new WindowsClipboard();
-        var inserter = new TextInserter(
-            clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
-        using var controller = new DictationController(
-            recorder, transcriber, inserter, FocusGuard.Foreground, FocusGuard.Check, TimeProvider.System);
-        dictation = controller;
-        controller.StateChanged += tray.ShowState;
-        if (sounds is not null)
+        var settings = loaded.Settings;
+        var apiKey = key.Key;
+
+        // A newer Naad wrote settings.json; this build never replaces it (docs/settings.md).
+        var canSave = loaded.Status != SettingsStatus.FutureVersion;
+
+        // Settings saved during a dictation, applied once it ends.
+        AppSettings? pending = null;
+        SettingsWindow? window = null;
+        Action? openSettings = null;
+        var sounds = settings.PlaySounds ? new SoundCues() : null;
+        try
         {
-            controller.StateChanged += sounds.OnStateChanged;
+            // Exit ends the message loop; the usings below then dispose in reverse order:
+            // controller (ignore triggers, cancel transcription and paste), clipboard window, hook
+            // (unhook), recorder (microphone), HTTP client, tray icon. The finally block then
+            // disposes the sounds, and Main releases the single-instance mutex. The tray's actions
+            // reach objects that exist by the time the menu can be clicked.
+            DictationController? dictation = null;
+            using var tray = new TrayIcon(
+                settings.DictationShortcut,
+                copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
+                openSettings: () => openSettings?.Invoke(),
+                exit: Application.ExitThread);
+            using var http = new HttpClient();
+            using var recorder = new AudioRecorder();
+            recorder.UseMicrophone(settings.Microphone);
+            using var hook = new KeyboardHook(settings.DictationShortcut);
+            using var clipboard = new WindowsClipboard();
+            var inserter = new TextInserter(
+                clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
+            using var controller = new DictationController(
+                recorder,
+                CreateTranscriber(http, apiKey, settings),
+                inserter,
+                FocusGuard.Foreground,
+                FocusGuard.Check,
+                TimeProvider.System);
+            dictation = controller;
+            controller.StateChanged += tray.ShowState;
+            if (sounds is not null)
+            {
+                controller.StateChanged += sounds.OnStateChanged;
+            }
+
+            controller.StateChanged += state =>
+            {
+                if (state == DictationState.Idle && pending is { } next)
+                {
+                    Apply(next);
+                }
+            };
+            controller.MicrophoneFailed += tray.ShowMicrophoneError;
+            controller.NothingHeard += tray.ShowNothingHeard;
+            controller.TranscriptionFailed += tray.ShowTranscriptionError;
+            controller.TranscriptKept += tray.ShowTranscriptKept;
+            controller.TranscriberMissing += tray.ShowApiKeyNeeded;
+
+            // The hook raises these on this thread. Disposing the controller first makes later
+            // events no-ops, and the hook is unhooked right after.
+            hook.TriggerPressed += controller.Press;
+            hook.TriggerReleased += controller.Release;
+            hook.TriggerCancelled += controller.Cancel;
+            hook.CaptureEnded += step => window?.ShowCapture(step);
+
+            openSettings = OpenSettings;
+            Log.Info(LogEvent.AppStarted);
+            if (apiKey is null)
+            {
+                OpenSettings();
+            }
+
+            Application.Run();
+
+            // Closed before the hook is unhooked, so a capture in progress ends cleanly.
+            window?.Close();
+
+            void OpenSettings()
+            {
+                if (window is not null)
+                {
+                    window.Activate();
+                    return;
+                }
+
+                window = new SettingsWindow(
+                    pending ?? settings,
+                    ResolveKey(keys, log: false),
+                    Microphones(),
+                    TestKeyAsync,
+                    Save,
+                    beginCapture: () =>
+                    {
+                        // A capture swallows every key, so it never starts during a dictation.
+                        if (controller.State != DictationState.Idle)
+                        {
+                            return false;
+                        }
+
+                        hook.BeginCapture();
+                        return true;
+                    },
+                    hook.CancelCapture);
+                window.FormClosed += (_, _) => window = null;
+                window.Show();
+                Log.Info(LogEvent.SettingsWindowOpened);
+            }
+
+            async Task<KeyTestResult> TestKeyAsync(string testedKey, Uri baseUrl, CancellationToken cancellationToken)
+            {
+                var result = await OpenAiCompatibleTranscriber.TestKeyAsync(
+                    http, testedKey, baseUrl, cancellationToken);
+                switch (result.Outcome)
+                {
+                    case KeyTestOutcome.Accepted:
+                        Log.Info(LogEvent.ApiKeyTestAccepted);
+                        break;
+                    case KeyTestOutcome.CannotVerify:
+                        Log.Info(LogEvent.ApiKeyTestUnverifiable);
+                        break;
+                    default:
+                        Log.Warn(LogEvent.ApiKeyTestFailed, ("code", result.Failure?.Code ?? 0));
+                        break;
+                }
+
+                return result;
+            }
+
+            // Saves the key first, so a key that can't be stored changes nothing else. Settings that
+            // can't be written still apply until Naad exits, and the window says so.
+            string? Save(AppSettings next, string? newKey)
+            {
+                if (newKey is not null)
+                {
+                    if (keys.Save(newKey) is { } keyError)
+                    {
+                        Log.Error(LogEvent.ApiKeyStoreFailed, keyError);
+                        return "The API key couldn't be saved, so nothing was changed. Try again.";
+                    }
+
+                    Log.Info(LogEvent.ApiKeyStored);
+                    apiKey = ResolveKey(keys, log: true).Key;
+                }
+
+                string? problem = null;
+                if (!canSave)
+                {
+                    Log.Warn(LogEvent.SettingsSaveSkippedNewerFile);
+                    problem = "A newer version of Naad wrote settings.json, so these changes apply only until " +
+                        "Naad exits.";
+                }
+                else if (store.Save(next) is { } writeError)
+                {
+                    Log.Error(LogEvent.SettingsWriteFailed, writeError);
+                    problem = "settings.json couldn't be written, so these changes apply only until Naad exits.";
+                }
+                else
+                {
+                    Log.Info(LogEvent.SettingsSaved);
+                }
+
+                Apply(next);
+                return problem;
+            }
+
+            // A dictation keeps the settings it started with: during one, the change waits for Idle.
+            void Apply(AppSettings next)
+            {
+                if (controller.State != DictationState.Idle)
+                {
+                    pending = next;
+                    Log.Info(LogEvent.SettingsApplyDeferred);
+                    return;
+                }
+
+                pending = null;
+                if (next.FileLogging != settings.FileLogging)
+                {
+                    if (next.FileLogging)
+                    {
+                        StartFileLogging();
+                    }
+                    else
+                    {
+                        Log.StopFileLogging();
+                    }
+                }
+
+                if (next.PlaySounds != settings.PlaySounds)
+                {
+                    if (sounds is not null)
+                    {
+                        controller.StateChanged -= sounds.OnStateChanged;
+                        sounds.Dispose();
+                    }
+
+                    sounds = next.PlaySounds ? new SoundCues() : null;
+                    if (sounds is not null)
+                    {
+                        controller.StateChanged += sounds.OnStateChanged;
+                    }
+                }
+
+                hook.SetShortcut(next.DictationShortcut);
+                tray.SetShortcut(next.DictationShortcut);
+                recorder.UseMicrophone(next.Microphone);
+                controller.UseTranscriber(CreateTranscriber(http, apiKey, next));
+                settings = next;
+                Log.Info(LogEvent.SettingsApplied);
+            }
         }
+        finally
+        {
+            sounds?.Dispose();
+        }
+    }
 
-        controller.MicrophoneFailed += tray.ShowMicrophoneError;
-        controller.NothingHeard += tray.ShowNothingHeard;
-        controller.TranscriptionFailed += tray.ShowTranscriptionError;
-        controller.TranscriptKept += tray.ShowTranscriptKept;
-
-        // The hook raises these on this thread. Disposing the controller first makes later
-        // events no-ops, and the hook is unhooked right after.
-        hook.TriggerPressed += controller.Press;
-        hook.TriggerReleased += controller.Release;
-        hook.TriggerCancelled += controller.Cancel;
-
-        Log.Info(LogEvent.AppStarted);
-        Application.Run();
+    private static IReadOnlyList<string> Microphones()
+    {
+        try
+        {
+            return AudioRecorder.DeviceNames();
+        }
+        catch (MmException e)
+        {
+            // A device vanished mid-list; the window still offers the Windows default.
+            Log.Error(LogEvent.MicrophoneUnavailable, e);
+            return [];
+        }
     }
 }

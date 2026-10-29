@@ -94,11 +94,15 @@ public sealed class TrayIconTests
     }
 
     [Fact]
-    public void TranscriptionErrorMessage_Unauthorized_SaysHowToStoreAKey() =>
+    public void TranscriptionErrorMessage_Unauthorized_PointsToSettings() =>
         Assert.Contains(
-            "--set-api-key",
+            "Open Settings",
             TrayIcon.TranscriptionErrorMessage(TranscriptionError.Unauthorized),
             StringComparison.Ordinal);
+
+    [Fact]
+    public void ApiKeyNeededMessage_FitsNotificationLimit() =>
+        Assert.InRange(TrayIcon.ApiKeyNeededMessage.Length, 1, 255);
 
     [Theory]
     [InlineData("Recording", "Naad: listening. Release to transcribe.")]
