@@ -1,5 +1,6 @@
 using Naad.Hotkey;
 using Naad.Settings;
+using Naad.Transcription;
 
 namespace Naad.Tests.Settings;
 
@@ -334,6 +335,33 @@ public sealed class SettingsStoreTests : IDisposable
         var result = LoadFrom($$"""{ "version": 1, "vocabulary": "{{new string('v', 501)}}" }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 1 }""", "Cloud")]
+    [InlineData("""{ "version": 1, "transcriptionProvider": "Local" }""", "Local")]
+    [InlineData("""{ "version": 1, "transcriptionProvider": "local" }""", "Local")]
+    [InlineData("""{ "version": 1, "transcriptionProvider": "CLOUD" }""", "Cloud")]
+    public void Load_TranscriptionProvider_ReturnsIt(string json, string expected)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(expected, result.Settings.TranscriptionProvider.ToString());
+    }
+
+    [Theory]
+    [InlineData("\"offline\"")]
+    [InlineData("\"1\"")]
+    [InlineData("\"Cloud, Local\"")]
+    [InlineData("1")]
+    [InlineData("null")]
+    public void Load_InvalidTranscriptionProvider_FallsBackToCloudAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 1, "transcriptionProvider": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(TranscriptionProvider.Cloud, result.Settings.TranscriptionProvider);
     }
 
     [Fact]

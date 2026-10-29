@@ -33,6 +33,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "fileLogging": true,
               "playSounds": true,
               "dictationShortcut": "RightCtrl",
+              "transcriptionProvider": "Cloud",
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
               "transcriptionModel": "whisper-large-v3-turbo",
               "language": null,
@@ -142,6 +143,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
         var changed = AppSettings.Defaults with
         {
             PlaySounds = false,
+            TranscriptionProvider = Naad.Transcription.TranscriptionProvider.Local,
             Language = "hi",
             Microphone = "Microphone (Test Device)",
         };
@@ -193,7 +195,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.Equal(
             [
                 "dictationShortcut", "fileLogging", "handsFree", "language", "microphone", "playSounds",
-                "transcriptionBaseUrl", "transcriptionModel", "version", "vocabulary",
+                "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "version", "vocabulary",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 using Naad.Hotkey;
+using Naad.Transcription;
 
 namespace Naad.Settings;
 
@@ -27,6 +29,10 @@ internal sealed record AppSettings
 
     /// <summary>The keys to hold while dictating, written like "RightCtrl" (see Chord).</summary>
     public Chord DictationShortcut { get; init; } = Chord.RightCtrl;
+
+    /// <summary>Whether speech is transcribed by the cloud API or by Whisper on this PC.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<TranscriptionProvider>))]
+    public TranscriptionProvider TranscriptionProvider { get; init; } = TranscriptionProvider.Cloud;
 
     /// <summary>The OpenAI-compatible API root; "/audio/transcriptions" is appended to it.</summary>
     public Uri TranscriptionBaseUrl { get; init; } = new("https://api.groq.com/openai/v1");
