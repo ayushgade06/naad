@@ -59,6 +59,7 @@ internal enum LogEvent
     TranscriptionTimedOut,
     TranscriptionMalformedResponse,
     TranscriptionFiltered,
+    TranscriptionRetried,
     DictationCancelledByShutdown,
     DictationFailed,
     DictationNeedsApiKey,
