@@ -545,6 +545,41 @@ window and checks that window keeps the foreground.
 
 **Status after P18:** M-O1 to M-O3 have **not been run** by a person.
 
+## Robustness (P19): M-R1 to M-R6
+
+Since P19:
+
+- The microphone is opened afresh for each recording, so a microphone
+  plugged in while Naad runs is used as soon as Windows makes it the
+  default (or it is the one chosen in Settings). One unplugged
+  mid-recording no longer loses the dictation: what was heard until then
+  is transcribed, and the log shows `MicrophoneDisconnected`.
+- The keyboard hook is installed afresh after sleep and when the session
+  is unlocked (`HookReinstalled`). Every 2 seconds, while keys are held,
+  Naad asks Windows which of them are really still down, and forgets key
+  releases it missed, as happens behind Ctrl+Alt+Del or a UAC prompt
+  (`ShortcutKeysResynced`).
+- A transcription request that never reached the server (no DNS, refused
+  connection, failed TLS handshake) is sent once more after 1 second,
+  within the same 20-second limit (`TranscriptionRetried`). A request the
+  server may have received is never sent twice.
+- "Paste last transcript" is **Copy last transcript**, built in P15: a
+  paste from the tray menu would go to the wrong window.
+
+`ChordMatcherTests` covers the key resync and `RetryPolicyTests` the retry
+policy, including the transcriber against a fake server.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-R1 | Microphone unplugged while recording | With a USB or Bluetooth headset as the default microphone, hold Right Ctrl in Notepad, speak for 2 s, unplug the headset (or switch it off), keep speaking 1 s, release. Then dictate again. | The words spoken before unplugging are pasted, or, if too little was heard, the usual nothing-heard notification appears. The log shows `MicrophoneDisconnected mm_result=N`. The next dictation records from the microphone Windows now uses, or shows "No microphone was found". Naad never needs a restart. | **No.** It needs a removable microphone. |
+| M-R2 | Microphone plugged in while running | Start Naad with only the built-in microphone. Plug in a headset and make it the default input in Settings > System > Sound. Dictate. | The headset is used (its mute switch silences the dictation) without restarting Naad. | **No.** |
+| M-R3 | Sleep and resume | Put the PC to sleep (Start > Power > Sleep) for at least a minute, wake it, sign in, then dictate into Notepad at once. | The dictation works. The log shows `HookReinstalled` after waking. | **No.** It needs a real sleep. |
+| M-R4 | Lock and unlock | Press Win+L, sign in again, then dictate. | The dictation works. The log shows `HookReinstalled` after signing in. | **No.** |
+| M-R5 | Key release lost to the secure desktop | Hold Right Ctrl in Notepad and, while holding it, press Ctrl+Alt+Del with the other hand. Release everything on the blue screen, click **Cancel**, and wait 3 s. Then dictate normally. | Within about 2 seconds of returning, the dictation ends (it is transcribed, or dropped as too short or silent) instead of recording for five minutes; the tray icon leaves the red dot. The log shows `ShortcutKeysResynced`. The next dictation works with a single press. | **No.** Physical keys. |
+| M-R6 | Network loss | 1. Turn off Wi-Fi (or unplug the network), dictate a sentence. 2. Turn it back on and dictate again. 3. Dictate a long sentence and turn the network off right after releasing. | 1. After about a second, **Naad couldn't transcribe** says it couldn't reach the service; the log shows `TranscriptionRetried` once, then `TranscriptionFailed`. 2. Works at once. 3. A notification, never a double paste; if the request had already reached the server, there is no `TranscriptionRetried`. | **No.** |
+
+**Status after P19:** M-R1 to M-R6 have **not been run** by a person.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11

@@ -257,6 +257,71 @@ public sealed class ChordMatcherTests
         Assert.Empty(matcher.OnKey(Key.RControlKey, down: false).Events);
     }
 
+    [Fact]
+    public void Resync_ShortcutKeyUpLost_ReleasesTheChord()
+    {
+        // Right Ctrl went down, then Ctrl+Alt+Del's secure desktop swallowed its key-up.
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.RControlKey, down: true);
+
+        var events = matcher.Resync(isDown: _ => false);
+
+        Assert.Equal(ChordEventKind.Released, Assert.Single(events).Kind);
+        Assert.False(matcher.IsActive);
+    }
+
+    [Fact]
+    public void Resync_KeyUpLost_NextPressIsNotTakenAsAutoRepeat()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.RControlKey, down: true);
+        matcher.OnKey(Key.C, down: true);
+        matcher.Resync(isDown: _ => false);
+
+        var press = matcher.OnKey(Key.RControlKey, down: true);
+
+        Assert.Equal(ChordEventKind.Pressed, Assert.Single(press.Events).Kind);
+    }
+
+    [Fact]
+    public void Resync_KeysStillDown_ChangesNothing()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.RControlKey, down: true);
+
+        Assert.Empty(matcher.Resync(isDown: _ => true));
+        Assert.True(matcher.IsActive);
+    }
+
+    [Fact]
+    public void Resync_SwallowedKey_IsNeverAskedAbout()
+    {
+        // Windows doesn't mark a swallowed key down, so asking would end the dictation early.
+        var matcher = new ChordMatcher([Parse("LeftCtrl+Space")]);
+        matcher.OnKey(Key.LControlKey, down: true);
+        matcher.OnKey(Key.Space, down: true);
+        var asked = new List<Key>();
+
+        matcher.Resync(isDown: key =>
+        {
+            asked.Add(key);
+            return true;
+        });
+
+        Assert.Equal([Key.LControlKey], asked);
+    }
+
+    [Fact]
+    public void Resync_NothingHeld_AsksNothing()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        var asked = 0;
+
+        matcher.Resync(isDown: _ => asked++ > 0);
+
+        Assert.Equal(0, asked);
+    }
+
     private static string Mouse(ChordMatcher matcher)
     {
         matcher.OnMouseButton();

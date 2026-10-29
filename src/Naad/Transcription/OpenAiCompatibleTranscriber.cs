@@ -111,37 +111,50 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         // HttpClient still hands an already-cancelled request to its handler, which could upload
         // audio after shutdown began.
         cancellationToken.ThrowIfCancellationRequested();
+        // One budget covers every attempt, so a retry never makes the user wait longer.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_timeout);
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            using var request = CreateRequest(wav);
-            using var response = await _http.SendAsync(request, timeout.Token);
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                // The body is never read: providers may echo the request in it.
-                return new("", TranscriptionFailure.FromStatus(response.StatusCode));
-            }
+                if (attempt > 1)
+                {
+                    await Task.Delay(RetryPolicy.Delay, timeout.Token);
+                }
 
-            await using var body = await response.Content.ReadAsStreamAsync(timeout.Token);
-            return ReadTranscript(await JsonDocument.ParseAsync(body, cancellationToken: timeout.Token));
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return new("", new(TranscriptionError.Timeout));
-        }
-        catch (HttpRequestException e)
-        {
-            return new("", new(TranscriptionError.Network, (int)e.HttpRequestError));
-        }
-        catch (IOException)
-        {
-            // The connection dropped while the body was being read.
-            return new("", new(TranscriptionError.Network));
-        }
-        catch (JsonException)
-        {
-            return new("", new(TranscriptionError.MalformedResponse));
+                using var request = CreateRequest(wav);
+                using var response = await _http.SendAsync(request, timeout.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    // The body is never read: providers may echo the request in it.
+                    return new("", TranscriptionFailure.FromStatus(response.StatusCode));
+                }
+
+                await using var body = await response.Content.ReadAsStreamAsync(timeout.Token);
+                return ReadTranscript(await JsonDocument.ParseAsync(body, cancellationToken: timeout.Token));
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return new("", new(TranscriptionError.Timeout));
+            }
+            catch (HttpRequestException e) when (RetryPolicy.ShouldRetry(e.HttpRequestError, attempt))
+            {
+                Log.Info(LogEvent.TranscriptionRetried, ("http_error", (int)e.HttpRequestError));
+            }
+            catch (HttpRequestException e)
+            {
+                return new("", new(TranscriptionError.Network, (int)e.HttpRequestError));
+            }
+            catch (IOException)
+            {
+                // The connection dropped while the body was being read.
+                return new("", new(TranscriptionError.Network));
+            }
+            catch (JsonException)
+            {
+                return new("", new(TranscriptionError.MalformedResponse));
+            }
         }
     }
 
