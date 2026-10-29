@@ -56,6 +56,28 @@ Suki's name, icons, sounds and artwork are not used in Naad.
 - Source: https://github.com/naudio/NAudio
 - Used for microphone capture and WAV encoding. Ships with Naad.
 
+## Whisper.net
+
+- Packages: `Whisper.net` 1.9.1 and `Whisper.net.Runtime` 1.9.1, with their
+  dependencies `Whisper.net.Runtime.Metal` 1.9.1 (macOS only, unused on
+  Windows) and `Microsoft.Extensions.AI.Abstractions` 10.2.0
+- License: MIT, © 2024 sandrohanea (Microsoft.Extensions.AI.Abstractions:
+  MIT, © Microsoft Corporation)
+- Source: https://github.com/sandrohanea/whisper.net
+- The runtime package ships native builds of whisper.cpp and ggml
+  (MIT, © The ggml authors, https://github.com/ggml-org/whisper.cpp).
+- Used for transcription on this PC (P20). Ships with Naad.
+
+## Whisper base model (downloaded, not shipped)
+
+- File: `ggml-base.bin` from https://huggingface.co/ggerganov/whisper.cpp,
+  147,951,465 bytes, SHA-256
+  `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`
+- License: MIT. OpenAI's Whisper weights (https://github.com/openai/whisper,
+  © 2022 OpenAI), converted to the ggml format by the whisper.cpp project.
+- Naad doesn't include it. It is downloaded only when the user clicks
+  **Download model** in Settings, and kept only if its checksum matches.
+
 ## System.Numerics.Tensors
 
 - Package: `System.Numerics.Tensors` 9.0.0, a dependency of NAudio

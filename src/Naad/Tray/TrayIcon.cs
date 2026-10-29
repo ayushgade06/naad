@@ -133,6 +133,8 @@ internal sealed class TrayIcon : IDisposable
         TranscriptionError.Network => "Naad couldn't reach the transcription service. Check your internet " +
             "connection.",
         TranscriptionError.Timeout => "The transcription service didn't answer in time. Try again.",
+        TranscriptionError.LocalFailed => "Transcribing on this PC failed. Download the model again in Settings, " +
+            "or switch to the cloud service.",
         _ => "The transcription service sent an unexpected answer. Check the base URL in Settings.",
     };
 
