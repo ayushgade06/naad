@@ -477,6 +477,17 @@ production-quality code, and keeps the slice working at every commit.
   - Microphone picker.
   - Base URL, model and language.
   - Changes apply immediately.
+  - **As built:** language was moved here from P21, so it is built once.
+    Saving applies every setting at once from `Program`, the composition
+    root, or after the dictation running at that moment ends; the hook,
+    recorder, controller, tray and log each gained one small method for
+    it. The key is write-only: the window shows where it comes from, never
+    the key. **Test key** sends `GET {baseUrl}/models` and reads only the
+    status (404 or 405 means the provider can't check keys). Without a
+    usable key Naad starts and opens the window instead of exiting, and
+    the shortcut asks for a key instead of recording. Capturing a shortcut
+    swallows every key, raises no dictation events, and ends on release,
+    Esc, or when the window closes or loses focus.
 - **Needs:** P16.
 - **Done when:** every setting takes effect without a restart and stays
   after a restart.
@@ -525,7 +536,6 @@ production-quality code, and keeps the slice working at every commit.
 - **Goal:** small, high-value additions.
 - **In:**
   - Custom vocabulary, sent through Whisper's `prompt` field.
-  - Language choice.
   - Toggle (hands-free) mode.
   - Start at login (`HKCU\...\Run`).
 - **Needs:** P17.

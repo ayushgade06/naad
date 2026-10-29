@@ -1,9 +1,13 @@
 # Settings
 
+The easiest way to change settings is **Settings...** in Naad's tray menu.
+Changes apply as soon as you click **Save**, without a restart; if you are
+dictating at that moment, they apply when the dictation ends.
+
 Naad keeps its settings in `%APPDATA%\Naad\settings.json`, for example
 `C:\Users\<you>\AppData\Roaming\Naad\settings.json`. The file is created
-with defaults the first time Naad starts. You can edit it with any text
-editor while Naad is closed; changes apply the next time Naad starts.
+with defaults the first time Naad starts. You can also edit it with any text
+editor while Naad is closed; such changes apply the next time Naad starts.
 
 ```json
 {
@@ -80,7 +84,13 @@ Naad needs an API key for the transcription provider (Groq by default; get
 one at https://console.groq.com/keys). It is stored encrypted, apart from
 settings.json, in `%LOCALAPPDATA%\Naad\api-key.dpapi`.
 
-To store or replace the key, pipe it into Naad from PowerShell. The key is
+To store or replace the key, paste it into **New key** in Settings and click
+**Save**. **Test key** first asks the provider whether it accepts the key
+(Naad sends `GET <transcriptionBaseUrl>/models`); a provider that can't
+list models can't check keys, and Naad says so. Settings never shows a
+stored key, only where the key in use comes from.
+
+You can also pipe the key into Naad from PowerShell. The key is
 read without being shown, and never lands in the shell's history:
 
 ```powershell
@@ -92,8 +102,8 @@ From a source checkout, use `dotnet run --project src/Naad -- --set-api-key`
 in place of the `& ... Naad.exe` part. `| Out-Null` makes PowerShell wait
 for Naad to finish; `$LASTEXITCODE` is then `0` once the key is stored.
 Naad accepts the key only from a pipe: `--set-api-key` without one shows how
-to use it and changes nothing. The key takes effect the next time Naad
-starts.
+to use it and changes nothing. A key stored this way takes effect the next
+time Naad starts.
 
 How it is protected and found:
 
@@ -106,11 +116,12 @@ How it is protected and found:
   is set and not blank, Naad uses it and doesn't read the stored key. The
   log says which one was used (`ApiKeyFromEnvironment` or `ApiKeyLoaded`),
   never the key itself.
-- **No key:** Naad shows a dialog explaining how to store one, logs
-  `ApiKeyMissing` and exits.
-- **Unreadable key** (damaged, or saved by another Windows user): Naad shows
-  a dialog asking you to store it again, logs `ApiKeyUnreadable` with the
-  exception type, and exits. It doesn't delete the file.
+- **No key:** Naad logs `ApiKeyMissing`, starts anyway and opens Settings
+  so you can add one. Pressing the shortcut without a key shows a
+  notification instead of recording (`DictationNeedsApiKey`).
+- **Unreadable key** (damaged, or saved by another Windows user): the same,
+  with `ApiKeyUnreadable` and the exception type logged. Naad doesn't delete
+  the file; saving a new key replaces it.
 
 The key never appears in settings.json, the log, error dialogs or test
 files. To remove it, delete `api-key.dpapi` while Naad is closed.
