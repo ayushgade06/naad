@@ -11,11 +11,11 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "fileLogging": true,
   "playSounds": true,
   "dictationShortcut": "RightCtrl",
-  "transcriptionProvider": "Cloud",
+  "transcriptionProvider": "Local",
   "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
   "transcriptionModel": "whisper-large-v3-turbo",
   "language": null,
@@ -27,11 +27,11 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 | Setting | Type | Default | Meaning |
 |---|---|---|---|
-| `version` | integer | `1` | The file's schema version. Naad manages it; don't change it. |
+| `version` | integer | `2` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `playSounds` | `true` or `false` | `true` | Play a short, soft tone when Naad starts listening and when it stops. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
-| `transcriptionProvider` | `"Cloud"` or `"Local"` | `"Cloud"` | Where speech becomes text: `"Cloud"` uploads it to the service below; `"Local"` transcribes on this PC with Whisper, offline, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)). Naad never switches between them by itself. |
+| `transcriptionProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where speech becomes text: `"Local"` transcribes on this PC with Whisper, offline and free, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)); `"Cloud"` uploads it to the service below. Naad never switches between them by itself. A version-1 file without this setting was using the cloud, so its migration keeps `"Cloud"`. |
 | `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
 | `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
 | `language` | text or `null` | `null` | The language you speak, as a lowercase [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code such as `"en"` or `"hi"`; a few providers also take three-letter codes. Naad sends it with each recording, which makes transcripts faster and more accurate. `null` (or `""`) lets the provider detect the language. |
@@ -86,7 +86,7 @@ cancels the dictation, so Ctrl+click and Ctrl+scroll keep working.
 
 ## The API key
 
-Naad needs an API key for the transcription provider (Groq by default; get
+Naad needs an API key only to transcribe in the cloud (Groq by default; get
 one at https://console.groq.com/keys). It is stored encrypted, apart from
 settings.json, in `%LOCALAPPDATA%\Naad\api-key.dpapi`.
 
@@ -122,9 +122,9 @@ How it is protected and found:
   is set and not blank, Naad uses it and doesn't read the stored key. The
   log says which one was used (`ApiKeyFromEnvironment` or `ApiKeyLoaded`),
   never the key itself.
-- **No key:** Naad logs `ApiKeyMissing`, starts anyway and opens Settings
-  so you can add one. Pressing the shortcut without a key shows a
-  notification instead of recording (`DictationNeedsApiKey`).
+- **No key:** Naad logs `ApiKeyMissing` and starts anyway. With **Cloud**
+  chosen, it opens Settings so you can add one, and pressing the shortcut
+  shows a notification instead of recording (`DictationNeedsApiKey`).
 - **Unreadable key** (damaged, or saved by another Windows user): the same,
   with `ApiKeyUnreadable` and the exception type logged. Naad doesn't delete
   the file; saving a new key replaces it.
@@ -134,11 +134,15 @@ files. To remove it, delete `api-key.dpapi` while Naad is closed.
 
 ## Transcribing on this PC
 
-Choose **This PC** under **Transcribe with** in Settings, then click
-**Download model**. Naad downloads whisper.cpp's conversion of OpenAI's
-Whisper base model (`ggml-base.bin`, 148 MB) from Hugging Face once,
-checks its SHA-256, and keeps it in `%LOCALAPPDATA%\Naad\models`. A
-damaged or interrupted download is deleted and can be started again.
+This is the default. The first time Naad starts, Settings opens with
+**This PC** chosen under **Transcribe with**: click **Download model**,
+then **Save**. Until the model is downloaded, the shortcut asks you to
+finish setting up and records nothing.
+
+Naad downloads whisper.cpp's conversion of OpenAI's Whisper base model
+(`ggml-base.bin`, 148 MB) from Hugging Face once, checks its SHA-256, and
+keeps it in `%LOCALAPPDATA%\Naad\models`. A damaged or interrupted
+download is deleted and can be started again.
 
 After that, dictation needs no network and no API key, and audio never
 leaves your PC. A dictation takes a second or two, using half your
@@ -192,6 +196,7 @@ A setting is added only when the app actually reads it.
 | Missing setting | Uses that setting's default. | `SettingsLoaded` |
 | Unknown setting | Ignores it. It stays in the file unless the file has to be rewritten. | `SettingsLoaded` |
 | No `version` (older file) | Migrates it, backs up the original as `v0`, then rewrites it. | `SettingsMigrated from_version=0` |
+| `version` 1 (before transcribing on this PC was the default) | Migrates it: without `transcriptionProvider` it keeps `"Cloud"`, as version 1 meant. Backs up the original as `v1`, then rewrites it. | `SettingsMigrated from_version=1` |
 | Wrong-typed or invalid value, e.g. `"fileLogging": "no"` or `"dictationShortcut": "Ctrl"` | Uses that setting's default, backs up the original as `invalid`, then rewrites it. | `SettingsRepaired` |
 | Empty file, invalid JSON, or an invalid `version` | Uses defaults, backs up the original as `corrupt`, then writes defaults. | `SettingsCorrupt` |
 | Newer `version` than supported | Uses defaults in memory. The file is left exactly as it is. | `SettingsFutureVersion` |

@@ -64,6 +64,10 @@ internal sealed class SettingsStore(string path)
         // 0 -> 1: files written before the version field existed. Their fields already
         // mean what version 1 means, so only the version changes.
         _ => { },
+
+        // 1 -> 2: transcribing on this PC became the default. A version-1 file without the
+        // field was using the cloud, so it keeps the cloud instead of changing provider unasked.
+        root => root.TryAdd("transcriptionProvider", nameof(TranscriptionProvider.Cloud)),
     ];
 
     public static string DefaultPath { get; } = Path.Combine(

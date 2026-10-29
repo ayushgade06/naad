@@ -41,6 +41,10 @@ All notable changes to Naad are listed here. The format follows
 
 ### Changed
 
+- Naad transcribes on this PC by default, so dictation costs nothing and
+  needs no account. On first start, Settings opens to download the model.
+  A settings file from an earlier build that never chose a provider keeps
+  the cloud (settings version 2).
 - Without a usable API key, Naad starts and opens Settings instead of
   exiting. Pressing the shortcut without a key shows a notification and
   records nothing.

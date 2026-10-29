@@ -704,6 +704,21 @@ workflow, and a clean Windows 11 virtual machine.
 **Status after P23:** M-P5 and M-P6 have **not been run**: they need
 published releases and a clean VM.
 
+## Local first (P24): M-LF1 to M-LF5
+
+Since P24, Naad transcribes on this PC unless the user chooses the cloud,
+so the checks above that dictate through Groq (M-S2 to M-S5, M-G1 to M-G3
+and others) need **Cloud** chosen in Settings first. A settings file from
+before P24 (version 1) that never chose a provider keeps **Cloud**.
+`SettingsStoreTests` covers the default and the migration.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-LF1 | First start, no key | Exit Naad. Rename `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad\models`, and clear `NAAD_GROQ_API_KEY`. Start Naad. | Settings opens with **This PC** chosen and **Download model** offered. Holding the shortcut shows **Naad isn't set up yet** and records nothing. After **Download model** and **Save**, dictating into Notepad pastes the words. No API key was asked for. | **No.** The default is unit tested. |
+| M-LF2 | Older settings keep the cloud | Exit Naad. Write `{ "version": 1, "dictationShortcut": "RightCtrl" }` to `%APPDATA%\Naad\settings.json`, with a stored key. Start Naad and dictate. | Naad transcribes through the cloud, as before. settings.json now says `"version": 2` and `"transcriptionProvider": "Cloud"`; a `settings.json.v1-….bak` holds the original. The log shows `SettingsMigrated from_version=1`. | **No.** The migration is unit tested. |
+
+**Status after P24:** M-LF1 and M-LF2 have **not been run** by a person.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11
