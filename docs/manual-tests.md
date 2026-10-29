@@ -15,7 +15,39 @@ Record each run in the phase's pull request:
 Never paste transcripts, API keys or screenshots containing them into the
 results.
 
+## Run every check on this PC unless it tests the cloud
+
+Naad's aim is free dictation on your own PC, so the manual pass is done
+with local transcription. That way, every dictation check below also
+tests Whisper on this PC. Before starting:
+
+1. Open **Settings...** from the tray menu and choose **This PC** under
+   **Transcribe with**, with **Base** under **Model on this PC**.
+2. Click **Download model** if it is offered, then **Save**. No API key is
+   needed, and `NAAD_GROQ_API_KEY` should not be set.
+3. Record in the results which model was used and whether the log's
+   `LocalModelLoaded` line says `vulkan=1` (graphics card) or `vulkan=0`
+   (processor).
+
+Wherever a check below says "uploaded", read "transcribed": the recording
+gates (M-W1 to M-W3) decide the same way for both providers. Run a check
+with **Cloud** chosen only when it tests the cloud itself:
+
+| Checks | Why they need the cloud |
+|---|---|
+| M-S1, M-T4, M-K1, M-U1, M-U2 | They test the API key: missing, stored, wrong or tested. |
+| M-G1 to M-G3 | They test the cloud provider's requests and errors. |
+| M-U6 | Its base URL, cloud model and key fields only apply to the cloud. |
+| M-LW3 (second half), M-LF2 | They check switching to, or keeping, the cloud. |
+
+With **Large v3 Turbo** available on a PC with a discrete graphics card,
+repeat M-M1 to M-M8 with it as well.
+
 ## Setup for the vertical slice (P3)
+
+Since P24, this setup is only needed for the cloud checks listed above.
+For everything else, follow "Run every check on this PC" instead.
+
 
 1. Check that your keyboard has a **Right Ctrl** key. Some newer laptops
    have a Copilot key in its place.
@@ -707,9 +739,10 @@ published releases and a clean VM.
 ## Local first (P24): M-LF1 to M-LF5
 
 Since P24, Naad transcribes on this PC unless the user chooses the cloud,
-so the checks above that dictate through Groq (M-S2 to M-S5, M-G1 to M-G3
-and others) need **Cloud** chosen in Settings first. A settings file from
-before P24 (version 1) that never chose a provider keeps **Cloud**.
+and the whole manual pass runs that way (see "Run every check on this PC"
+at the top). Only the cloud checks listed there need **Cloud**. A settings
+file from before P24 (version 1) that never chose a provider keeps
+**Cloud**, so switch such a PC to **This PC** before the pass.
 `SettingsStoreTests` covers the default and the migration.
 
 | ID | Check | Steps | Expected | Automated? |
@@ -742,7 +775,9 @@ base wrote "Kubernetes" as "Cabernet's", turbo got it right.
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11
-in Notepad, Chrome and VS Code, and the maintainer approves. Status as of
+in Notepad, Chrome and VS Code, and the maintainer approves. Dictation
+checks run with transcription on this PC; only the cloud checks listed at
+the top use **Cloud**. Status as of
 2026-10-28. "Partly" means an automated harness covered part of it and the
 rest still needs a person.
 
@@ -762,3 +797,4 @@ rest still needs a person.
 | Clipboard | M-I1 to M-I6 | NOT RUN. Real-clipboard harness passed (P14). |
 | Focus guard | M-F1 to M-F5 | NOT RUN. Real-desktop focus check passed (P15). |
 | MVP | M-M1 to M-M8 | NOT RUN. |
+| Transcription on this PC | M-LW1 to M-LW4, M-LF1 to M-LF5 | M-LW1 and M-LF3 partly (explicit tests). Others: NOT RUN. |
