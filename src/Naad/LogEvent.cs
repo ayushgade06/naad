@@ -51,6 +51,7 @@ internal enum LogEvent
     HookReinstalled,
     HookReinstallFailed,
     ShortcutKeysResynced,
+    MicrophoneDisconnected,
     DictationIgnoredShortHold,
     RecordingStopped,
     RecordingTooShort,

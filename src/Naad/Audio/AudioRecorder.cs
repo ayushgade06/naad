@@ -104,8 +104,8 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
     }
 
     /// <summary>
-    /// Stops recording and returns the raw PCM in <see cref="Format"/>. Throws if the device
-    /// reported an error while recording.
+    /// Stops recording and returns the raw PCM in <see cref="Format"/>. If the device failed
+    /// mid-way, as when it is unplugged, returns what was recorded until then.
     /// </summary>
     public async Task<byte[]> StopAsync()
     {
@@ -250,6 +250,13 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
             catch (TimeoutException)
             {
                 Log.Warn(LogEvent.RecordingStopTimedOut);
+            }
+            catch (MmException e)
+            {
+                // The device failed mid-recording, typically a USB or Bluetooth microphone
+                // unplugged. What was heard until then is still transcribed; the next recording
+                // opens whatever device Windows offers by then.
+                Log.Warn(LogEvent.MicrophoneDisconnected, ("mm_result", (int)e.Result));
             }
 
             lock (_pcm)
