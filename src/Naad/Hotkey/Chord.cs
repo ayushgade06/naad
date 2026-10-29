@@ -13,9 +13,11 @@ namespace Naad.Hotkey;
 [JsonConverter(typeof(TextConverter))]
 internal sealed record Chord
 {
-    // Many keyboards can't report more keys held at once, and the tray tooltip that
-    // describes the chord has a 127-character limit.
-    private const int MaxKeys = 4;
+    /// <summary>
+    /// Many keyboards can't report more keys held at once, and the tray tooltip that
+    /// describes the chord has a 127-character limit.
+    /// </summary>
+    public const int MaxKeys = 4;
 
     // Low-level keyboard hooks report sided modifiers (RControlKey), never the generic
     // ones (ControlKey), and never mouse buttons. A chord using them could never match.
@@ -58,7 +60,7 @@ internal sealed record Chord
         var keys = new List<Key>();
         foreach (var name in text.Split('+', StringSplitOptions.TrimEntries))
         {
-            if (!TryParseKey(name, out var key) || keys.Contains(key))
+            if (!TryParseKey(name, out var key))
             {
                 return false;
             }
@@ -66,13 +68,19 @@ internal sealed record Chord
             keys.Add(key);
         }
 
-        if (keys.Count > MaxKeys)
-        {
-            return false;
-        }
+        return TryCreate(keys, out chord);
+    }
 
-        chord = new(keys);
-        return true;
+    /// <summary>
+    /// A chord of <paramref name="keys"/>, as captured from the keyboard. Fails for the same
+    /// keys and counts as <see cref="TryParse"/>.
+    /// </summary>
+    public static bool TryCreate(IReadOnlyList<Key> keys, [NotNullWhen(true)] out Chord? chord)
+    {
+        chord = keys.Count is > 0 and <= MaxKeys && keys.Distinct().Count() == keys.Count && keys.All(IsUsable)
+            ? new([.. keys])
+            : null;
+        return chord is not null;
     }
 
     public bool Contains(Key key) => Keys.Contains(key);
@@ -110,14 +118,16 @@ internal sealed record Chord
         }
 
         // Enum.TryParse also accepts numbers ("65") and flag lists ("A, Control"), so only
-        // a plain name is passed to it, and modifier flags above the key-code range are refused.
+        // a plain name is passed to it.
         key = Key.None;
         return name.Length > 0 && char.IsAsciiLetter(name[0]) && name.All(char.IsAsciiLetterOrDigit)
-            && Enum.TryParse(name, ignoreCase: true, out key)
-            && key is > Key.None and <= Key.OemClear
-            && Enum.IsDefined(key)
-            && !Unmatchable.Contains(key);
+            && Enum.TryParse(name, ignoreCase: true, out key);
     }
+
+    // Modifier flags above the key-code range, and keys a keyboard hook never reports, can't
+    // be part of a chord.
+    private static bool IsUsable(Key key) =>
+        key is > Key.None and <= Key.OemClear && Enum.IsDefined(key) && !Unmatchable.Contains(key);
 
     /// <summary>Stores a chord in JSON as its settings form.</summary>
     internal sealed class TextConverter : JsonConverter<Chord>
