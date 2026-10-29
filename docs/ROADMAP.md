@@ -660,7 +660,8 @@ production-quality code, and keeps the slice working at every commit.
 - **Goal:** ship `v1.0.0`.
 - **In:**
   - Privacy document, troubleshooting guide, architecture page.
-  - A full manual pass on Windows 11 and Windows 10 22H2.
+  - A full manual pass on Windows 11 and Windows 10 22H2, transcribing on
+    this PC; only the checks that test the cloud use it.
 - **Needs:** P17–P24.
 - **Done when:** every manual check passes and the documentation matches
   the app's behaviour.
