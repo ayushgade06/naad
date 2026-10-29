@@ -53,6 +53,7 @@ internal enum LogEvent
     TranscriptionFiltered,
     DictationCancelledByShutdown,
     DictationFailed,
+    DictationNeedsApiKey,
 
     PasteSkippedFocusChanged,
     PasteSkippedTargetClosed,

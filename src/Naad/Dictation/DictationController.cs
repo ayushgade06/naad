@@ -13,14 +13,15 @@ namespace Naad.Dictation;
 /// touched from one thread. Logs events and numbers only, never what was said.
 /// </summary>
 /// <param name="recorder">The microphone.</param>
-/// <param name="transcriber">Turns the recording into text; see <see cref="UseTranscriber"/>.</param>
+/// <param name="transcriber">Turns the recording into text; null until an API key is set. See
+/// <see cref="UseTranscriber"/>.</param>
 /// <param name="inserter">Puts the text into the target window.</param>
 /// <param name="captureTarget">The window that has focus, read when the shortcut is pressed.</param>
 /// <param name="checkTarget">Whether that window may receive text now.</param>
 /// <param name="time">Measures holds and durations; tests replace it.</param>
 internal sealed class DictationController(
     IAudioRecorder recorder,
-    ITranscriber transcriber,
+    ITranscriber? transcriber,
     TextInserter inserter,
     Func<WindowTarget> captureTarget,
     Func<WindowTarget, InsertionDecision> checkTarget,
@@ -28,7 +29,7 @@ internal sealed class DictationController(
 {
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
-    private ITranscriber _transcriber = transcriber;
+    private ITranscriber? _transcriber = transcriber;
     private Task<bool> _starting = Task.FromResult(false);
 
     // Completes once the last recording has fully stopped. A new recording waits for it, so a
@@ -49,6 +50,12 @@ internal sealed class DictationController(
 
     /// <summary>A recording held no sound worth uploading. Raised on the UI thread.</summary>
     public event Action? NothingHeard;
+
+    /// <summary>
+    /// The shortcut was pressed but there is no transcriber, so nothing was recorded: the user
+    /// must add an API key first. Raised on the UI thread.
+    /// </summary>
+    public event Action? TranscriberMissing;
 
     /// <summary>The transcription service failed. Raised on the UI thread.</summary>
     public event Action<TranscriptionError>? TranscriptionFailed;
@@ -76,7 +83,7 @@ internal sealed class DictationController(
     /// or key change. A transcription already running finishes with the one it started with. Call
     /// on the UI thread.
     /// </summary>
-    public void UseTranscriber(ITranscriber replacement) => _transcriber = replacement;
+    public void UseTranscriber(ITranscriber? replacement) => _transcriber = replacement;
 
     /// <summary>
     /// Puts the kept transcript on the clipboard, out of clipboard history, for the user to
@@ -120,10 +127,20 @@ internal sealed class DictationController(
     // Shortcut events always apply to the current job; after shutdown they are ignored.
     private void ApplyShortcut(DictationEvent e)
     {
-        if (!_disposed)
+        if (_disposed)
         {
-            Apply(e, _session.Job);
+            return;
         }
+
+        // Without a transcriber the words could never be used, so the microphone isn't opened.
+        if (e == DictationEvent.Pressed && _transcriber is null && _session.State == DictationState.Idle)
+        {
+            Log.Warn(LogEvent.DictationNeedsApiKey);
+            TranscriberMissing?.Invoke();
+            return;
+        }
+
+        Apply(e, _session.Job);
     }
 
     private DictationStep Apply(DictationEvent e, long job)
@@ -273,7 +290,9 @@ internal sealed class DictationController(
                 ("rms", check.Rms));
 
             var requestStart = time.GetTimestamp();
-            var result = await service.TranscribeAsync(wav, shutdown);
+            // A recording only starts with a transcriber, and one is never removed mid-dictation.
+            var result = await (service ?? throw new InvalidOperationException("No transcriber."))
+                .TranscribeAsync(wav, shutdown);
             if (result.Failure is { } failure)
             {
                 DictationLog.Transcription(failure);
