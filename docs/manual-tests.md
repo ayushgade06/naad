@@ -580,6 +580,37 @@ policy, including the transcriber against a fake server.
 
 **Status after P19:** M-R1 to M-R6 have **not been run** by a person.
 
+## Quality features (P21): M-Q1 to M-Q5
+
+Since P21, Settings has three more options:
+
+- **Vocabulary** (`vocabulary`): names and terms you use, sent with each
+  recording as Whisper's prompt so they come back spelled right. It goes
+  to the transcription provider but never into the log.
+- **Hands-free** (`handsFree`): press the shortcut once to start and again
+  to stop, instead of holding it. The other rules stay: another key during
+  the starting press cancels, a second press within 300 ms is too short,
+  and recording stops by itself after 5 minutes.
+- **Start Naad when I sign in**: a `Naad` value in
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. The registry is
+  the only record of it; it isn't in settings.json.
+
+Language choice, also planned here, was built in P17. Unit tests cover the
+new settings (`SettingsStoreTests`, `SettingsInputTests`), the prompt field
+(`OpenAiCompatibleTranscriberTests`), hands-free dictation
+(`DictationControllerTests`), the tooltips (`TrayIconTests`) and the Run
+entry against a throwaway registry key (`StartupEntryTests`).
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-Q1 | Vocabulary | 1. Dictate a sentence with an unusual name or term (a product, a colleague's name) and note how it is spelled. 2. Add it to **Vocabulary** in Settings, save, and dictate the same sentence. 3. Open `naad.log`. | 2. The term comes back spelled as in the vocabulary (Whisper treats the prompt as a hint, so try twice before calling it a failure). 3. The log never contains the vocabulary. | **No.** It needs a voice. |
+| M-Q2 | Hands-free dictation | Tick **Hands-free**, save. In Notepad, press and release Right Ctrl, speak two sentences with your hands off the keyboard, then press Right Ctrl again. | Recording starts on the first press (tone, red dot) and keeps going after release; the tooltip says to press Right Ctrl again. The second press transcribes and pastes. | **No.** Physical keys and a voice. |
+| M-Q3 | Hands-free edge cases | With **Hands-free** on: 1. Press Right Ctrl twice quickly. 2. Press Right Ctrl+C to copy something. 3. Start a dictation and wait 5 minutes. 4. Untick **Hands-free**, save, and dictate by holding. | 1. Nothing is recorded or pasted (too short). 2. The copy works and no dictation starts. 3. Recording stops by itself at 5 minutes and is transcribed. 4. Holding works again; release ends the dictation. | **No.** |
+| M-Q4 | Start at login | 1. Tick **Start Naad when I sign in**, save. 2. Sign out and in again (or restart). 3. Run `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Naad`. | 2. Naad's tray icon appears after sign-in without starting it by hand. 3. The value is the quoted path of the Naad.exe you ticked it from. The log shows `StartAtLoginEnabled`. | **No.** It needs a sign-in. |
+| M-Q5 | Stop starting at login | 1. Untick **Start Naad when I sign in**, save. 2. Sign out and in again. 3. Run the `reg query` from M-Q4. | 2. Naad doesn't start. 3. "The system was unable to find the specified registry key or value." The log shows `StartAtLoginDisabled`. Other programs' Run entries are untouched. | **No.** |
+
+**Status after P21:** M-Q1 to M-Q5 have **not been run** by a person.
+
 ## v0.1.0 checklist
 
 `v0.1.0` is tagged only after every check below has passed on Windows 11
