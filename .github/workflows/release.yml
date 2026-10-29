@@ -1,0 +1,81 @@
+name: Release
+
+# Builds the installer and publishes a GitHub Release when the maintainer pushes a version
+# tag such as v0.2.0. Nothing else triggers it.
+on:
+  push:
+    tags: ['v*.*.*']
+
+# vpk creates the release and uploads its files with the built-in token.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Fixed for good: Velopack installs into %LOCALAPPDATA%\<packId> and finds updates by it.
+  # Not "Naad", which would install over Naad's user data in %LOCALAPPDATA%\Naad.
+  PACK_ID: Naad.App
+  VPK_VERSION: 1.2.161
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      # The tag is the single source of the version: it stamps Naad.exe and the package.
+      - name: Read the version from the tag
+        id: version
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Version tags look like v1.2.3." }
+          "value=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: dotnet test --configuration Release
+
+      - name: Publish Naad.exe
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: >-
+          dotnet publish src/Naad --configuration Release --runtime win-x64 --self-contained
+          -p:Version=$env:VERSION --output publish
+
+      - name: Install vpk
+        run: dotnet tool install --global vpk --version $env:VPK_VERSION
+
+      # ponytail: full packages only; add `vpk download github` before packing for delta
+      # updates if download size starts to matter.
+      - name: Pack the installer
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: >-
+          vpk pack --packId $env:PACK_ID --packVersion $env:VERSION --packDir publish
+          --mainExe Naad.exe --packTitle Naad --packAuthors "Naad contributors"
+          --icon src/Naad/Assets/naad.ico --outputDir releases
+
+      - name: Publish the GitHub Release
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          TAG: ${{ github.ref_name }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          vpk upload github --outputDir releases --repoUrl $env:REPO_URL --token $env:GITHUB_TOKEN
+          --publish --releaseName "Naad $env:VERSION" --tag $env:TAG
