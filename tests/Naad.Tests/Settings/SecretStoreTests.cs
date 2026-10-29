@@ -20,6 +20,8 @@ public sealed class SecretStoreTests : IDisposable
 
     public void Dispose()
     {
+        // One test logs into this directory; later tests must not log into it once it is deleted.
+        Log.StopFileLogging();
         if (Directory.Exists(_directory))
         {
             Directory.Delete(_directory, recursive: true);
