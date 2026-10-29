@@ -27,6 +27,9 @@ internal enum TranscriptionError
 
     /// <summary>A success status whose body isn't the expected JSON.</summary>
     MalformedResponse,
+
+    /// <summary>Transcribing on this PC failed: the model is missing or damaged, or whisper.cpp failed.</summary>
+    LocalFailed,
 }
 
 /// <summary>Why a transcription failed. Caller cancellation is not a failure; it throws.</summary>

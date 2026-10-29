@@ -544,6 +544,16 @@ production-quality code, and keeps the slice working at every commit.
   - Model download with a checksum check.
   - Switching between providers.
   - Add the model and the library to `THIRD-PARTY-NOTICES.md`.
+  - **As built:** `transcriptionProvider` (`Cloud` or `Local`) and the
+    pure `ProviderSelection`, which never falls back to the other
+    provider, so choosing local transcription can't upload audio.
+    `LocalModel` downloads whisper.cpp's multilingual `ggml-base.bin`
+    (148 MB) only when the user asks, hashes it as it arrives and keeps it
+    only if the SHA-256 matches. `LocalWhisperTranscriber` loads it lazily
+    off the UI thread and frees it when the provider changes. Measured on
+    the maintainer's PC: 9.8 s of speech took 1.5 s (2.0 s with the model
+    load), using half the logical processors. Manual checks are M-LW1 to
+    M-LW4, since P11 already uses M-W1 to M-W3.
 - **Needs:** P17.
 - **Done when:**
   - Dictation works with the network disconnected.

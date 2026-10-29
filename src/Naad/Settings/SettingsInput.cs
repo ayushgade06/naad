@@ -76,6 +76,22 @@ internal static class SettingsInput
             "again below.",
     };
 
+    /// <summary>Whether the model for transcribing on this PC is in place.</summary>
+    public static string ModelStatus(bool ready) => ready
+        ? "The model is downloaded. Transcription on this PC works offline."
+        : "Transcribing on this PC needs a one-time download of 148 MB.";
+
+    /// <summary>The result of the Download button.</summary>
+    public static string ModelDownloadMessage(ModelDownloadResult result) => result.Outcome switch
+    {
+        ModelDownloadOutcome.Downloaded => ModelStatus(ready: true),
+        ModelDownloadOutcome.ChecksumMismatch => "The download was damaged, so it was deleted. Try again.",
+        ModelDownloadOutcome.HttpError => $"The download server refused the request (HTTP {result.Code}). Try " +
+            "again later.",
+        ModelDownloadOutcome.Network => "The download failed: check your internet connection and try again.",
+        _ => "The model couldn't be saved. Check that the disk has 150 MB free, then try again.",
+    };
+
     /// <summary>The result of the Test key button. Never includes a response body.</summary>
     public static string KeyTestMessage(KeyTestResult result) => result switch
     {

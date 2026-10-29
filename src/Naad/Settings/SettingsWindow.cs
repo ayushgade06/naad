@@ -19,6 +19,8 @@ internal sealed class SettingsWindow : Form
     private readonly ApiKeyResult _key;
     private readonly Func<string, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
     private readonly Func<AppSettings, string?, bool, string?> _save;
+    private readonly Func<IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _downloadModel;
+    private bool _modelReady;
     private readonly Func<bool> _beginCapture;
     private readonly Action _cancelCapture;
     private readonly CancellationTokenSource _closing = new();
@@ -27,6 +29,9 @@ internal sealed class SettingsWindow : Form
     // Index 0 is the Windows default (null); the rest are device names.
     private readonly List<string?> _microphones = [null];
 
+    private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
+    private readonly Label _modelStatus = Note();
+    private readonly Button _downloadModelButton = new() { Text = "Download model", AutoSize = true };
     private readonly TextBox _newKey = new() { UseSystemPasswordChar = true, Width = FieldWidth };
     private readonly Button _testKeyButton = new() { Text = "Test key", AutoSize = true };
     private readonly Label _testResult = Note();
@@ -65,6 +70,8 @@ internal sealed class SettingsWindow : Form
     /// <param name="key">Where the key in use comes from; the key itself is only used for Test key.</param>
     /// <param name="microphones">The connected recording devices' names.</param>
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
+    /// <param name="modelReady">Whether the model for transcribing on this PC is downloaded.</param>
+    /// <param name="downloadModel">Downloads that model, reporting progress.</param>
     /// <param name="testKey">Checks a key against a base URL.</param>
     /// <param name="save">Saves and applies new settings, a new key if one was typed, and the
     /// start-at-login choice. Returns what went wrong, or null.</param>
@@ -75,6 +82,8 @@ internal sealed class SettingsWindow : Form
         ApiKeyResult key,
         IReadOnlyList<string> microphones,
         bool startsAtLogin,
+        bool modelReady,
+        Func<IProgress<double>, CancellationToken, Task<ModelDownloadResult>> downloadModel,
         Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
         Func<AppSettings, string?, bool, string?> save,
         Func<bool> beginCapture,
@@ -84,6 +93,8 @@ internal sealed class SettingsWindow : Form
         _key = key;
         _testKey = testKey;
         _save = save;
+        _downloadModel = downloadModel;
+        _modelReady = modelReady;
         _beginCapture = beginCapture;
         _cancelCapture = cancelCapture;
         _shortcut = current.DictationShortcut;
@@ -102,6 +113,7 @@ internal sealed class SettingsWindow : Form
         Controls.Add(BuildLayout());
 
         _testKeyButton.Click += (_, _) => _ = TestKeyAsync();
+        _downloadModelButton.Click += (_, _) => _ = DownloadModelAsync();
         _changeShortcut.Click += (_, _) => BeginCapture();
 
         // Keys typed in other apps would be swallowed while capturing, so leaving the window ends it.
@@ -160,6 +172,10 @@ internal sealed class SettingsWindow : Form
         }
 
         _microphone.SelectedIndex = _microphones.IndexOf(_current.Microphone);
+        _provider.Items.AddRange(["Cloud: the OpenAI-compatible service below", "This PC: Whisper base, offline"]);
+        _provider.SelectedIndex = (int)_current.TranscriptionProvider;
+        _modelStatus.Text = SettingsInput.ModelStatus(_modelReady);
+        _downloadModelButton.Visible = !_modelReady;
         _shortcutText.Text = _shortcut.Describe();
         _language.Text = _current.Language ?? "";
         _vocabulary.Text = _current.Vocabulary ?? "";
@@ -184,6 +200,8 @@ internal sealed class SettingsWindow : Form
         AcceptButton = save;
         CancelButton = cancel;
 
+        Row(table, "Transcribe with", _provider);
+        Row(table, "", Flow(_modelStatus, _downloadModelButton));
         Row(table, "API key", Note(SettingsInput.KeyStatus(_key)));
         Row(table, "New key", Flow(_newKey, _testKeyButton));
         Row(table, "", _testResult);
@@ -261,7 +279,14 @@ internal sealed class SettingsWindow : Form
             PlaySounds = _playSounds.Checked,
             FileLogging = _fileLogging.Checked,
             HandsFree = _handsFree.Checked,
+            TranscriptionProvider = (TranscriptionProvider)_provider.SelectedIndex,
         };
+        if (chosen.TranscriptionProvider == TranscriptionProvider.Local && !_modelReady)
+        {
+            _error.Text = "Download the model first, or transcribe with the cloud service.";
+            return;
+        }
+
         if (!SettingsInput.TryBuild(
             chosen, _baseUrl.Text, _model.Text, _language.Text, _vocabulary.Text, out var settings, out var error))
         {
@@ -283,6 +308,36 @@ internal sealed class SettingsWindow : Form
         }
 
         Close();
+    }
+
+    // Fire-and-forget from a click: anything not caught here would vanish silently.
+    private async Task DownloadModelAsync()
+    {
+        _downloadModelButton.Enabled = false;
+        var progress = new Progress<double>(fraction => _modelStatus.Text = $"Downloading... {fraction:P0}");
+        try
+        {
+            var result = await _downloadModel(progress, _closing.Token);
+            _modelReady = result.Outcome == ModelDownloadOutcome.Downloaded;
+            _modelStatus.Text = SettingsInput.ModelDownloadMessage(result);
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            // The window closed during the download; nothing partial is kept.
+        }
+        catch (Exception e)
+        {
+            Log.Error(LogEvent.LocalModelDownloadFailed, e);
+            _modelStatus.Text = SettingsInput.ModelDownloadMessage(new(ModelDownloadOutcome.DiskError));
+        }
+        finally
+        {
+            if (!IsDisposed)
+            {
+                _downloadModelButton.Enabled = true;
+                _downloadModelButton.Visible = !_modelReady;
+            }
+        }
     }
 
     // Fire-and-forget from a click: anything not caught here would vanish silently.

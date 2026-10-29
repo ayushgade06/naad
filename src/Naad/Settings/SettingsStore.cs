@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Naad.Hotkey;
+using Naad.Transcription;
 
 namespace Naad.Settings;
 
@@ -298,6 +299,21 @@ internal sealed class SettingsStore(string path)
             }
         }
 
+        var provider = AppSettings.Defaults.TranscriptionProvider;
+        if (TryReadString(root, "transcriptionProvider", ref repaired) is { } providerText)
+        {
+            // Names only: Enum.TryParse would also take "1" or "Cloud, Local".
+            if (Array.Find(Enum.GetNames<TranscriptionProvider>(), name =>
+                    string.Equals(name, providerText, StringComparison.OrdinalIgnoreCase)) is { } name)
+            {
+                provider = Enum.Parse<TranscriptionProvider>(name);
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
         var baseUrl = AppSettings.Defaults.TranscriptionBaseUrl;
         if (TryReadString(root, "transcriptionBaseUrl", ref repaired) is { } urlText)
         {
@@ -329,6 +345,7 @@ internal sealed class SettingsStore(string path)
             FileLogging = fileLogging,
             PlaySounds = playSounds,
             DictationShortcut = shortcut,
+            TranscriptionProvider = provider,
             TranscriptionBaseUrl = baseUrl,
             TranscriptionModel = model,
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),

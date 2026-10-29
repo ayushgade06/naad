@@ -15,6 +15,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "fileLogging": true,
   "playSounds": true,
   "dictationShortcut": "RightCtrl",
+  "transcriptionProvider": "Cloud",
   "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
   "transcriptionModel": "whisper-large-v3-turbo",
   "language": null,
@@ -30,6 +31,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `playSounds` | `true` or `false` | `true` | Play a short, soft tone when Naad starts listening and when it stops. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
+| `transcriptionProvider` | `"Cloud"` or `"Local"` | `"Cloud"` | Where speech becomes text: `"Cloud"` uploads it to the service below; `"Local"` transcribes on this PC with Whisper, offline, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)). Naad never switches between them by itself. |
 | `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
 | `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
 | `language` | text or `null` | `null` | The language you speak, as a lowercase [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code such as `"en"` or `"hi"`; a few providers also take three-letter codes. Naad sends it with each recording, which makes transcripts faster and more accurate. `null` (or `""`) lets the provider detect the language. |
@@ -129,6 +131,23 @@ How it is protected and found:
 
 The key never appears in settings.json, the log, error dialogs or test
 files. To remove it, delete `api-key.dpapi` while Naad is closed.
+
+## Transcribing on this PC
+
+Choose **This PC** under **Transcribe with** in Settings, then click
+**Download model**. Naad downloads whisper.cpp's conversion of OpenAI's
+Whisper base model (`ggml-base.bin`, 148 MB) from Hugging Face once,
+checks its SHA-256, and keeps it in `%LOCALAPPDATA%\Naad\models`. A
+damaged or interrupted download is deleted and can be started again.
+
+After that, dictation needs no network and no API key, and audio never
+leaves your PC. A dictation takes a second or two, using half your
+processor's cores while it runs; the first one after starting Naad takes
+a little longer while the model loads. The base model is less accurate
+than the cloud service, especially for quiet speech or unusual words, so
+**Vocabulary** helps more here.
+
+To free the space, choose **Cloud** and delete the `models` folder.
 
 ## Starting Naad when you sign in
 

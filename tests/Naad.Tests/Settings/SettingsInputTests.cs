@@ -130,6 +130,18 @@ public sealed class SettingsInputTests
     }
 
     [Fact]
+    public void ModelDownloadMessage_EveryOutcome_HasItsOwnText()
+    {
+        var texts = Enum.GetValues<ModelDownloadOutcome>()
+            .Select(outcome => SettingsInput.ModelDownloadMessage(new(outcome, 503)))
+            .ToList();
+
+        Assert.Equal(texts.Count, texts.Distinct().Count());
+        Assert.Equal(SettingsInput.ModelStatus(ready: true), texts[0]);
+        Assert.Contains(texts, text => text.Contains("HTTP 503", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void KeyTestMessage_EveryOutcomeAndError_HasItsOwnText()
     {
         KeyTestResult[] results =

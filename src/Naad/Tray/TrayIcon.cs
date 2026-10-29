@@ -23,12 +23,12 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>The menu item that opens the settings window.</summary>
     public const string SettingsText = "Settings...";
 
-    /// <summary>Title of the notification shown when the shortcut is pressed without an API key.</summary>
-    public const string ApiKeyNeededTitle = "Naad needs an API key";
+    /// <summary>Title of the notification shown when the shortcut is pressed before setup is finished.</summary>
+    public const string ApiKeyNeededTitle = "Naad isn't set up yet";
 
     /// <summary>What that notification says; clicking it opens Settings.</summary>
-    public const string ApiKeyNeededMessage = "Click here to open Settings and add your transcription API key. " +
-        "Nothing was recorded.";
+    public const string ApiKeyNeededMessage = "Click here to open Settings and add your API key, or download " +
+        "the model to transcribe on this PC. Nothing was recorded.";
 
     /// <summary>Title of the notification shown when a recording couldn't be transcribed.</summary>
     public const string TranscriptionErrorTitle = "Naad couldn't transcribe";
@@ -133,6 +133,8 @@ internal sealed class TrayIcon : IDisposable
         TranscriptionError.Network => "Naad couldn't reach the transcription service. Check your internet " +
             "connection.",
         TranscriptionError.Timeout => "The transcription service didn't answer in time. Try again.",
+        TranscriptionError.LocalFailed => "Transcribing on this PC failed. Download the model again in Settings, " +
+            "or switch to the cloud service.",
         _ => "The transcription service sent an unexpected answer. Check the base URL in Settings.",
     };
 
