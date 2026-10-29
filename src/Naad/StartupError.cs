@@ -1,5 +1,3 @@
-using Naad.Settings;
-
 namespace Naad;
 
 /// <summary>
@@ -9,20 +7,6 @@ namespace Naad;
 internal static class StartupError
 {
     private const string Redacted = "[redacted]";
-
-    private const string HowToStoreKey =
-        "Store a Groq API key (https://console.groq.com/keys) by piping it into Naad.exe --set-api-key, " +
-        "as docs/settings.md describes, then start Naad again.";
-
-    /// <summary>What to tell the user when no usable API key was found. Never includes the key.</summary>
-    public static string ApiKeyProblem(SecretStatus status) => status switch
-    {
-        SecretStatus.Missing => $"No API key is stored. {HowToStoreKey}",
-        SecretStatus.Invalid => $"{SecretStore.OverrideVariable} contains characters an API key can't have, " +
-            "such as spaces or invisible characters. Set it again, or remove it to use the stored key.",
-        _ => "The stored API key can't be read. It may be damaged, or another Windows user saved it. " +
-            HowToStoreKey,
-    };
 
     /// <summary>Describes an exception for the user with <paramref name="secret"/> removed.</summary>
     public static string Describe(Exception error, string? secret) =>
