@@ -36,7 +36,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
               "transcriptionModel": "whisper-large-v3-turbo",
               "language": null,
-              "microphone": null
+              "microphone": null,
+              "vocabulary": null,
+              "handsFree": false
             }
             """.ReplaceLineEndings(), File.ReadAllText(SettingsPath).ReplaceLineEndings());
     }
@@ -190,8 +192,8 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
             [
-                "dictationShortcut", "fileLogging", "language", "microphone", "playSounds", "transcriptionBaseUrl",
-                "transcriptionModel", "version",
+                "dictationShortcut", "fileLogging", "handsFree", "language", "microphone", "playSounds",
+                "transcriptionBaseUrl", "transcriptionModel", "version", "vocabulary",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

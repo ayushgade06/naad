@@ -12,7 +12,8 @@ internal static class SettingsInput
     /// <summary>
     /// The settings to save: <paramref name="chosen"/> (shortcut, microphone and switches,
     /// which the window can't get wrong) with the typed fields checked and applied. Text is
-    /// trimmed, a blank language means "detect it", and a language is lowercased. On failure,
+    /// trimmed, a blank language means "detect it", a language is lowercased, and a blank
+    /// vocabulary sends none. On failure,
     /// <paramref name="error"/> says what to fix and names the field.
     /// </summary>
     public static bool TryBuild(
@@ -20,11 +21,13 @@ internal static class SettingsInput
         string baseUrl,
         string model,
         string language,
+        string vocabulary,
         [NotNullWhen(true)] out AppSettings? settings,
         [NotNullWhen(false)] out string? error)
     {
         settings = null;
         var languageCode = language.Trim().ToLowerInvariant();
+        var terms = vocabulary.Trim();
         error = !AppSettings.TryParseBaseUrl(baseUrl.Trim(), out var url)
                 ? "The base URL must start with https:// (or http:// for a server on this PC) and have no " +
                     "query string."
@@ -32,6 +35,8 @@ internal static class SettingsInput
                 ? "The model must be up to 100 visible characters, without spaces."
             : languageCode.Length > 0 && !AppSettings.IsValidLanguage(languageCode)
                 ? "The language must be a two-letter code such as en or hi, or blank to detect it."
+            : terms.Length > 0 && !AppSettings.IsValidVocabulary(terms)
+                ? "The vocabulary must be one line of up to 500 characters."
             : null;
         if (error is not null)
         {
@@ -43,6 +48,7 @@ internal static class SettingsInput
             TranscriptionBaseUrl = url!,
             TranscriptionModel = model.Trim(),
             Language = languageCode.Length == 0 ? null : languageCode,
+            Vocabulary = terms.Length == 0 ? null : terms,
         };
         return true;
     }

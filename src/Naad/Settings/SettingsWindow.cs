@@ -18,7 +18,7 @@ internal sealed class SettingsWindow : Form
     private readonly AppSettings _current;
     private readonly ApiKeyResult _key;
     private readonly Func<string, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
-    private readonly Func<AppSettings, string?, string?> _save;
+    private readonly Func<AppSettings, string?, bool, string?> _save;
     private readonly Func<bool> _beginCapture;
     private readonly Action _cancelCapture;
     private readonly CancellationTokenSource _closing = new();
@@ -34,6 +34,7 @@ internal sealed class SettingsWindow : Form
     private readonly Button _changeShortcut = new() { Text = "Change...", AutoSize = true };
     private readonly ComboBox _microphone = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly TextBox _language = new() { Width = 60 };
+    private readonly TextBox _vocabulary = new() { Width = FieldWidth };
     private readonly TextBox _baseUrl = new() { Width = FieldWidth };
     private readonly TextBox _model = new() { Width = FieldWidth };
     private readonly CheckBox _playSounds = new()
@@ -48,6 +49,14 @@ internal sealed class SettingsWindow : Form
         AutoSize = true,
     };
 
+    private readonly CheckBox _handsFree = new()
+    {
+        Text = "Hands-free: press the shortcut to start, and again to stop",
+        AutoSize = true,
+    };
+
+    private readonly CheckBox _startAtLogin = new() { Text = "Start Naad when I sign in", AutoSize = true };
+
     private readonly Label _error = Note();
     private Chord _shortcut;
     private bool _capturing;
@@ -55,17 +64,19 @@ internal sealed class SettingsWindow : Form
     /// <param name="current">The settings in use.</param>
     /// <param name="key">Where the key in use comes from; the key itself is only used for Test key.</param>
     /// <param name="microphones">The connected recording devices' names.</param>
+    /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
     /// <param name="testKey">Checks a key against a base URL.</param>
-    /// <param name="save">Saves and applies new settings and, if typed, a new key. Returns what went
-    /// wrong, or null.</param>
+    /// <param name="save">Saves and applies new settings, a new key if one was typed, and the
+    /// start-at-login choice. Returns what went wrong, or null.</param>
     /// <param name="beginCapture">Starts capturing a shortcut; false if a dictation is running.</param>
     /// <param name="cancelCapture">Stops a capture early.</param>
     public SettingsWindow(
         AppSettings current,
         ApiKeyResult key,
         IReadOnlyList<string> microphones,
+        bool startsAtLogin,
         Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
-        Func<AppSettings, string?, string?> save,
+        Func<AppSettings, string?, bool, string?> save,
         Func<bool> beginCapture,
         Action cancelCapture)
     {
@@ -87,6 +98,7 @@ internal sealed class SettingsWindow : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
         FillFields(microphones);
+        _startAtLogin.Checked = startsAtLogin;
         Controls.Add(BuildLayout());
 
         _testKeyButton.Click += (_, _) => _ = TestKeyAsync();
@@ -150,6 +162,8 @@ internal sealed class SettingsWindow : Form
         _microphone.SelectedIndex = _microphones.IndexOf(_current.Microphone);
         _shortcutText.Text = _shortcut.Describe();
         _language.Text = _current.Language ?? "";
+        _vocabulary.Text = _current.Vocabulary ?? "";
+        _handsFree.Checked = _current.HandsFree;
         _baseUrl.Text = _current.TranscriptionBaseUrl.AbsoluteUri;
         _model.Text = _current.TranscriptionModel;
         _playSounds.Checked = _current.PlaySounds;
@@ -174,12 +188,16 @@ internal sealed class SettingsWindow : Form
         Row(table, "New key", Flow(_newKey, _testKeyButton));
         Row(table, "", _testResult);
         Row(table, "Shortcut", Flow(_shortcutText, _changeShortcut));
+        Row(table, "", _handsFree);
         Row(table, "Microphone", _microphone);
         Row(table, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
+        Row(table, "Vocabulary", _vocabulary);
+        Row(table, "", Note("Names and terms you use, separated by commas. Sent with each recording."));
         Row(table, "Base URL", _baseUrl);
         Row(table, "Model", _model);
         Row(table, "", _playSounds);
         Row(table, "", _fileLogging);
+        Row(table, "", _startAtLogin);
         Row(table, "", _error);
         Row(table, "", Flow(save, cancel));
         return table;
@@ -242,9 +260,10 @@ internal sealed class SettingsWindow : Form
             Microphone = _microphones[_microphone.SelectedIndex],
             PlaySounds = _playSounds.Checked,
             FileLogging = _fileLogging.Checked,
+            HandsFree = _handsFree.Checked,
         };
         if (!SettingsInput.TryBuild(
-            chosen, _baseUrl.Text, _model.Text, _language.Text, out var settings, out var error))
+            chosen, _baseUrl.Text, _model.Text, _language.Text, _vocabulary.Text, out var settings, out var error))
         {
             _error.Text = error;
             return;
@@ -257,7 +276,7 @@ internal sealed class SettingsWindow : Form
         }
 
         var newKey = _newKey.Text.Trim() is { Length: > 0 } typed ? typed : null;
-        if (_save(settings, newKey) is { } problem)
+        if (_save(settings, newKey, _startAtLogin.Checked) is { } problem)
         {
             _error.Text = problem;
             return;

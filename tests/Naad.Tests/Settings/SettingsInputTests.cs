@@ -14,7 +14,7 @@ public sealed class SettingsInputTests
         var chosen = AppSettings.Defaults with { PlaySounds = false };
 
         var ok = SettingsInput.TryBuild(
-            chosen, " https://stt.example.test/v1 ", " whisper-1 ", " HI ", out var settings, out var error);
+            chosen, " https://stt.example.test/v1 ", " whisper-1 ", " HI ", "", out var settings, out var error);
 
         Assert.True(ok);
         Assert.Null(error);
@@ -36,7 +36,7 @@ public sealed class SettingsInputTests
         var chosen = AppSettings.Defaults with { Language = "en" };
 
         Assert.True(SettingsInput.TryBuild(
-            chosen, "https://api.groq.com/openai/v1", "whisper-large-v3-turbo", language, out var settings, out _));
+            chosen, "https://api.groq.com/openai/v1", "whisper-large-v3-turbo", language, "", out var settings, out _));
         Assert.Null(settings.Language);
     }
 
@@ -51,11 +51,39 @@ public sealed class SettingsInputTests
     public void TryBuild_InvalidField_NamesIt(string baseUrl, string model, string language, string field)
     {
         var ok = SettingsInput.TryBuild(
-            AppSettings.Defaults, baseUrl, model, language, out var settings, out var error);
+            AppSettings.Defaults, baseUrl, model, language, "", out var settings, out var error);
 
         Assert.False(ok);
         Assert.Null(settings);
         Assert.Contains(field, error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryBuild_Vocabulary_IsTrimmedAndBlankMeansNone()
+    {
+        const string Url = "https://api.groq.com/openai/v1";
+
+        Assert.True(SettingsInput.TryBuild(AppSettings.Defaults, Url, "m", "", " Naad, Groq ", out var some, out _));
+        Assert.True(SettingsInput.TryBuild(some, Url, "m", "", "   ", out var none, out _));
+
+        Assert.Equal("Naad, Groq", some.Vocabulary);
+        Assert.Null(none.Vocabulary);
+    }
+
+    [Fact]
+    public void TryBuild_VocabularyTooLong_NamesIt()
+    {
+        var ok = SettingsInput.TryBuild(
+            AppSettings.Defaults,
+            "https://api.groq.com/openai/v1",
+            "m",
+            "",
+            new string('v', 501),
+            out _,
+            out var error);
+
+        Assert.False(ok);
+        Assert.Contains("vocabulary", error, StringComparison.Ordinal);
     }
 
     [Theory]

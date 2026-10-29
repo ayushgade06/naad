@@ -557,6 +557,13 @@ production-quality code, and keeps the slice working at every commit.
   - Custom vocabulary, sent through Whisper's `prompt` field.
   - Toggle (hands-free) mode.
   - Start at login (`HKCU\...\Run`).
+  - **As built:** language choice moved to P17. `vocabulary` (up to 500
+    characters, one line) is sent as `prompt` and never logged.
+    `handsFree` maps the second press onto the release that ends a held
+    dictation, so the short-hold check, cancels and the 5-minute limit
+    work the same in both modes. Start at login lives only in the Run key
+    (`Settings/StartupEntry.cs`), never in settings.json, and is offered
+    in Settings.
 - **Needs:** P17.
 - **Done when:** each feature has its own tests and manual checks.
 - **Verify:** `dotnet test`; manual checks M-Q1 to M-Q5.

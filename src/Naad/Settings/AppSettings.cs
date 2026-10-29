@@ -40,8 +40,21 @@ internal sealed record AppSettings
     /// <summary>The recording device's name as Windows lists it; null follows the Windows default.</summary>
     public string? Microphone { get; init; }
 
+    /// <summary>
+    /// Names and terms the provider should expect, sent as Whisper's prompt; null sends none.
+    /// User content: it goes to the provider with each recording but never into the log.
+    /// </summary>
+    public string? Vocabulary { get; init; }
+
+    /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
+    public bool HandsFree { get; init; }
+
     // Model ids are short tokens such as "whisper-large-v3-turbo" or "openai/whisper-1".
     private const int MaxModelLength = 100;
+
+    // Whisper reads only the last 224 tokens of a prompt; 500 characters of names and terms
+    // stay well inside that.
+    private const int MaxVocabularyLength = 500;
 
     // WinMM device names are at most 31 characters (MAXPNAMELEN, 32 with the terminator); a
     // longer name could never match a device.
@@ -71,6 +84,10 @@ internal sealed record AppSettings
     /// </summary>
     public static bool IsValidLanguage(string? language) =>
         language is { Length: 2 or 3 } && language.All(char.IsAsciiLetterLower);
+
+    /// <summary>1 to 500 characters on one line, without control characters.</summary>
+    public static bool IsValidVocabulary(string? vocabulary) =>
+        vocabulary is { Length: > 0 and <= MaxVocabularyLength } && !vocabulary.Any(char.IsControl);
 
     /// <summary>A name WinMM could report: 1 to 31 characters, no control characters.</summary>
     public static bool IsValidMicrophone(string? name) =>

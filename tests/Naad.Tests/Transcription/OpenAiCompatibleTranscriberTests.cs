@@ -55,6 +55,20 @@ public sealed class OpenAiCompatibleTranscriberTests
         Assert.Equal("hi"u8.ToArray(), handler.Parts[2].Bytes);
     }
 
+    [Fact]
+    public async Task Transcribe_WithVocabulary_SendsItAsPrompt()
+    {
+        using var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, """{ "text": "hi" }"""));
+        using var http = new HttpClient(handler);
+        var transcriber = new OpenAiCompatibleTranscriber(
+            http, FakeKey, BaseUrl, "m", language: "en", prompt: "Naad, Groq, WinForms");
+
+        await transcriber.TranscribeAsync(Wav, CancellationToken.None);
+
+        Assert.Equal(["model", "response_format", "language", "prompt", "file"], handler.Parts.Select(p => p.Name));
+        Assert.Equal("Naad, Groq, WinForms"u8.ToArray(), handler.Parts[3].Bytes);
+    }
+
     [Theory]
     [InlineData("https://stt.example.test/openai/v1")]
     [InlineData("https://stt.example.test/openai/v1/")]
@@ -350,7 +364,7 @@ public sealed class OpenAiCompatibleTranscriberTests
         FakeHandler handler, string model = "whisper-large-v3-turbo", string? language = null, TimeSpan? timeout = null)
     {
         using var http = new HttpClient(handler);
-        var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, model, language, timeout);
+        var transcriber = new OpenAiCompatibleTranscriber(http, FakeKey, BaseUrl, model, language, timeout: timeout);
         return await transcriber.TranscribeAsync(Wav, CancellationToken.None);
     }
 

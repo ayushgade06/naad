@@ -21,6 +21,7 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
     private readonly string _apiKey;
     private readonly string _model;
     private readonly string? _language;
+    private readonly string? _prompt;
     private readonly TimeSpan _timeout;
 
     /// <param name="http">Shared and owned by the caller; one client serves every request.</param>
@@ -28,11 +29,18 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
     /// <param name="baseUrl">The API root, such as https://api.groq.com/openai/v1.</param>
     /// <param name="model">The provider's model id, such as whisper-large-v3-turbo.</param>
     /// <param name="language">An ISO 639-1 code such as "en", or null to let the provider detect it.</param>
+    /// <param name="prompt">Names and terms to expect, sent as Whisper's prompt; never logged.</param>
     /// <param name="timeout">Tests shorten it; the app uses <see cref="DefaultTimeout"/>.</param>
     /// <exception cref="ArgumentException">A blank key or model, an invalid language, or a base URL
     /// that isn't an absolute http(s) URL. Settings validation keeps these from reaching here.</exception>
     public OpenAiCompatibleTranscriber(
-        HttpClient http, string apiKey, Uri baseUrl, string model, string? language = null, TimeSpan? timeout = null)
+        HttpClient http,
+        string apiKey,
+        Uri baseUrl,
+        string model,
+        string? language = null,
+        string? prompt = null,
+        TimeSpan? timeout = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
 
@@ -57,6 +65,7 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         _apiKey = apiKey;
         _model = model;
         _language = language;
+        _prompt = prompt;
         _timeout = timeout ?? DefaultTimeout;
         Endpoint = Under(baseUrl, "audio/transcriptions");
     }
@@ -168,6 +177,11 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         if (_language is not null)
         {
             content.Add(new StringContent(_language), "language");
+        }
+
+        if (_prompt is not null)
+        {
+            content.Add(new StringContent(_prompt), "prompt");
         }
 
         var file = new ByteArrayContent(wav);

@@ -37,6 +37,9 @@ internal enum LogEvent
     SettingsApplied,
     SettingsApplyDeferred,
     SettingsWindowOpened,
+    StartAtLoginEnabled,
+    StartAtLoginDisabled,
+    StartAtLoginFailed,
 
     RecordingStarted,
     MicrophoneNotFound,

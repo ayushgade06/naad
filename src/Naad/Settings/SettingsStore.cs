@@ -281,34 +281,12 @@ internal sealed class SettingsStore(string path)
     private static (AppSettings Settings, bool Repaired) ReadFields(JsonObject root)
     {
         var repaired = false;
-        var fileLogging = AppSettings.Defaults.FileLogging;
-        if (root.TryGetPropertyValue("fileLogging", out var node))
-        {
-            if (node?.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
-            {
-                fileLogging = node.GetValue<bool>();
-            }
-            else
-            {
-                repaired = true;
-            }
-        }
-
-        var playSounds = AppSettings.Defaults.PlaySounds;
-        if (root.TryGetPropertyValue("playSounds", out node))
-        {
-            if (node?.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
-            {
-                playSounds = node.GetValue<bool>();
-            }
-            else
-            {
-                repaired = true;
-            }
-        }
+        var fileLogging = ReadBool(root, "fileLogging", AppSettings.Defaults.FileLogging, ref repaired);
+        var playSounds = ReadBool(root, "playSounds", AppSettings.Defaults.PlaySounds, ref repaired);
+        var handsFree = ReadBool(root, "handsFree", AppSettings.Defaults.HandsFree, ref repaired);
 
         var shortcut = AppSettings.Defaults.DictationShortcut;
-        if (root.TryGetPropertyValue("dictationShortcut", out node))
+        if (root.TryGetPropertyValue("dictationShortcut", out var node))
         {
             if (node is JsonValue value && value.TryGetValue(out string? text) && Chord.TryParse(text, out var chord))
             {
@@ -355,8 +333,28 @@ internal sealed class SettingsStore(string path)
             TranscriptionModel = model,
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
             Microphone = ReadOptional(root, "microphone", AppSettings.IsValidMicrophone, ref repaired),
+            Vocabulary = ReadOptional(root, "vocabulary", AppSettings.IsValidVocabulary, ref repaired),
+            HandsFree = handsFree,
         };
         return (settings, repaired);
+    }
+
+    // Absent means the default; anything but true or false falls back to it and marks the
+    // settings repaired.
+    private static bool ReadBool(JsonObject root, string name, bool fallback, ref bool repaired)
+    {
+        if (!root.TryGetPropertyValue(name, out var node))
+        {
+            return fallback;
+        }
+
+        if (node?.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
+        {
+            return node.GetValue<bool>();
+        }
+
+        repaired = true;
+        return fallback;
     }
 
     // Absent, null and "" all mean unset. Any other value must pass isValid; if it doesn't, the

@@ -30,6 +30,7 @@ internal sealed class DictationController(
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
     private ITranscriber? _transcriber = transcriber;
+    private bool _handsFree;
     private Task<bool> _starting = Task.FromResult(false);
 
     // Completes once the last recording has fully stopped. A new recording waits for it, so a
@@ -86,6 +87,12 @@ internal sealed class DictationController(
     public void UseTranscriber(ITranscriber? replacement) => _transcriber = replacement;
 
     /// <summary>
+    /// Hands-free: a press starts recording and the next press stops it; releasing the shortcut
+    /// does nothing. Otherwise the shortcut is held while speaking. Call on the UI thread.
+    /// </summary>
+    public void UseHandsFree(bool handsFree) => _handsFree = handsFree;
+
+    /// <summary>
     /// Puts the kept transcript on the clipboard, out of clipboard history, for the user to
     /// paste themselves. Naad never pastes it: the user may be anywhere by then, and the tray
     /// menu itself takes focus. Returns false if there is none or the clipboard is busy.
@@ -130,6 +137,21 @@ internal sealed class DictationController(
         if (_disposed)
         {
             return;
+        }
+
+        // Hands-free maps its second press onto the release that ends a held dictation, so the
+        // session's rules (short-hold check, time limit, cancels) stay the same in both modes.
+        if (_handsFree)
+        {
+            if (e == DictationEvent.Released)
+            {
+                return;
+            }
+
+            if (e == DictationEvent.Pressed && _session.State == DictationState.Recording)
+            {
+                e = DictationEvent.Released;
+            }
         }
 
         // Without a transcriber the words could never be used, so the microphone isn't opened.

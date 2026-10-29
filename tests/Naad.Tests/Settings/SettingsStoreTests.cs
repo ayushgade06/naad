@@ -301,6 +301,41 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Null(result.Settings.Microphone);
     }
 
+    [Theory]
+    [InlineData("""{ "version": 1 }""", null, false)]
+    [InlineData("""{ "version": 1, "vocabulary": "Naad, Groq", "handsFree": true }""", "Naad, Groq", true)]
+    [InlineData("""{ "version": 1, "vocabulary": "", "handsFree": false }""", null, false)]
+    public void Load_VocabularyAndHandsFree_ReturnsThem(string json, string? vocabulary, bool handsFree)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(vocabulary, result.Settings.Vocabulary);
+        Assert.Equal(handsFree, result.Settings.HandsFree);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 1, "vocabulary": "line one\nline two" }""")]
+    [InlineData("""{ "version": 1, "vocabulary": 5 }""")]
+    [InlineData("""{ "version": 1, "handsFree": "yes" }""")]
+    [InlineData("""{ "version": 1, "handsFree": null }""")]
+    public void Load_InvalidVocabularyOrHandsFree_FallsBackAsRepaired(string json)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Null(result.Settings.Vocabulary);
+        Assert.False(result.Settings.HandsFree);
+    }
+
+    [Fact]
+    public void Load_VocabularyOver500Characters_FallsBackAsRepaired()
+    {
+        var result = LoadFrom($$"""{ "version": 1, "vocabulary": "{{new string('v', 501)}}" }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+    }
+
     [Fact]
     public void Load_RewrittenFile_KeepsShortcutReadable()
     {
