@@ -14,6 +14,9 @@ All notable changes to Naad are listed here. The format follows
 - **Test key** asks the provider whether it accepts a key. The window never
   shows a stored key.
 - Shortcut capture: press the new shortcut instead of typing key names.
+- Recording overlay: a small bar near the bottom of the screen shows
+  **Listening** with a level meter, then **Transcribing**. It never takes
+  focus, lets clicks through and isn't in Alt+Tab.
 - `language` setting: the language you speak, sent with each recording.
 - `microphone` setting: record from a named device instead of the Windows
   default. A device that isn't connected falls back to the default.

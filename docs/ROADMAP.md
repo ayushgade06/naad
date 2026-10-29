@@ -498,6 +498,15 @@ production-quality code, and keeps the slice working at every commit.
 - **Goal:** visible feedback while recording.
 - **In:** a non-activating, always-on-top window showing a level meter and
   the current state.
+  - **As built:** `Tray/RecordingOverlay.cs` uses `ShowWithoutActivation`
+    and `WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW |
+    WS_EX_TRANSPARENT`, and is slightly see-through so Windows treats it
+    as layered and lets clicks through. It shows on the target window's
+    monitor and hides when idle. `AudioRecorder.LevelMeasured` raises each
+    buffer's RMS on the capture thread; `Program` marshals it to the UI
+    thread, and the pure `Audio/LevelMeter.cs` maps it from -60 dBFS to
+    full scale in decibels, with a decay of a full bar per half second.
+    No setting turns it off yet.
 - **Needs:** P16.
 - **Done when:** the overlay never takes focus or keyboard input.
 - **Verify:** manual checks M-O1 to M-O3; tests for meter normalization.
