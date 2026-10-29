@@ -86,8 +86,9 @@ release.
 
 - Windows 11. Windows 10 22H2 is supported where practical.
 - A microphone.
-- About 150 MB of disk space for the Whisper model, downloaded once from
-  Settings.
+- 150 MB of disk space for the Whisper model, downloaded once from
+  Settings; 574 MB for the more accurate model, which needs a graphics
+  card.
 - Only to transcribe in the cloud instead: an API key from Groq or another
   OpenAI-compatible provider.
 

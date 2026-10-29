@@ -719,6 +719,7 @@ before P24 (version 1) that never chose a provider keeps **Cloud**.
 
 | M-LF3 | Graphics card | On a PC with a discrete graphics card, dictate twice into Notepad with **This PC** chosen, then open the log. | The log shows `LocalModelLoaded vulkan=1 discrete_gpu=1 gpu_device=N`. Both dictations are pasted; the second takes about a second. | Partly: the explicit test loaded Vulkan and picked the RTX 3050 (`gpu_device=1`) on the maintainer's PC (2026-10-30). Dictation by voice: NOT RUN. |
 | M-LF4 | No Vulkan driver | On a PC or VM without a Vulkan driver (`C:\Windows\System32\vulkan-1.dll` missing), dictate into Notepad with **This PC** chosen. | The words are pasted after about two seconds. The log shows `LocalModelLoaded vulkan=0`. | **No.** It needs a PC without Vulkan. |
+| M-LF5 | Choose the accurate model | In Settings, choose **Large v3 Turbo** under **Model on this PC**. Click **Download model**, wait, then **Save**. Dictate a sentence with a technical term (such as "Kubernetes") into Notepad, twice. Switch back to **Base** and save. | The status first asks for 574 MB; the model list is disabled while it downloads. After the download, `ggml-large-v3-turbo-q5_0.bin` (574,041,195 bytes) sits next to `ggml-base.bin`. On a PC with a discrete graphics card, the second dictation takes about 1.5 s and spells the term right. Switching back to **Base** needs no download. The log shows `LocalModelDownloaded model=1`. | Partly: on 2026-10-30, Naad's transcriber ran the turbo file (its SHA-256 checked by hand) on the RTX 3050: 1.3 s for 15.4 s of speech, after a 23 s first run, with "Kubernetes" right. Settings and voice: NOT RUN. |
 
 **Measured, 2026-10-30,** with Whisper.net 1.9.1 on the maintainer's PC
 (i5-13420H with 12 logical processors, Intel UHD Graphics, RTX 3050 6 GB
@@ -736,7 +737,7 @@ RTX 3050. The first run of each model on the RTX 3050 took 22 s (base) and
 them. Both models spelled the sentences the same way except one term:
 base wrote "Kubernetes" as "Cabernet's", turbo got it right.
 
-**Status after P24:** M-LF1 to M-LF4 have **not been run** by a person.
+**Status after P24:** M-LF1 to M-LF5 have **not been run** by a person.
 
 ## v0.1.0 checklist
 

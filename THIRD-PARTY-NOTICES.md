@@ -82,15 +82,19 @@ Suki's name, icons, sounds and artwork are not used in Naad.
   loader.
 - Used for transcription on this PC (P20). Ships with Naad.
 
-## Whisper base model (downloaded, not shipped)
+## Whisper models (downloaded, not shipped)
 
-- File: `ggml-base.bin` from https://huggingface.co/ggerganov/whisper.cpp,
-  147,951,465 bytes, SHA-256
-  `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`
+- Files from https://huggingface.co/ggerganov/whisper.cpp:
+  - `ggml-base.bin`, 147,951,465 bytes, SHA-256
+    `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`
+  - `ggml-large-v3-turbo-q5_0.bin`, 574,041,195 bytes, SHA-256
+    `394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2`
 - License: MIT. OpenAI's Whisper weights (https://github.com/openai/whisper,
-  © 2022 OpenAI), converted to the ggml format by the whisper.cpp project.
-- Naad doesn't include it. It is downloaded only when the user clicks
-  **Download model** in Settings, and kept only if its checksum matches.
+  © 2022 OpenAI), converted to the ggml format (and, for large-v3-turbo,
+  quantized to 5 bits) by the whisper.cpp project.
+- Naad doesn't include them. A model is downloaded only when the user
+  clicks **Download model** in Settings, and kept only if its checksum
+  matches.
 
 ## System.Numerics.Tensors
 

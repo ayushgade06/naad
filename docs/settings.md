@@ -16,6 +16,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "playSounds": true,
   "dictationShortcut": "RightCtrl",
   "transcriptionProvider": "Local",
+  "localModel": "Base",
   "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
   "transcriptionModel": "whisper-large-v3-turbo",
   "language": null,
@@ -32,6 +33,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `playSounds` | `true` or `false` | `true` | Play a short, soft tone when Naad starts listening and when it stops. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 | `transcriptionProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where speech becomes text: `"Local"` transcribes on this PC with Whisper, offline and free, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)); `"Cloud"` uploads it to the service below. Naad never switches between them by itself. A version-1 file without this setting was using the cloud, so its migration keeps `"Cloud"`. |
+| `localModel` | `"Base"` or `"Turbo"` | `"Base"` | The Whisper model used on this PC: `"Base"` (148 MB, fast on any PC) or `"Turbo"` (large-v3-turbo, 574 MB, more accurate, for PCs with a graphics card). Each needs its own download; see [Transcribing on this PC](#transcribing-on-this-pc). |
 | `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
 | `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
 | `language` | text or `null` | `null` | The language you speak, as a lowercase [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code such as `"en"` or `"hi"`; a few providers also take three-letter codes. Naad sends it with each recording, which makes transcripts faster and more accurate. `null` (or `""`) lets the provider detect the language. |
@@ -139,30 +141,40 @@ This is the default. The first time Naad starts, Settings opens with
 then **Save**. Until the model is downloaded, the shortcut asks you to
 finish setting up and records nothing.
 
-Naad downloads whisper.cpp's conversion of OpenAI's Whisper base model
-(`ggml-base.bin`, 148 MB) from Hugging Face once, checks its SHA-256, and
-keeps it in `%LOCALAPPDATA%\Naad\models`. A damaged or interrupted
-download is deleted and can be started again.
+**Model on this PC** chooses which of whisper.cpp's conversions of
+OpenAI's Whisper models Naad uses:
 
-After that, dictation needs no network and no API key, and audio never
-leaves your PC.
+| Choice | `localModel` | File | Download | Speed |
+|---|---|---|---|---|
+| **Base: fast on any PC** (default) | `"Base"` | `ggml-base.bin` | 148 MB | About 2 s a dictation on the processor; under 1 s on a graphics card. |
+| **Large v3 Turbo: more accurate, needs a GPU** | `"Turbo"` | `ggml-large-v3-turbo-q5_0.bin` | 574 MB | About 1.5 s on a discrete graphics card; 5 s or more on an integrated one; about 30 s on the processor. |
+
+Large v3 Turbo is the model Groq runs, so on a PC with a discrete graphics
+card it is about as accurate as the cloud. Base is less accurate,
+especially with quiet speech or unusual words, so **Vocabulary** helps
+more there. The speeds were measured on one laptop (see
+`docs/manual-tests.md`, P24).
+
+Naad downloads the chosen model from Hugging Face once, checks its
+SHA-256, and keeps it in `%LOCALAPPDATA%\Naad\models`. A damaged or
+interrupted download is deleted and can be started again. After that,
+dictation needs no network and no API key, and audio never leaves your PC.
+Switching models keeps the other one on disk, so switching back needs no
+download.
 
 **Graphics card.** If the PC has a graphics card with a Vulkan driver, as
 most from the last ten years do, Whisper runs on it, and prefers a
 discrete card (NVIDIA, AMD or Intel Arc) over the one built into the
-processor. Otherwise it runs on the processor, using half its cores. With
-the base model a dictation takes under a second on a graphics card, and
-about two seconds on the processor. The first dictation after starting
-Naad takes a second or two longer while the model loads. The very first
-one with a graphics card, and the first after a driver update, can take
-up to a minute while the driver compiles Whisper's shaders; it keeps them
-for next time. The log's `LocalModelLoaded` line says what was used:
-`vulkan=1` for the graphics card, `discrete_gpu=1` when a discrete card
-was found. The base model is less accurate
-than the cloud service, especially for quiet speech or unusual words, so
-**Vocabulary** helps more here.
+processor. Otherwise it runs on the processor, using half its cores. The
+first dictation after starting Naad takes a second or a few longer while
+the model loads. The very first one with each model on a graphics card,
+and the first after a driver update, can take up to a minute while the
+driver compiles Whisper's shaders; it keeps them for next time. The log's
+`LocalModelLoaded` line says what was used: `vulkan=1` for the graphics
+card, `discrete_gpu=1` when a discrete card was found.
 
-To free the space, choose **Cloud** and delete the `models` folder.
+To free the space, choose **Cloud** and delete the `models` folder, or
+delete just the model you no longer use.
 
 ## Starting Naad when you sign in
 

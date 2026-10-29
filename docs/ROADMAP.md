@@ -632,6 +632,20 @@ production-quality code, and keeps the slice working at every commit.
     over an integrated one; the CPU runtime stays as the fallback.
   - A choice of local model: base, or large-v3-turbo for PCs with a
     graphics card.
+  - **As built:** settings version 2 adds `"Cloud"` to a version-1 file
+    without `transcriptionProvider`. `LocalWhisperTranscriber` loads
+    whisper.cpp's libraries first, reads ggml's device list through its
+    exports (`Native/Ggml.cs`), and `GpuChoice` passes whisper.cpp the
+    number of the first discrete card, since whisper.cpp otherwise takes
+    device 0, usually the integrated one. `LocalModelLoaded` logs the
+    choice as numbers. The Vulkan package's Linux build is dropped from the
+    output, so the app grows by 58 MB. `localModel` (`Base` or `Turbo`)
+    picks `ggml-base.bin` or `ggml-large-v3-turbo-q5_0.bin`, each with its
+    own download and SHA-256; Settings shows the chosen one's status. A
+    driver's first shader compile (22 s for base, 58 s for turbo on an RTX
+    3050) happens once per model and is cached by the driver, so loading the
+    model before the first dictation stayed out. Measurements are in
+    `docs/manual-tests.md`.
 - **Out:** the CUDA runtime, more models, deleting a model that is no
   longer chosen, loading the model before the first dictation.
 - **Needs:** P20.

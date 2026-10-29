@@ -303,21 +303,9 @@ internal sealed class SettingsStore(string path)
             }
         }
 
-        var provider = AppSettings.Defaults.TranscriptionProvider;
-        if (TryReadString(root, "transcriptionProvider", ref repaired) is { } providerText)
-        {
-            // Names only: Enum.TryParse would also take "1" or "Cloud, Local".
-            if (Array.Find(Enum.GetNames<TranscriptionProvider>(), name =>
-                    string.Equals(name, providerText, StringComparison.OrdinalIgnoreCase)) is { } name)
-            {
-                provider = Enum.Parse<TranscriptionProvider>(name);
-            }
-            else
-            {
-                repaired = true;
-            }
-        }
-
+        var provider = ReadName(
+            root, "transcriptionProvider", AppSettings.Defaults.TranscriptionProvider, ref repaired);
+        var localModel = ReadName(root, "localModel", AppSettings.Defaults.LocalModel, ref repaired);
         var baseUrl = AppSettings.Defaults.TranscriptionBaseUrl;
         if (TryReadString(root, "transcriptionBaseUrl", ref repaired) is { } urlText)
         {
@@ -350,6 +338,7 @@ internal sealed class SettingsStore(string path)
             PlaySounds = playSounds,
             DictationShortcut = shortcut,
             TranscriptionProvider = provider,
+            LocalModel = localModel,
             TranscriptionBaseUrl = baseUrl,
             TranscriptionModel = model,
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
@@ -358,6 +347,27 @@ internal sealed class SettingsStore(string path)
             HandsFree = handsFree,
         };
         return (settings, repaired);
+    }
+
+    // Absent means the default. A name of one of the enum's members, in any casing, selects it;
+    // anything else falls back to the default and marks the settings repaired. Names only:
+    // Enum.TryParse would also take "1" or "Cloud, Local".
+    private static TEnum ReadName<TEnum>(JsonObject root, string name, TEnum fallback, ref bool repaired)
+        where TEnum : struct, Enum
+    {
+        if (TryReadString(root, name, ref repaired) is not { } text)
+        {
+            return fallback;
+        }
+
+        if (Array.Find(Enum.GetNames<TEnum>(), member =>
+                string.Equals(member, text, StringComparison.OrdinalIgnoreCase)) is { } match)
+        {
+            return Enum.Parse<TEnum>(match);
+        }
+
+        repaired = true;
+        return fallback;
     }
 
     // Absent means the default; anything but true or false falls back to it and marks the

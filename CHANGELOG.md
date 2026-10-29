@@ -27,6 +27,9 @@ All notable changes to Naad are listed here. The format follows
 - Transcribing on this PC uses the graphics card through Vulkan when there
   is one, preferring a discrete card over an integrated one, and the
   processor otherwise.
+- A choice of model for transcribing on this PC (`localModel`): base
+  (148 MB, fast on any PC) or large-v3-turbo (574 MB), which is about as
+  accurate as the cloud on a PC with a graphics card.
 - `vocabulary` setting: names and terms sent as Whisper's prompt so they
   are spelled right.
 - Hands-free mode (`handsFree`): press the shortcut to start and again to

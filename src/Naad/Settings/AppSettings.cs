@@ -37,6 +37,10 @@ internal sealed record AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter<TranscriptionProvider>))]
     public TranscriptionProvider TranscriptionProvider { get; init; } = TranscriptionProvider.Local;
 
+    /// <summary>The Whisper model that transcribes on this PC.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<WhisperModel>))]
+    public WhisperModel LocalModel { get; init; } = WhisperModel.Base;
+
     /// <summary>The OpenAI-compatible API root; "/audio/transcriptions" is appended to it.</summary>
     public Uri TranscriptionBaseUrl { get; init; } = new("https://api.groq.com/openai/v1");
 

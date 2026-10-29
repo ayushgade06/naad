@@ -129,6 +129,14 @@ public sealed class SettingsInputTests
         Assert.Equal(texts[4], texts[5]);
     }
 
+    [Theory]
+    [InlineData(147_951_465, "148 MB")]
+    [InlineData(574_041_195, "574 MB")]
+    public void ModelStatus_NotDownloaded_NamesTheDownloadSize(long size, string expected)
+    {
+        Assert.Contains(expected, SettingsInput.ModelStatus(size, ready: false), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ModelDownloadMessage_EveryOutcome_HasItsOwnText()
     {

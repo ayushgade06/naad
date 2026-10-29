@@ -373,6 +373,33 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Theory]
+    [InlineData("""{ "version": 2 }""", "Base")]
+    [InlineData("""{ "version": 2, "localModel": "Turbo" }""", "Turbo")]
+    [InlineData("""{ "version": 2, "localModel": "turbo" }""", "Turbo")]
+    [InlineData("""{ "version": 2, "localModel": "BASE" }""", "Base")]
+    public void Load_LocalModel_ReturnsIt(string json, string expected)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(expected, result.Settings.LocalModel.ToString());
+    }
+
+    [Theory]
+    [InlineData("\"large\"")]
+    [InlineData("\"1\"")]
+    [InlineData("\"Base, Turbo\"")]
+    [InlineData("1")]
+    [InlineData("null")]
+    public void Load_InvalidLocalModel_FallsBackToBaseAsRepaired(string value)
+    {
+        var result = LoadFrom($$"""{ "version": 2, "localModel": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(WhisperModel.Base, result.Settings.LocalModel);
+    }
+
+    [Theory]
     [InlineData("""{ "version": 1 }""", "Cloud")]
     [InlineData("""{ "fileLogging": true }""", "Cloud")]
     [InlineData("""{ "version": 1, "transcriptionProvider": "Local" }""", "Local")]

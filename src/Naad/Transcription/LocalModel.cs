@@ -1,6 +1,14 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace Naad.Transcription;
+
+/// <summary>The Whisper models Naad can run on this PC (see <see cref="LocalModel"/>).</summary>
+internal enum WhisperModel
+{
+    Base,
+    Turbo,
+}
 
 internal enum ModelDownloadOutcome
 {
@@ -40,23 +48,32 @@ internal sealed class LocalModel(string path, Uri source, string sha256, long si
     /// on a laptop CPU for dictation, and it handles every language the cloud model does. Size and
     /// SHA-256 are those Hugging Face publishes for this file.
     /// </summary>
-    public static LocalModel Base { get; } = new(
-        System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Naad",
-            "models",
-            "ggml-base.bin"),
-        new Uri("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"),
-        "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
-        147_951_465);
+    public static LocalModel Base { get; } = Published(
+        "ggml-base.bin", "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", 147_951_465);
+
+    /// <summary>
+    /// whisper.cpp's 5-bit conversion of large-v3-turbo, the model Groq runs by default: 574 MB,
+    /// and close to the cloud's accuracy. On the maintainer's PC a dictation took about 1.5 s on a
+    /// discrete graphics card but 30 s on the processor, so it is offered for PCs with a card.
+    /// </summary>
+    public static LocalModel Turbo { get; } = Published(
+        "ggml-large-v3-turbo-q5_0.bin", "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+        574_041_195);
 
     // A download that delivers nothing for this long has stalled; a slow but moving one never
-    // times out, since 148 MB can take minutes.
+    // times out, since hundreds of megabytes can take minutes.
     private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(30);
 
     private const int BufferBytes = 81_920;
 
     public string Path => path;
+
+    public static LocalModel For(WhisperModel model) => model switch
+    {
+        WhisperModel.Base => Base,
+        WhisperModel.Turbo => Turbo,
+        _ => throw new UnreachableException(),
+    };
 
     public Uri Source => source;
 
@@ -142,6 +159,14 @@ internal sealed class LocalModel(string path, Uri source, string sha256, long si
             TryDelete(temp);
         }
     }
+
+    // A file from whisper.cpp's Hugging Face repository, kept in Naad's models folder.
+    private static LocalModel Published(string file, string sha256, long size) => new(
+        System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Naad", "models", file),
+        new Uri($"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file}"),
+        sha256,
+        size);
 
     private static void TryDelete(string file)
     {

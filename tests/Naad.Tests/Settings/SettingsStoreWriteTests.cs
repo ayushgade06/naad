@@ -34,6 +34,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "playSounds": true,
               "dictationShortcut": "RightCtrl",
               "transcriptionProvider": "Local",
+              "localModel": "Base",
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
               "transcriptionModel": "whisper-large-v3-turbo",
               "language": null,
@@ -194,8 +195,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
             [
-                "dictationShortcut", "fileLogging", "handsFree", "language", "microphone", "playSounds",
-                "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "version", "vocabulary",
+                "dictationShortcut", "fileLogging", "handsFree", "language", "localModel", "microphone",
+                "playSounds", "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "version",
+                "vocabulary",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

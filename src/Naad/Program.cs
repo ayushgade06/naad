@@ -167,14 +167,17 @@ internal static class Program
     }
 
     // Null when the chosen provider can't run yet; the shortcut then asks the user to finish setup.
-    private static ITranscriber? CreateTranscriber(HttpClient http, string? apiKey, LocalModel model, AppSettings s) =>
-        ProviderSelection.Choose(s.TranscriptionProvider, apiKey is not null, model.IsReady()) switch
+    private static ITranscriber? CreateTranscriber(HttpClient http, string? apiKey, AppSettings s)
+    {
+        var model = LocalModel.For(s.LocalModel);
+        return ProviderSelection.Choose(s.TranscriptionProvider, apiKey is not null, model.IsReady()) switch
         {
             TranscriptionProvider.Cloud => new OpenAiCompatibleTranscriber(
                 http, apiKey!, s.TranscriptionBaseUrl, s.TranscriptionModel, s.Language, s.Vocabulary),
             TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.Vocabulary),
             _ => null,
         };
+    }
 
     // Every local function below runs on this UI thread: the hook, the tray, the controller's
     // events and the settings window all live on it.
@@ -193,7 +196,6 @@ internal static class Program
         AppSettings? pending = null;
         SettingsWindow? window = null;
         Action? openSettings = null;
-        var model = LocalModel.Base;
 
         // Not disposed at exit: a local transcription may still be running native code, and the
         // process ending frees the model anyway. A replaced one is disposed while idle.
@@ -227,7 +229,7 @@ internal static class Program
                 clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
             using var controller = new DictationController(
                 recorder,
-                transcriber = CreateTranscriber(http, apiKey, model, settings),
+                transcriber = CreateTranscriber(http, apiKey, settings),
                 inserter,
                 FocusGuard.Foreground,
                 FocusGuard.Check,
@@ -295,7 +297,6 @@ internal static class Program
                     ResolveKey(keys, log: false),
                     Microphones(),
                     startup.IsEnabled(),
-                    model.IsReady(),
                     DownloadModelAsync,
                     TestKeyAsync,
                     Save,
@@ -317,20 +318,24 @@ internal static class Program
             }
 
             async Task<ModelDownloadResult> DownloadModelAsync(
-                IProgress<double> progress, CancellationToken cancellationToken)
+                WhisperModel choice, IProgress<double> progress, CancellationToken cancellationToken)
             {
                 var started = Stopwatch.GetTimestamp();
-                var result = await model.DownloadAsync(http, progress, cancellationToken);
+                var result = await LocalModel.For(choice).DownloadAsync(http, progress, cancellationToken);
                 if (result.Outcome == ModelDownloadOutcome.Downloaded)
                 {
                     Log.Info(
                         LogEvent.LocalModelDownloaded,
+                        ("model", (int)choice),
                         ("download_ms", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds));
                 }
                 else
                 {
                     Log.Warn(
-                        LogEvent.LocalModelDownloadFailed, ("outcome", (int)result.Outcome), ("code", result.Code));
+                        LogEvent.LocalModelDownloadFailed,
+                        ("model", (int)choice),
+                        ("outcome", (int)result.Outcome),
+                        ("code", result.Code));
                 }
 
                 return result;
@@ -451,7 +456,7 @@ internal static class Program
                 controller.UseHandsFree(next.HandsFree);
                 recorder.UseMicrophone(next.Microphone);
                 var replaced = transcriber;
-                transcriber = CreateTranscriber(http, apiKey, model, next);
+                transcriber = CreateTranscriber(http, apiKey, next);
                 controller.UseTranscriber(transcriber);
 
                 // Idle, so nothing is using it: frees a loaded local model's memory at once.
