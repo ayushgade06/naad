@@ -254,11 +254,10 @@ transcript. Settings has an **AI** tab for it.
   which takes a few seconds, and unloads after 10 minutes without use. The
   first run on a graphics card can take up to a minute while the driver
   prepares; after that, the small model answers in under a second.
-- **In the cloud**: choose **Cloud**, set the base URL and model, and paste
-  a key under **New key**. The key is stored encrypted in
-  `%LOCALAPPDATA%\Naad\llm-api-key.dpapi`, apart from the transcription
-  key, and `NAAD_LLM_API_KEY` overrides it for development. A server on
-  this PC, such as Ollama, needs no key. When a model refuses a
+- **In the cloud**: choose **Cloud** and a **Cloud service**, then the
+  model and, under **New key**, the service's key (see
+  [The API keys](#the-api-keys)). A server on this PC, such as Ollama,
+  needs no key. When a model refuses a
   `temperature`, Naad sends the request again without it and remembers
   that for a week in `%LOCALAPPDATA%\Naad\temperature-refused.json`.
 

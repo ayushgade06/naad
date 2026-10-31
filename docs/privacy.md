@@ -78,4 +78,4 @@ data in case you reinstall. To remove the data too, delete
 `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad`.
 
 To revoke an API key, delete it at your provider. Deleting
-its file in `%LOCALAPPDATA%Naadkeys` only removes Naad's copy.
+its file in `%LOCALAPPDATA%\Naad\keys` only removes Naad's copy.
