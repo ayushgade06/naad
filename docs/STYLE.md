@@ -129,6 +129,15 @@ treat warnings as errors.
   member.
 - Audio stays in memory. If a temporary file is ever unavoidable, delete it
   in a `finally` block.
+- User content is kept on disk (history, snippets, meetings) only when all
+  of these hold:
+  - a setting the user can see turns it on or off, and says how long it is
+    kept;
+  - it is encrypted with DPAPI (CurrentUser), so it is unreadable without
+    the user's Windows account;
+  - it is never logged, in whole or in part;
+  - the user can delete one item, or everything, from the app, and the
+    deletion is immediate.
 - API keys are stored with DPAPI (CurrentUser scope). For local
   development, an environment variable may override the stored key. Keys
   never go in `settings.json`, in tests, or in the repository.
