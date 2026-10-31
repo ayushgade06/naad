@@ -98,8 +98,6 @@ internal enum LogEvent
     LanguageModelRetried,
     LanguageModelTemperatureRefused,
     TemperatureSupportWriteFailed,
-    LanguageModelDownloaded,
-    LanguageModelDownloadFailed,
 
     UpdateNotAvailable,
     UpdateAvailable,

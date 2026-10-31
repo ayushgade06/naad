@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Naad.Audio;
 using Naad.Dictation;
 using Naad.Hotkey;
@@ -55,11 +54,12 @@ internal static class Program
         var store = new SettingsStore(SettingsStore.DefaultPath);
         var loaded = LoadSettings(store);
         var keys = new SecretStore(SecretStore.DefaultPath);
+        var languageModelKeys = new SecretStore(SecretStore.LanguageModelPath);
 
         try
         {
             // Without a usable key Naad still starts, and opens its settings window to ask for one.
-            Run(store, loaded, keys, ResolveKey(keys, log: true));
+            Run(store, loaded, keys, languageModelKeys, ResolveKey(keys, log: true));
             Log.Info(LogEvent.AppStopped);
             return 0;
         }
@@ -115,6 +115,9 @@ internal static class Program
         SettingsStore.LogOutcome(result);
         return result;
     }
+
+    private static ApiKeyResult ResolveLanguageModelKey(SecretStore keys) =>
+        keys.Resolve(Environment.GetEnvironmentVariable(SecretStore.LanguageModelOverrideVariable));
 
     private static ApiKeyResult ResolveKey(SecretStore keys, bool log)
     {
@@ -181,7 +184,8 @@ internal static class Program
 
     // Every local function below runs on this UI thread: the hook, the tray, the controller's
     // events and the settings window all live on it.
-    private static void Run(SettingsStore store, SettingsLoadResult loaded, SecretStore keys, ApiKeyResult key)
+    private static void Run(
+        SettingsStore store, SettingsLoadResult loaded, SecretStore keys, SecretStore languageModelKeys, ApiKeyResult key)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
@@ -237,6 +241,7 @@ internal static class Program
             dictation = controller;
             controller.UseHandsFree(settings.HandsFree);
             var startup = StartupEntry.ForThisApp();
+            var actions = new SettingsActions(store, keys, languageModelKeys, startup, canSave, http);
             controller.StateChanged += tray.ShowState;
 
             // Recording starts with focus on the window being dictated into, so the overlay
@@ -292,10 +297,11 @@ internal static class Program
                 window = new SettingsWindow(
                     pending ?? settings,
                     ResolveKey(keys, log: false),
+                    ResolveLanguageModelKey(languageModelKeys),
                     Microphones(),
                     startup.IsEnabled(),
-                    DownloadModelAsync,
-                    TestKeyAsync,
+                    actions.DownloadModelAsync,
+                    actions.TestKeyAsync,
                     Save,
                     beginCapture: () =>
                     {
@@ -314,100 +320,22 @@ internal static class Program
                 Log.Info(LogEvent.SettingsWindowOpened);
             }
 
-            async Task<ModelDownloadResult> DownloadModelAsync(
-                WhisperModel choice, IProgress<double> progress, CancellationToken cancellationToken)
+            // Keys first, so a key that can't be stored changes nothing else.
+            string? Save(SettingsChange change)
             {
-                var started = Stopwatch.GetTimestamp();
-                var result = await LocalModel.For(choice).DownloadAsync(http, progress, cancellationToken);
-                if (result.Outcome == ModelDownloadOutcome.Downloaded)
+                if (actions.SaveKeys(change) is { } keyError)
                 {
-                    Log.Info(
-                        LogEvent.LocalModelDownloaded,
-                        ("model", (int)choice),
-                        ("download_ms", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds));
-                }
-                else
-                {
-                    Log.Warn(
-                        LogEvent.LocalModelDownloadFailed,
-                        ("model", (int)choice),
-                        ("outcome", (int)result.Outcome),
-                        ("code", result.Code));
+                    return keyError;
                 }
 
-                return result;
-            }
-
-            async Task<KeyTestResult> TestKeyAsync(string testedKey, Uri baseUrl, CancellationToken cancellationToken)
-            {
-                var result = await OpenAiCompatibleTranscriber.TestKeyAsync(
-                    http, testedKey, baseUrl, cancellationToken);
-                switch (result.Outcome)
+                if (change.NewKey is not null)
                 {
-                    case KeyTestOutcome.Accepted:
-                        Log.Info(LogEvent.ApiKeyTestAccepted);
-                        break;
-                    case KeyTestOutcome.CannotVerify:
-                        Log.Info(LogEvent.ApiKeyTestUnverifiable);
-                        break;
-                    default:
-                        Log.Warn(LogEvent.ApiKeyTestFailed, ("code", result.Failure?.Code ?? 0));
-                        break;
-                }
-
-                return result;
-            }
-
-            // Saves the key first, so a key that can't be stored changes nothing else. Settings that
-            // can't be written still apply until Naad exits, and the window says so.
-            string? Save(AppSettings next, string? newKey, bool startAtLogin)
-            {
-                if (newKey is not null)
-                {
-                    if (keys.Save(newKey) is { } keyError)
-                    {
-                        Log.Error(LogEvent.ApiKeyStoreFailed, keyError);
-                        return "The API key couldn't be saved, so nothing was changed. Try again.";
-                    }
-
-                    Log.Info(LogEvent.ApiKeyStored);
                     apiKey = ResolveKey(keys, log: true).Key;
                 }
 
-                string? problem = null;
-                // Written whenever ticked, so an entry left by a moved copy points here again.
-                var startedAtLogin = startup.IsEnabled();
-                if (startAtLogin || startedAtLogin)
-                {
-                    if (startup.Set(startAtLogin) is { } startupError)
-                    {
-                        Log.Error(LogEvent.StartAtLoginFailed, startupError);
-                        problem = "Naad couldn't change whether it starts when you sign in. ";
-                    }
-                    else if (startAtLogin != startedAtLogin)
-                    {
-                        Log.Info(startAtLogin ? LogEvent.StartAtLoginEnabled : LogEvent.StartAtLoginDisabled);
-                    }
-                }
-
-                if (!canSave)
-                {
-                    Log.Warn(LogEvent.SettingsSaveSkippedNewerFile);
-                    problem += "A newer version of Naad wrote settings.json, so these changes apply only until " +
-                        "Naad exits.";
-                }
-                else if (store.Save(next) is { } writeError)
-                {
-                    Log.Error(LogEvent.SettingsWriteFailed, writeError);
-                    problem += "settings.json couldn't be written, so these changes apply only until Naad exits.";
-                }
-                else
-                {
-                    Log.Info(LogEvent.SettingsSaved);
-                }
-
-                Apply(next);
-                return problem?.TrimEnd();
+                var problem = actions.SaveSettings(change);
+                Apply(change.Settings);
+                return problem;
             }
 
             // A dictation keeps the settings it started with: during one, the change waits for Idle.

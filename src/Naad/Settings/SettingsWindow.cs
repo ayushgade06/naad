@@ -18,8 +18,9 @@ internal sealed class SettingsWindow : Form
     private readonly AppSettings _current;
     private readonly ApiKeyResult _key;
     private readonly Func<string, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
-    private readonly Func<AppSettings, string?, bool, string?> _save;
-    private readonly Func<WhisperModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _downloadModel;
+    private readonly Func<SettingsChange, string?> _save;
+    private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _downloadModel;
+    private readonly LanguageModelPanel _languageModel;
     private readonly Func<bool> _beginCapture;
     private readonly Action _cancelCapture;
     private readonly CancellationTokenSource _closing = new();
@@ -68,22 +69,23 @@ internal sealed class SettingsWindow : Form
 
     /// <param name="current">The settings in use.</param>
     /// <param name="key">Where the key in use comes from; the key itself is only used for Test key.</param>
+    /// <param name="languageModelKey">The same for the language model's key.</param>
     /// <param name="microphones">The connected recording devices' names.</param>
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
-    /// <param name="downloadModel">Downloads a model for transcribing on this PC, reporting progress.</param>
+    /// <param name="downloadModel">Downloads a model file to run on this PC, reporting progress.</param>
     /// <param name="testKey">Checks a key against a base URL.</param>
-    /// <param name="save">Saves and applies new settings, a new key if one was typed, and the
-    /// start-at-login choice. Returns what went wrong, or null.</param>
+    /// <param name="save">Saves and applies the change. Returns what went wrong, or null.</param>
     /// <param name="beginCapture">Starts capturing a shortcut; false if a dictation is running.</param>
     /// <param name="cancelCapture">Stops a capture early.</param>
     public SettingsWindow(
         AppSettings current,
         ApiKeyResult key,
+        ApiKeyResult languageModelKey,
         IReadOnlyList<string> microphones,
         bool startsAtLogin,
-        Func<WhisperModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> downloadModel,
+        Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> downloadModel,
         Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
-        Func<AppSettings, string?, bool, string?> save,
+        Func<SettingsChange, string?> save,
         Func<bool> beginCapture,
         Action cancelCapture)
     {
@@ -107,6 +109,7 @@ internal sealed class SettingsWindow : Form
 
         FillFields(microphones);
         _startAtLogin.Checked = startsAtLogin;
+        _languageModel = new(current, languageModelKey, downloadModel, testKey, _closing.Token);
         Controls.Add(BuildLayout());
 
         _testKeyButton.Click += (_, _) => _ = TestKeyAsync();
@@ -185,14 +188,11 @@ internal sealed class SettingsWindow : Form
         _fileLogging.Checked = _current.FileLogging;
     }
 
+    // Two pages, so the window fits a laptop screen; Save and Cancel apply to both.
     private TableLayoutPanel BuildLayout()
     {
-        var table = new TableLayoutPanel
-        {
-            AutoSize = true,
-            ColumnCount = 2,
-            Padding = new Padding(12),
-        };
+        var dictation = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Padding = new Padding(12) };
+        var table = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Padding = new Padding(8) };
         var save = new Button { Text = "Save", AutoSize = true };
         var cancel = new Button { Text = "Cancel", AutoSize = true };
         save.Click += (_, _) => Save();
@@ -202,26 +202,41 @@ internal sealed class SettingsWindow : Form
         AcceptButton = save;
         CancelButton = cancel;
 
-        Row(table, "Transcribe with", _provider);
-        Row(table, "Model on this PC", _localModel);
-        Row(table, "", Flow(_modelStatus, _downloadModelButton));
-        Row(table, "API key", Note(SettingsInput.KeyStatus(_key)));
-        Row(table, "New key", Flow(_newKey, _testKeyButton));
-        Row(table, "", _testResult);
-        Row(table, "Shortcut", Flow(_shortcutText, _changeShortcut));
-        Row(table, "", _handsFree);
-        Row(table, "Microphone", _microphone);
-        Row(table, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
-        Row(table, "Vocabulary", _vocabulary);
-        Row(table, "", Note("Names and terms you use, separated by commas. Sent with each recording."));
-        Row(table, "Base URL", _baseUrl);
-        Row(table, "Model", _model);
-        Row(table, "", _playSounds);
-        Row(table, "", _fileLogging);
-        Row(table, "", _startAtLogin);
-        Row(table, "", _error);
-        Row(table, "", Flow(save, cancel));
+        Row(dictation, "Transcribe with", _provider);
+        Row(dictation, "Model on this PC", _localModel);
+        Row(dictation, "", Flow(_modelStatus, _downloadModelButton));
+        Row(dictation, "API key", Note(SettingsInput.KeyStatus(_key)));
+        Row(dictation, "New key", Flow(_newKey, _testKeyButton));
+        Row(dictation, "", _testResult);
+        Row(dictation, "Shortcut", Flow(_shortcutText, _changeShortcut));
+        Row(dictation, "", _handsFree);
+        Row(dictation, "Microphone", _microphone);
+        Row(dictation, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
+        Row(dictation, "Vocabulary", _vocabulary);
+        Row(dictation, "", Note("Names and terms you use, separated by commas. Sent with each recording."));
+        Row(dictation, "Base URL", _baseUrl);
+        Row(dictation, "Model", _model);
+        Row(dictation, "", _playSounds);
+        Row(dictation, "", _fileLogging);
+        Row(dictation, "", _startAtLogin);
+        var tabs = new TabControl();
+        tabs.TabPages.Add(Page("Dictation", dictation));
+        tabs.TabPages.Add(Page("AI", _languageModel));
+        var largest = new Size(
+            Math.Max(dictation.PreferredSize.Width, _languageModel.PreferredSize.Width),
+            Math.Max(dictation.PreferredSize.Height, _languageModel.PreferredSize.Height));
+        tabs.Size = largest + (tabs.Size - tabs.DisplayRectangle.Size) + new Size(8, 8);
+        table.Controls.Add(tabs);
+        table.Controls.Add(_error);
+        table.Controls.Add(Flow(save, cancel));
         return table;
+    }
+
+    private static TabPage Page(string title, Control content)
+    {
+        var page = new TabPage(title) { UseVisualStyleBackColor = true };
+        page.Controls.Add(content);
+        return page;
     }
 
     private static Label Note(string text)
@@ -315,8 +330,14 @@ internal sealed class SettingsWindow : Form
             return;
         }
 
+        if (!_languageModel.TryApply(settings, out settings, out var newLanguageModelKey, out error))
+        {
+            _error.Text = error;
+            return;
+        }
+
         var newKey = _newKey.Text.Trim() is { Length: > 0 } typed ? typed : null;
-        if (_save(settings, newKey, _startAtLogin.Checked) is { } problem)
+        if (_save(new(settings, newKey, newLanguageModelKey, _startAtLogin.Checked)) is { } problem)
         {
             _error.Text = problem;
             return;
@@ -335,7 +356,7 @@ internal sealed class SettingsWindow : Form
         var progress = new Progress<double>(fraction => _modelStatus.Text = $"Downloading... {fraction:P0}");
         try
         {
-            var result = await _downloadModel(choice, progress, _closing.Token);
+            var result = await _downloadModel(LocalModel.For(choice), progress, _closing.Token);
             _modelStatus.Text = SettingsInput.ModelDownloadMessage(result);
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)

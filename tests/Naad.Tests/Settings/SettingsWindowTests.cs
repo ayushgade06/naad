@@ -15,16 +15,7 @@ public sealed class SettingsWindowTests
         var closed = false;
         OnStaThread(() =>
         {
-            using var window = new SettingsWindow(
-                AppSettings.Defaults,
-                new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
-                microphones: [],
-                startsAtLogin: false,
-                downloadModel: (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
-                testKey: (_, _, _) => throw new InvalidOperationException("Not used."),
-                save: (_, _, _) => null,
-                beginCapture: () => false,
-                cancelCapture: () => { });
+            using var window = Window(_ => null);
             window.FormClosed += (_, _) => closed = true;
             _ = window.Handle;
 
@@ -35,6 +26,39 @@ public sealed class SettingsWindowTests
 
         Assert.True(closed);
     }
+
+    [Fact]
+    public void Save_Unchanged_SavesBothPagesSettingsWithoutNewKeys()
+    {
+        SettingsChange? saved = null;
+        var current = AppSettings.Defaults with { TranscriptionProvider = TranscriptionProvider.Cloud };
+        OnStaThread(() =>
+        {
+            using var window = Window(change =>
+            {
+                saved = change;
+                return null;
+            }, current);
+            _ = window.Handle;
+
+            using var clicker = new Clicker();
+            clicker.ClickOn((Control)window.AcceptButton!);
+        });
+
+        Assert.Equal(new SettingsChange(current, null, null, StartAtLogin: false), saved);
+    }
+
+    private static SettingsWindow Window(Func<SettingsChange, string?> save, AppSettings? current = null) => new(
+        current ?? AppSettings.Defaults,
+        new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
+        new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
+        microphones: [],
+        startsAtLogin: false,
+        downloadModel: (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
+        testKey: (_, _, _) => throw new InvalidOperationException("Not used."),
+        save: save,
+        beginCapture: () => false,
+        cancelCapture: () => { });
 
     private sealed class Clicker : Control
     {

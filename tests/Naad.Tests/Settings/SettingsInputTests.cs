@@ -167,4 +167,39 @@ public sealed class SettingsInputTests
         Assert.Contains(texts, text => text.Contains("HTTP 400", StringComparison.Ordinal));
         Assert.All(texts, text => Assert.False(string.IsNullOrWhiteSpace(text)));
     }
+
+    [Fact]
+    public void TryBuildLanguageModel_ValidFields_AppliesTrimmed()
+    {
+        Assert.True(SettingsInput.TryBuildLanguageModel(
+            AppSettings.Defaults, " http://localhost:11434/v1 ", " qwen2.5:1.5b ", out var settings, out _));
+        Assert.Equal(new Uri("http://localhost:11434/v1"), settings.LanguageModelBaseUrl);
+        Assert.Equal("qwen2.5:1.5b", settings.LanguageModelName);
+    }
+
+    [Theory]
+    [InlineData("http://llm.example.test/v1", "m", "base URL")]
+    [InlineData("https://llm.example.test/v1", "two words", "model")]
+    public void TryBuildLanguageModel_InvalidField_NamesIt(string baseUrl, string model, string field)
+    {
+        Assert.False(SettingsInput.TryBuildLanguageModel(AppSettings.Defaults, baseUrl, model, out _, out var error));
+        Assert.Contains(field, error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(1_117_320_736, "1.1 GB")]
+    [InlineData(2_497_281_120, "2.5 GB")]
+    public void LanguageModelStatus_NotDownloaded_NamesTheSize(long size, string expected)
+    {
+        Assert.Contains(expected, SettingsInput.LanguageModelStatus(size, ready: false), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KeyStatus_LanguageModelOverride_NamesItsVariable()
+    {
+        var text = SettingsInput.KeyStatus(
+            new("fake-key", ApiKeySource.Environment, SecretStatus.Loaded), SecretStore.LanguageModelOverrideVariable);
+
+        Assert.Contains("NAAD_LLM_API_KEY", text, StringComparison.Ordinal);
+    }
 }

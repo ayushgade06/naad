@@ -62,19 +62,55 @@ internal static class SettingsInput
             ? "That isn't a valid API key: it has spaces or characters outside plain ASCII."
             : null;
 
-    /// <summary>Where the key in use comes from. Never shows the key.</summary>
-    public static string KeyStatus(ApiKeyResult result) => (result.Source, result.Status) switch
+    /// <summary>
+    /// The language model fields applied to <paramref name="chosen"/>, checked like the
+    /// transcription ones; on failure <paramref name="error"/> names the field.
+    /// </summary>
+    public static bool TryBuildLanguageModel(
+        AppSettings chosen,
+        string baseUrl,
+        string model,
+        [NotNullWhen(true)] out AppSettings? settings,
+        [NotNullWhen(false)] out string? error)
     {
-        (ApiKeySource.Environment, _) => $"Using the {SecretStore.OverrideVariable} environment variable. A key " +
-            "saved here is used once that variable is removed.",
-        (_, SecretStatus.Loaded) => "A key is stored, encrypted for your Windows account. Paste a new one " +
-            "to replace it.",
-        (_, SecretStatus.Missing) => "No key is stored. Paste one below; Groq's are at console.groq.com/keys.",
-        (_, SecretStatus.Invalid) => $"{SecretStore.OverrideVariable} holds characters a key can't have. Fix " +
-            "or remove it; a key saved here is used once it is removed.",
-        _ => "The stored key can't be read: it may be damaged, or another Windows user saved it. Paste it " +
-            "again below.",
-    };
+        settings = null;
+        error = !AppSettings.TryParseBaseUrl(baseUrl.Trim(), out var url)
+                ? "The AI base URL must start with https:// (or http:// for a server on this PC) and have no " +
+                    "query string."
+            : !AppSettings.IsValidModel(model.Trim())
+                ? "The AI model must be up to 100 visible characters, without spaces."
+            : null;
+        if (error is not null)
+        {
+            return false;
+        }
+
+        settings = chosen with { LanguageModelBaseUrl = url!, LanguageModelName = model.Trim() };
+        return true;
+    }
+
+    /// <summary>Whether the chosen language model is in place, or its download size.</summary>
+    public static string LanguageModelStatus(long size, bool ready) => ready
+        ? "The model is downloaded. AI steps work offline."
+        : $"Running AI on this PC needs a one-time download of {(size + 50_000_000) / 100_000_000 / 10.0:0.0} GB.";
+
+    /// <summary>Where the transcription key in use comes from. Never shows the key.</summary>
+    public static string KeyStatus(ApiKeyResult result) => KeyStatus(result, SecretStore.OverrideVariable);
+
+    /// <summary>Where a key in use comes from, given its override variable. Never shows the key.</summary>
+    public static string KeyStatus(ApiKeyResult result, string overrideVariable) =>
+        (result.Source, result.Status) switch
+        {
+            (ApiKeySource.Environment, _) => $"Using the {overrideVariable} environment variable. A key " +
+                "saved here is used once that variable is removed.",
+            (_, SecretStatus.Loaded) => "A key is stored, encrypted for your Windows account. Paste a new one " +
+                "to replace it.",
+            (_, SecretStatus.Missing) => "No key is stored. Paste one below; Groq's are at console.groq.com/keys.",
+            (_, SecretStatus.Invalid) => $"{overrideVariable} holds characters a key can't have. Fix " +
+                "or remove it; a key saved here is used once it is removed.",
+            _ => "The stored key can't be read: it may be damaged, or another Windows user saved it. Paste it " +
+                "again below.",
+        };
 
     /// <summary>Whether the chosen model for transcribing on this PC is in place, or its download size.</summary>
     public static string ModelStatus(long size, bool ready) => ready
