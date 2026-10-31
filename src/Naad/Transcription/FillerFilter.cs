@@ -29,9 +29,23 @@ internal static class FillerFilter
 
     /// <summary>
     /// Whether the whole transcript is a filler phrase, ignoring case, punctuation and
-    /// spacing: "Thanks for watching!" and "thanks  for watching" both match.
+    /// spacing: "Thanks for watching!" and "thanks  for watching" both match. A transcript
+    /// that is only a non-speech tag, such as "[BLANK_AUDIO]", is one too.
     /// </summary>
-    public static bool IsFiller(string transcript) => Fillers.Contains(Normalize(transcript));
+    public static bool IsFiller(string transcript) =>
+        IsNonSpeechTag(transcript) || Fillers.Contains(Normalize(transcript));
+
+    /// <summary>
+    /// Whether the text is a single bracketed annotation, such as "[BLANK_AUDIO]", "[Music]" or
+    /// "(silence)". whisper.cpp writes these for sounds that aren't speech, as segments of
+    /// their own; dictated text is never wholly in brackets.
+    /// </summary>
+    public static bool IsNonSpeechTag(string text)
+    {
+        var t = text.Trim();
+        return t.Length >= 2
+            && ((t[0] == '[' && t.IndexOf(']') == t.Length - 1) || (t[0] == '(' && t.IndexOf(')') == t.Length - 1));
+    }
 
     private static string Normalize(string text)
     {
