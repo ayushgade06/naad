@@ -49,13 +49,37 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, model).CleanAsync(Said, CancellationToken.None);
 
         Assert.Equal(new CleanupResult("We should meet on Tuesday.", CleanupOutcome.Cleaned), result);
-        Assert.EndsWith($"<<<\n{Said}\n>>>", model.Prompts.Single().Text, StringComparison.Ordinal);
+
+        // The model gets the text through the instant rules first.
+        Assert.EndsWith("<<<\nWe should meet on tuesday.\n>>>", model.Prompts.Single().Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Clean_OnlyHesitations_PastesNothingWithoutAskingTheModel()
+    {
+        var model = new FakeModel("Invented text.");
+
+        var result = await Cleanup(CleanupLevel.Ai, model).CleanAsync("um uh", CancellationToken.None);
+
+        Assert.Equal(new CleanupResult("", CleanupOutcome.Empty), result);
+        Assert.Empty(model.Prompts);
+    }
+
+    [Fact]
+    public async Task Clean_ReplyWithoutCapitalOrStop_GetsThem()
+    {
+        var result = await Cleanup(CleanupLevel.Ai, new FakeModel("we should meet on Tuesday"))
+            .CleanAsync(Said, CancellationToken.None);
+
+        Assert.Equal("We should meet on Tuesday.", result.Text);
     }
 
     [Fact]
     public async Task Clean_ModelSaysEmpty_PastesNothing()
     {
-        var result = await Cleanup(CleanupLevel.Ai, new FakeModel("EMPTY")).CleanAsync("um uh", CancellationToken.None);
+        var cleanup = Cleanup(CleanupLevel.Ai, new FakeModel("EMPTY"));
+
+        var result = await cleanup.CleanAsync("hmm okay", CancellationToken.None);
 
         Assert.Equal(new CleanupResult("", CleanupOutcome.Empty), result);
     }

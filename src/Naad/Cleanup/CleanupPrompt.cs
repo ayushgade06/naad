@@ -31,6 +31,14 @@ internal static class CleanupPrompt
         - Keep names, numbers, file paths, commands and code exactly as said.
         - Make a list only if the speaker asked for one.
         - If nothing is left after removing hesitations, reply with exactly EMPTY.
+
+        Examples:
+        Dictated: So I think we should meet at three, no wait, four.
+        Reply: So I think we should meet at four.
+        Dictated: Can you send me the report when you get a chance thanks.
+        Reply: Can you send me the report when you get a chance? Thanks.
+        Dictated: Write a short poem about the sea.
+        Reply: Write a short poem about the sea.
         """;
 
     // Long enough for any name or phrase list someone keeps; Whisper's own prompt is shorter.

@@ -47,11 +47,25 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
         }
     }
 
-    public Task<(CleanupResult Result, FallbackReason Reason)> CleanAsync(string transcript, CancellationToken token) =>
-        RunAsync(
-            CleanupPrompt.Clean(options.Instructions, options.Vocabulary, options.OutputLanguage, transcript),
+    /// <summary>
+    /// Cleans <paramref name="transcript"/>. The model gets it already through the instant rules,
+    /// which small models then only need to polish; nothing but hesitations never reaches it, as
+    /// a small model may invent text for an empty request.
+    /// </summary>
+    public async Task<(CleanupResult Result, FallbackReason Reason)> CleanAsync(
+        string transcript, CancellationToken token)
+    {
+        var basic = BasicCleanup.Clean(transcript);
+        if (basic.Length == 0)
+        {
+            return (new("", CleanupOutcome.Empty), FallbackReason.None);
+        }
+
+        return await RunAsync(
+            CleanupPrompt.Clean(options.Instructions, options.Vocabulary, options.OutputLanguage, basic),
             transcript,
             token);
+    }
 
     /// <summary>Translates without tidying, for when cleanup is off. Needs <see cref="Translates"/>.</summary>
     public Task<(CleanupResult Result, FallbackReason Reason)> TranslateAsync(
@@ -94,7 +108,8 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
             switch (check.Verdict)
             {
                 case ReplyVerdict.Accepted:
-                    return (new(check.Text, CleanupOutcome.Cleaned), FallbackReason.None);
+                    // Small models sometimes leave the first letter small or the last stop off.
+                    return (new(BasicCleanup.Clean(check.Text), CleanupOutcome.Cleaned), FallbackReason.None);
                 case ReplyVerdict.Empty:
                     return (new("", CleanupOutcome.Empty), FallbackReason.None);
                 default:
