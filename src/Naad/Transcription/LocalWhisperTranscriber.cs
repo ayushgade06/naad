@@ -93,7 +93,12 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
         using var audio = new MemoryStream(wav, writable: false);
         await foreach (var segment in processor.ProcessAsync(audio, cancellationToken))
         {
-            text.Append(segment.Text);
+            // A tag such as "[BLANK_AUDIO]" stands for noise between or after the words; it
+            // would otherwise be pasted as text.
+            if (!FillerFilter.IsNonSpeechTag(segment.Text))
+            {
+                text.Append(segment.Text);
+            }
         }
 
         var transcript = text.ToString().Trim();

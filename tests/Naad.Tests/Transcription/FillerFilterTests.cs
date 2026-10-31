@@ -15,6 +15,9 @@ public sealed class FillerFilterTests
     [InlineData("Like and subscribe!")]
     [InlineData("Subtitles by the Amara.org community")]
     [InlineData("Transcription by CastingWords")]
+    [InlineData("[BLANK_AUDIO]")]
+    [InlineData(" [Music] ")]
+    [InlineData("(silence)")]
     public void IsFiller_WholeTranscriptIsAKnownFiller_ReturnsTrue(string transcript) =>
         Assert.True(FillerFilter.IsFiller(transcript));
 
@@ -30,6 +33,23 @@ public sealed class FillerFilterTests
     [InlineData("Hello world. Thanks for watching!")]
     [InlineData("Please subscribe me to the newsletter.")]
     [InlineData("ありがとう")]
+    [InlineData("[note] call the bank")]
+    [InlineData("Call me (later)")]
+    [InlineData("[a] and [b]")]
     public void IsFiller_RealSpeechOrMixedText_ReturnsFalse(string transcript) =>
         Assert.False(FillerFilter.IsFiller(transcript));
+
+    // whisper.cpp, which transcribes on this PC, writes these as segments of their own; the
+    // installed 1.0.0 build pasted "[BLANK_AUDIO]" for a quiet recording without speech.
+    [Theory]
+    [InlineData(" [BLANK_AUDIO]", true)]
+    [InlineData("[ Silence ]", true)]
+    [InlineData(" (wind blowing)", true)]
+    [InlineData(" Hello world.", false)]
+    [InlineData(" [note] call the bank", false)]
+    [InlineData(" Call me (later).", false)]
+    [InlineData("[]x", false)]
+    [InlineData("", false)]
+    public void IsNonSpeechTag_ReturnsWhetherTheSegmentIsOnlyATag(string segment, bool expected) =>
+        Assert.Equal(expected, FillerFilter.IsNonSpeechTag(segment));
 }
