@@ -8,7 +8,8 @@ namespace Naad.Settings;
 /// <param name="KeyFor">Where a service's key comes from; the key itself is used only for tests.</param>
 /// <param name="DownloadModel">Downloads a model file to run on this PC, reporting progress.</param>
 /// <param name="TestKey">Checks a key (null for none) for a service and custom endpoint.</param>
-/// <param name="TestTranscription">Transcribes a second of silence with the saved settings.</param>
+/// <param name="TestTranscription">Transcribes a second of silence with the settings on screen and a key
+/// (a typed one, or null for the stored one).</param>
 /// <param name="TestPrompt">Sends cleanup instructions and a sample to the saved language model.</param>
 /// <param name="CooldownFor">A cloud model's running rate limit, if any.</param>
 /// <param name="Save">Saves and applies the change. Returns what went wrong, or null.</param>
@@ -18,7 +19,7 @@ internal sealed record SettingsWindowActions(
     Func<CloudService, ApiKeyResult> KeyFor,
     Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> DownloadModel,
     Func<CloudService, string?, Uri, CancellationToken, Task<KeyTestResult>> TestKey,
-    Func<CancellationToken, Task<TranscriptionTest>> TestTranscription,
+    Func<AppSettings, string?, CancellationToken, Task<TranscriptionTest>> TestTranscription,
     Func<string?, string, CancellationToken, Task<PromptTest>> TestPrompt,
     Func<string, Cooldown?> CooldownFor,
     Func<SettingsChange, string?> Save,

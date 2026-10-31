@@ -137,6 +137,14 @@ public sealed class ProviderTests : IDisposable
     }
 
     [Fact]
+    public void Deepgram_OlderModel_SendsKeywordsNotKeyterms()
+    {
+        Assert.Equal(
+            "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&detect_language=true&keywords=Naad",
+            DeepgramTranscriber.Endpoint("nova-2", null, "Naad").AbsoluteUri);
+    }
+
+    [Fact]
     public void Deepgram_NoLanguage_DetectsIt()
     {
         Assert.Equal(

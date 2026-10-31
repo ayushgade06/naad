@@ -35,6 +35,22 @@ internal static class TranscriberSetup
         };
     }
 
+    /// <summary>
+    /// The transcriber <paramref name="s"/> chooses, without the offline fallback, for Test: it
+    /// must check the chosen service, never quietly pass on this PC. Null when it can't run.
+    /// </summary>
+    public static ITranscriber? CreateForTest(HttpClient http, string? key, AppSettings s)
+    {
+        var model = LocalModel.For(s.LocalModel);
+        var keyless = s.TranscriptionService == CloudService.Custom && s.TranscriptionBaseUrl.IsLoopback;
+        return ProviderSelection.Choose(s.TranscriptionProvider, key is not null || keyless, model.IsReady()) switch
+        {
+            TranscriptionProvider.Cloud => Cloud(http, s.TranscriptionService, key, s),
+            TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.Vocabulary),
+            _ => null,
+        };
+    }
+
     private static ITranscriber Cloud(HttpClient http, CloudService service, string? key, AppSettings s)
     {
         var timeout = TimeSpan.FromSeconds(s.TranscriptionTimeoutSeconds);

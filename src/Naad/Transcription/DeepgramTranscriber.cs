@@ -14,7 +14,7 @@ internal sealed class DeepgramTranscriber : ITranscriber
 {
     private static readonly Uri Listen = new("https://api.deepgram.com/v1/listen");
 
-    // Deepgram's keyterm prompting takes up to 100 terms.
+    // Deepgram's keyterm prompting (Nova-3) takes up to 100 terms; older models take keywords.
     private const int MaxKeyterms = 100;
 
     private readonly HttpClient _http;
@@ -57,7 +57,8 @@ internal sealed class DeepgramTranscriber : ITranscriber
         foreach (var term in CleanupPrompt.Terms(vocabulary).Split(", ", StringSplitOptions.RemoveEmptyEntries)
             .Take(MaxKeyterms))
         {
-            query.Add("keyterm=" + Uri.EscapeDataString(term));
+            var name = model.StartsWith("nova-3", StringComparison.OrdinalIgnoreCase) ? "keyterm=" : "keywords=";
+            query.Add(name + Uri.EscapeDataString(term));
         }
 
         return new(Listen + "?" + string.Join('&', query));

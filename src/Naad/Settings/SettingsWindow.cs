@@ -31,11 +31,14 @@ internal sealed class SettingsWindow : Form
     private readonly Label _modelStatus = Note();
     private readonly Button _downloadModelButton = new() { Text = "Download model", AutoSize = true };
     private readonly Button _testTranscriptionButton = new() { Text = "Test", AutoSize = true };
+    private readonly Button _saveButton = new() { Text = "Save", AutoSize = true };
     private readonly Label _testTranscriptionResult = Note();
     private readonly NumericUpDown _timeout = new()
     {
         Minimum = AppSettings.MinTimeoutSeconds,
         Maximum = AppSettings.MaxTimeoutSeconds,
+
+        // Three digits and the arrows.
         Width = 60,
     };
     private readonly Label _shortcutText = new() { AutoSize = true, Anchor = AnchorStyles.Left };
@@ -189,7 +192,7 @@ internal sealed class SettingsWindow : Form
     {
         var dictation = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Padding = new Padding(12) };
         var table = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Padding = new Padding(8) };
-        var save = new Button { Text = "Save", AutoSize = true };
+        var save = _saveButton;
         var cancel = new Button { Text = "Cancel", AutoSize = true };
         save.Click += (_, _) => _ = SaveAsync();
 
@@ -335,17 +338,35 @@ internal sealed class SettingsWindow : Form
         {
             if (choice.NewKey is { } key)
             {
+                if (newKeys.TryGetValue(choice.Service, out var other) && other != key)
+                {
+                    _error.Text = $"Two different {CloudServices.For(choice.Service).Name} keys were typed. A " +
+                        "service has one key: type it on one tab only.";
+                    return;
+                }
+
                 newKeys[choice.Service] = key;
             }
         }
 
         _error.Text = newKeys.Count > 0 ? "Checking the new key..." : "";
-        foreach (var (service, key) in newKeys)
+        _saveButton.Enabled = false;
+        try
         {
-            if (await RejectsAsync(service, key, settings) is { } rejected)
+            foreach (var (service, key) in newKeys)
             {
-                _error.Text = rejected;
-                return;
+                if (await RejectsAsync(service, key, settings) is { } rejected)
+                {
+                    _error.Text = rejected;
+                    return;
+                }
+            }
+        }
+        finally
+        {
+            if (!IsDisposed)
+            {
+                _saveButton.Enabled = true;
             }
         }
 
@@ -414,11 +435,27 @@ internal sealed class SettingsWindow : Form
     private async Task TestTranscriptionAsync()
     {
         _testTranscriptionButton.Enabled = false;
-        _testTranscriptionResult.Text = "Sending a second of silence with the saved settings...";
+        _testTranscriptionResult.Text = "Sending a second of silence...";
         try
         {
+            if (!SettingsInput.TryBuild(_current, _language.Text, _vocabulary.Text, out var settings, out var error)
+                || !_cloud.TryRead(out var cloud, out error))
+            {
+                _testTranscriptionResult.Text = error;
+                return;
+            }
+
+            settings = settings with
+            {
+                TranscriptionProvider = (TranscriptionProvider)_provider.SelectedIndex,
+                LocalModel = ChosenModel,
+                TranscriptionTimeoutSeconds = (int)_timeout.Value,
+                TranscriptionService = cloud.Service,
+                TranscriptionBaseUrl = cloud.CustomUrl,
+                TranscriptionModel = cloud.Model,
+            };
             _testTranscriptionResult.Text = SettingsInput.TranscriptionTestMessage(
-                await _actions.TestTranscription(_closing.Token));
+                await _actions.TestTranscription(settings, cloud.NewKey, _closing.Token));
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
         {

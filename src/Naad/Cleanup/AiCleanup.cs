@@ -45,6 +45,10 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
         {
             _ = local.PreloadAsync();
         }
+        else if (models[0].Model is OfflineFallbackLanguageModel fallback)
+        {
+            fallback.Prepare();
+        }
     }
 
     /// <summary>

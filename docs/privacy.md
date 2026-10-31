@@ -12,13 +12,17 @@ HTTPS.
 
 | When | Destination | What is sent |
 |---|---|---|
-| You dictate with **Cloud** chosen under **Transcribe with** | The chosen cloud service (Groq by default; OpenAI, Gemini, xAI, Deepgram, or your custom base URL) | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and your API key in the `Authorization` header |
-| You dictate with **Cloud** chosen under **AI runs on** and cleanup set to **AI**, or an output language set | The chosen AI service (Groq by default; OpenAI, Gemini, xAI, Anthropic, Cerebras, or your custom base URL) | The transcript, your vocabulary, your cleanup instructions and the model name, and your language model key in the `Authorization` header. No audio |
+| You dictate with **Cloud** chosen under **Transcribe with** | The chosen cloud service: `api.groq.com` by default, or `api.openai.com`, `generativelanguage.googleapis.com` (Gemini), `api.x.ai`, `api.deepgram.com`, or your custom base URL | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and the service's API key in a header (`Authorization`; Gemini's `x-goog-api-key`) |
+| You dictate with **Cloud** chosen under **AI runs on** and cleanup set to **AI**, or an output language set | The chosen AI service: `api.groq.com` by default, or `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `api.anthropic.com`, `api.cerebras.ai`, or your custom base URL | The transcript, your vocabulary, your cleanup instructions and the model name, and the service's API key in the `Authorization` header. No audio |
 | You click **Test** or **Test model** for the cleanup prompt with **Cloud** chosen | The same AI base URL | The sample text and the instructions. No audio |
 | You click **Test key**, or **Save** with a new key | The chosen service | The key, to ask whether the service accepts it (a request listing its models). No audio or text |
 | You click **Test** under **Transcription** | The transcription service | One second of generated silence. Nothing you said |
 | You click **Download model** | `huggingface.co`: whisper.cpp's model files, or the language models on the **AI** tab | An ordinary download request. No data about you |
 | An installed copy, a minute after it starts, then daily, and when you choose **Check for updates** | `github.com/ayushgade06/naad` releases | An ordinary request for the release list. No data about you or how you use Naad |
+
+Deepgram takes the vocabulary as key terms in the request's address,
+where the service's own logs may keep it; the other services get it in the
+request body.
 
 With **This PC** chosen, which is the default, dictation never touches the
 network: the recording is transcribed by Whisper on your PC. A copy run

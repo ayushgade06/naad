@@ -133,7 +133,8 @@ pick a **Cloud service** for when **Cloud** is chosen:
 The model lists are suggestions: type any model id the service offers, or
 click **Reset** for the suggested one. **Custom** takes a **Base URL**, such
 as `http://localhost:11434/v1` for Ollama; a server on this PC needs no
-key.
+key. Both tabs share one Custom key, so two different custom servers that
+both need keys can't be used at once.
 
 **Test** under **Transcription** sends one second of silence with the
 saved settings and says whether the service answered.

@@ -26,7 +26,8 @@ internal sealed class CloudServiceFields
     private readonly Func<CloudService, ApiKeyResult> _keyFor;
     private readonly Func<CloudService, string?, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
     private readonly CancellationToken _closing;
-    private readonly Uri _customUrl;
+    private string _customUrl;
+    private CloudService _shown;
 
     private readonly ComboBox _service = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly TextBox _baseUrl = new() { Width = FieldWidth };
@@ -63,7 +64,7 @@ internal sealed class CloudServiceFields
         _keyFor = keyFor;
         _testKey = testKey;
         _closing = closing;
-        _customUrl = customUrl;
+        _customUrl = customUrl.AbsoluteUri;
         _service.Items.AddRange([.. services.Select(s => CloudServices.For(s).Name)]);
         _service.SelectedIndex = Math.Max(0, IndexOf(services, current));
         if (withFallback)
@@ -128,7 +129,9 @@ internal sealed class CloudServiceFields
         }
 
         // A named service keeps its own address; the custom one stays for when Custom is chosen again.
-        var customUrl = Service == CloudService.Custom ? url! : _customUrl;
+        var customUrl = Service == CloudService.Custom || !AppSettings.TryParseBaseUrl(_customUrl, out var kept)
+            ? url!
+            : kept;
         choice = new(Service, customUrl, model, fallback.Length == 0 ? null : fallback, key.Length == 0 ? null : key);
         return true;
     }
@@ -179,8 +182,15 @@ internal sealed class CloudServiceFields
     private void ShowService()
     {
         var preset = CloudServices.For(Service);
+        // What was typed for Custom is kept while another service is chosen.
+        if (_shown == CloudService.Custom && _baseUrl.Enabled)
+        {
+            _customUrl = _baseUrl.Text;
+        }
+
+        _shown = Service;
         _baseUrl.Enabled = Service == CloudService.Custom;
-        _baseUrl.Text = (preset.BaseUrl ?? _customUrl).AbsoluteUri;
+        _baseUrl.Text = preset.BaseUrl?.AbsoluteUri ?? _customUrl;
 
         foreach (var box in new[] { _model, _fallback })
         {

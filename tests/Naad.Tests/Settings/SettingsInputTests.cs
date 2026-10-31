@@ -100,7 +100,7 @@ public sealed class SettingsInputTests
 
         Assert.All(texts, text => Assert.DoesNotContain(FakeKey, text, StringComparison.Ordinal));
         Assert.Equal(5, texts.Distinct().Count());
-        Assert.StartsWith("Using the " + SecretStore.OverrideVariable, texts[0], StringComparison.Ordinal);
+        Assert.StartsWith("Using the NAAD_GROQ_API_KEY", texts[0], StringComparison.Ordinal);
         Assert.StartsWith("No key is stored.", texts[2], StringComparison.Ordinal);
         Assert.Equal(texts[4], texts[5]);
     }

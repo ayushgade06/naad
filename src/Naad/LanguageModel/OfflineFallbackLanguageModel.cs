@@ -33,6 +33,18 @@ internal sealed class OfflineFallbackLanguageModel(
         return result;
     }
 
+    /// <summary>
+    /// A dictation started: when offline, the model on this PC starts loading while the user
+    /// speaks, so it can answer within the cleanup's time.
+    /// </summary>
+    public void Prepare()
+    {
+        if (!isOnline() && Local() is LocalLanguageModel local)
+        {
+            _ = local.PreloadAsync();
+        }
+    }
+
     public void Dispose() => (_local as IDisposable)?.Dispose();
 
     private ILanguageModel? Local() => _local ??= local();

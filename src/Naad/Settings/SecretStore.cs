@@ -8,7 +8,7 @@ internal enum ApiKeySource
     /// <summary>No usable key: none is stored and the override variable isn't set.</summary>
     None,
 
-    /// <summary>The development override, <see cref="SecretStore.OverrideVariable"/>.</summary>
+    /// <summary>The development override, a service's NAAD_&lt;SERVICE&gt;_API_KEY variable.</summary>
     Environment,
 
     /// <summary>The key stored with DPAPI.</summary>
@@ -47,9 +47,6 @@ internal sealed record ApiKeyResult(string? Key, ApiKeySource Source, SecretStat
 /// </summary>
 internal sealed class SecretStore(string path)
 {
-    /// <summary>For development: when set, it is used instead of the stored key.</summary>
-    public const string OverrideVariable = "NAAD_GROQ_API_KEY";
-
     // Ties the ciphertext to Naad, so a DPAPI blob made by another program for this user
     // doesn't decrypt as a Naad key. Not a secret; changing it orphans stored keys.
     private static readonly byte[] Entropy = "Naad API key v1"u8.ToArray();
@@ -82,7 +79,7 @@ internal sealed class SecretStore(string path)
 
     /// <summary>
     /// The key to use. A non-blank <paramref name="overrideValue"/> (normally the
-    /// <see cref="OverrideVariable"/> environment variable) wins and the store isn't read.
+    /// service's NAAD_&lt;SERVICE&gt;_API_KEY environment variable) wins and the store isn't read.
     /// </summary>
     public ApiKeyResult Resolve(string? overrideValue)
     {

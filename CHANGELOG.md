@@ -37,7 +37,8 @@ All notable changes to Naad are listed here. The format follows
 
 - Settings is split into **Dictation** and **AI** tabs.
 - API keys move to one encrypted file per service; Naad 1.0's key moves
-  automatically. Settings version 3.
+  automatically. The development override is now `NAAD_<SERVICE>_API_KEY`
+  (`NAAD_GROQ_API_KEY` still works for Groq). Settings version 3.
 - Network errors say whether there is no internet, the request timed out or
   the connection was lost.
 - The overlay shows **Cleaning up** while the language model works.

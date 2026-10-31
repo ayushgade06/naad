@@ -58,7 +58,7 @@ public sealed class SettingsWindowTests
             _ => new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
             (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
             (_, _, _, _) => throw new InvalidOperationException("Not used."),
-            _ => throw new InvalidOperationException("Not used."),
+            (_, _, _) => throw new InvalidOperationException("Not used."),
             (_, _, _) => throw new InvalidOperationException("Not used."),
             _ => null,
             save,

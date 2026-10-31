@@ -19,9 +19,8 @@ internal static class Program
     // Stores the API key piped to standard input, then exits; see docs/settings.md.
     private const string SetApiKeyArgument = "--set-api-key";
 
-    // The key in use, kept only to redact it from the fatal-error dialog; it changes when the
-    // settings window saves a new one.
-    private static string? _apiKey;
+    // Every key resolved this session, kept only to redact them from the fatal-error dialog.
+    private static readonly HashSet<string> Keys = [];
 
     [STAThread]
     private static int Main(string[] args)
@@ -56,7 +55,7 @@ internal static class Program
 
         var store = new SettingsStore(SettingsStore.DefaultPath);
         var loaded = LoadSettings(store);
-        var keys = Keys(loaded.Settings.TranscriptionService);
+        var keys = KeyStore(loaded.Settings.TranscriptionService);
 
         try
         {
@@ -68,7 +67,13 @@ internal static class Program
         catch (Exception e)
         {
             Log.Error(LogEvent.FatalError, e);
-            StartupError.Show($"Naad stopped because of an error.\n\n{StartupError.Describe(e, _apiKey)}");
+            var described = StartupError.Describe(e, null);
+            foreach (var key in Keys)
+            {
+                described = StartupError.Redact(described, key);
+            }
+
+            StartupError.Show($"Naad stopped because of an error.\n\n{described}");
             return 1;
         }
     }
@@ -93,10 +98,20 @@ internal static class Program
         }
 
         // The key is for the transcription service settings.json names, read without writing it.
-        var service = File.Exists(SettingsStore.DefaultPath)
-            ? SettingsStore.Parse(File.ReadAllText(SettingsStore.DefaultPath)).Settings.TranscriptionService
-            : AppSettings.Defaults.TranscriptionService;
-        if (Keys(service).Save(service, key) is { } error)
+        var service = AppSettings.Defaults.TranscriptionService;
+        try
+        {
+            if (File.Exists(SettingsStore.DefaultPath))
+            {
+                var text = File.ReadAllText(SettingsStore.DefaultPath);
+                service = SettingsStore.Parse(text).Settings.TranscriptionService;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // A locked or unreadable file: the key goes to the default service, as for a new install.
+        }
+        if (KeyStore(service).Save(service, key) is { } error)
         {
             Log.Error(LogEvent.ApiKeyStoreFailed, error);
             StartupError.Show("The API key could not be saved. The previously stored key, if any, is unchanged.");
@@ -123,7 +138,7 @@ internal static class Program
     }
 
     // Naad 1.0's single key belonged to the transcription service its settings named.
-    private static ServiceKeys Keys(CloudService legacyService) => new(
+    private static ServiceKeys KeyStore(CloudService legacyService) => new(
         ServiceKeys.DefaultFolder, SecretStore.DefaultPath, legacyService, Environment.GetEnvironmentVariable);
 
     // Logs where the transcription key comes from, and keeps it to redact from error dialogs.
@@ -131,7 +146,7 @@ internal static class Program
     {
         var resolved = keys.Resolve(s.TranscriptionService);
         SecretStore.LogOutcome(resolved);
-        _apiKey = resolved.Key;
+        Remember(resolved.Key);
     }
 
     private static void StartFileLogging()
@@ -181,7 +196,7 @@ internal static class Program
 
         var settings = loaded.Settings;
         ResolveTranscriptionKey(keys, settings);
-        string? KeyFor(CloudService service) => keys.Resolve(service).Key;
+        string? KeyFor(CloudService service) => Remember(keys.Resolve(service).Key);
         var temperature = new TemperatureSupport(TemperatureSupport.DefaultPath, TimeProvider.System);
         var cooldowns = new RateLimitCooldowns(RateLimitCooldowns.DefaultPath, TimeProvider.System);
 
@@ -331,7 +346,12 @@ internal static class Program
                     keys.Resolve,
                     actions.DownloadModelAsync,
                     actions.TestKeyAsync,
-                    token => SettingsActions.TestTranscriptionAsync(transcriber, token),
+                    async (onScreen, typedKey, token) =>
+                    {
+                        var key = typedKey ?? KeyFor(onScreen.TranscriptionService);
+                        using var tested = TranscriberSetup.CreateForTest(http, key, onScreen) as IDisposable;
+                        return await SettingsActions.TestTranscriptionAsync(tested as ITranscriber, token);
+                    },
                     (instructions, sample, token) =>
                         CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
                     cooldowns.For,
@@ -421,6 +441,19 @@ internal static class Program
         {
             sounds?.Dispose();
         }
+    }
+
+    private static string? Remember(string? key)
+    {
+        if (key is not null)
+        {
+            lock (Keys)
+            {
+                Keys.Add(key);
+            }
+        }
+
+        return key;
     }
 
     private static bool ModelChanged(AppSettings before, AppSettings after) =>
