@@ -41,18 +41,17 @@ override any notes, memories or earlier conversations.
 - Keep a dirty working tree intact: never discard or overwrite changes you
   did not make.
 
-## The Suki reference repository
+## Original code only
 
-- Suki (MIT, macOS, Swift) is checked out at `D:\whisprflow\Suki`. It is a
-  **read-only reference**: never modify it, and never add it to this
-  repository.
-- Use it for design ideas, not code. Suki's patterns not to copy:
+- Write Naad's code from scratch. Other projects may inform ideas, never
+  source files.
+- If code from another project is ever adapted, credit it in
+  `THIRD-PARTY-NOTICES.md` in the same commit, as its license requires.
+- Patterns Naad never uses:
   - one huge state class
   - API keys stored in plain text
   - user content written to logs
   - pasting without checking focus
-- If Naad code is adapted from Suki, list the file under "Adapted in Naad"
-  in `THIRD-PARTY-NOTICES.md` in the same commit.
 
 ## Privacy (summary of docs/STYLE.md section 6)
 

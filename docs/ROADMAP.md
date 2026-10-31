@@ -34,7 +34,7 @@ manual checks to it.
 | Focus change | Never paste into a different window. Keep the transcript and notify the user. |
 | OS | Windows 11 first; Windows 10 22H2 where practical |
 | Signing | Unsigned for the first release; SmartScreen warnings are accepted |
-| License | MIT. Suki's notices are kept in `THIRD-PARTY-NOTICES.md` for any adapted code. |
+| License | MIT. Any adapted third-party code is credited in `THIRD-PARTY-NOTICES.md`. |
 | Workflow | Feature branches and pull requests, never squash-merged. The maintainer approves every commit. |
 
 ## Milestones
@@ -56,7 +56,7 @@ manual checks to it.
 - **Goal:** set up the repository's legal files, rules and Git conventions
   before any code exists.
 - **In:**
-  - `README.md`, `LICENSE` (MIT), `THIRD-PARTY-NOTICES.md` (Suki)
+  - `README.md`, `LICENSE` (MIT), `THIRD-PARTY-NOTICES.md`
   - `.gitignore`, `.gitattributes`, `.editorconfig`
   - `CLAUDE.md`, `docs/STYLE.md`, `docs/ROADMAP.md`
   - `git init` on `main` and adding the `origin` remote
@@ -64,7 +64,7 @@ manual checks to it.
 - **Needs:** none.
 - **Done when:**
   - Every listed file exists and contains no placeholder text.
-  - No file outside `D:\whisprflow\naad` is modified (Suki is untouched).
+  - No file outside the repository is modified.
   - Nothing is committed until approved.
 - **Verify:**
   - `git status` lists exactly the P1 files.
@@ -72,7 +72,6 @@ manual checks to it.
     ignored.
   - Every file uses LF line endings and UTF-8.
   - Every relative link in the Markdown files resolves.
-  - `git -C ../Suki status` is clean.
 
 ### P2: Solution skeleton and CI
 
