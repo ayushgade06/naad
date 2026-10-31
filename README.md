@@ -43,7 +43,8 @@ Choose **More info**, then **Run anyway**.
 2. Click into any text field.
 3. Hold **Right Ctrl**, speak, and release.
 
-Everything else is in **Settings...** in the tray menu. See
+A setup guide walks you through this on first start. Everything else is in
+Naad's window: double-click the tray icon. See
 [docs/settings.md](docs/settings.md) for every option.
 
 ## Requirements

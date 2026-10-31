@@ -956,3 +956,15 @@ and question marks best; Small left "three no wait four" in once.
 
 **Status after P28:** M-PV1 (except Groq), M-PV2 to M-PV5 have **not been
 run** by a person.
+
+## Main window and setup (P29): M-HB1 to M-HB5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-HB1 | Main window | Double-click the tray icon, or choose **Open Naad**. Visit every page; on Settings change a value and **Save**. Close the window during a dictation. | Home, History, Dictionary, Snippets and Settings open; Settings says "Saved." and the change applies. Closing the window doesn't affect the dictation. | Partly: on 2026-11-01 the window and its Home and Settings pages rendered off-screen in Light and Dark. Clicking: NOT RUN. |
+| M-HB2 | Theme | On the General tab choose **Dark**, save, reopen the window; then **Follow Windows** and switch Windows' app mode. | The window, its title bar and the settings follow; tab headers and drop-downs stay light (known limit). | Partly: rendered in both themes on 2026-11-01. |
+| M-HB3 | Setup guide | Rename `%APPDATA%\Naad` and start Naad. Go through every step: test the microphone, download the models, then dictate into the box. Run it again from **Re-run setup...**. | The guide opens on a fresh install. The level bar moves while speaking. After the try-it step, settings.json holds the choices and the dictation appears in the box. | **No.** It needs a voice and the microphone. The guide's first page rendered off-screen. |
+| M-HB4 | Tray menu | Open the tray menu: use **Start dictating** / **Stop dictating**, pick a microphone, **Re-run setup...**, **Settings...**. | The status line names the shortcut. Start/Stop records and transcribes. The microphone choice is saved. | **No.** |
+| M-HB5 | Hidden icon | Untick **Show Naad in the notification area**, save, then start Naad again from the Start menu. | The icon disappears; starting Naad again opens its window instead of a second copy. | Partly: the show-window signal is unit tested. |
+
+**Status after P29:** M-HB1 to M-HB5 have **not been run** by a person.

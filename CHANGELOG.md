@@ -33,9 +33,20 @@ All notable changes to Naad are listed here. The format follows
   cleans up on this PC if the models are downloaded, and says so once.
 - **Test** for transcription, and timeouts you can raise for slow servers.
 
+- **Naad's window**: Home, History, Dictionary, Snippets and Settings, in a
+  light or dark theme that follows Windows by default. Open it from the tray
+  menu or by double-clicking the icon.
+- **A setup guide** on first start: microphone test, models, AI cleanup, an
+  optional cloud key, your words, and a first dictation. Run it again from
+  the tray.
+- **A fuller tray menu**: Start/Stop dictating, the microphone, Open Naad
+  and Re-run setup. The icon can be hidden; starting Naad again opens it.
+- An error tone, a volume setting and **Preview**.
+
 ### Changed
 
-- Settings is split into **Dictation** and **AI** tabs.
+- Settings is split into **Dictation**, **AI** and **General** tabs, and
+  opens inside Naad's window.
 - API keys move to one encrypted file per service; Naad 1.0's key moves
   automatically. The development override is now `NAAD_<SERVICE>_API_KEY`
   (`NAAD_GROQ_API_KEY` still works for Groq). Settings version 3.

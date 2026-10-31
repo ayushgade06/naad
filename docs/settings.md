@@ -1,6 +1,8 @@
 # Settings
 
-The easiest way to change settings is **Settings...** in Naad's tray menu.
+The easiest way to change settings is **Settings...** in Naad's tray menu,
+which opens the Settings page of Naad's window. It has three tabs:
+**Dictation**, **AI** and **General**.
 Changes apply as soon as you click **Save**, without a restart; if you are
 dictating at that moment, they apply when the dictation ends.
 
@@ -14,6 +16,10 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "version": 3,
   "fileLogging": true,
   "playSounds": false,
+  "errorSound": false,
+  "soundVolume": 80,
+  "theme": "System",
+  "showTrayIcon": true,
   "dictationShortcut": "RightCtrl",
   "transcriptionProvider": "Local",
   "localModel": "Base",
@@ -45,6 +51,10 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `version` | integer | `3` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `playSounds` | `true` or `false` | `false` | Play a short, soft tone once Naad is listening and once it has stopped. Off by default: on a PC whose speakers go idle, waking them takes a second or more, so the start tone comes that long after the press; speak after it. |
+| `errorSound` | `true` or `false` | `false` | Play a low tone when a dictation fails. |
+| `soundVolume` | 0 to 100 | `80` | How loud the tones are. **Preview** on the General tab plays one. |
+| `theme` | `"System"`, `"Light"` or `"Dark"` | `"System"` | The look of Naad's window. `"System"` follows Windows' app mode. |
+| `showTrayIcon` | `true` or `false` | `true` | Show Naad in the notification area. When hidden, start Naad again (from the Start menu) to open its window. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 | `transcriptionProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where speech becomes text: `"Local"` transcribes on this PC with Whisper, offline and free, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)); `"Cloud"` uploads it to the service below. Naad never switches between them by itself. A version-1 file without this setting was using the cloud, so its migration keeps `"Cloud"`. |
 | `localModel` | `"Base"` or `"Turbo"` | `"Base"` | The Whisper model used on this PC: `"Base"` (148 MB, fast on any PC) or `"Turbo"` (large-v3-turbo, 574 MB, more accurate, for PCs with a graphics card). Each needs its own download; see [Transcribing on this PC](#transcribing-on-this-pc). |
