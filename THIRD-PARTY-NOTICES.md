@@ -10,6 +10,34 @@ Rules for keeping this file accurate:
 - When a dependency is added (a NuGet package, an asset or a model), add a
   section for it in the same commit: name, version, license and source URL.
 
+## LLamaSharp
+
+- Packages: `LLamaSharp` 0.30.0, `LLamaSharp.Backend.Cpu` 0.30.0 and
+  `LLamaSharp.Backend.Vulkan` 0.30.0
+- License: MIT, © 2023 Rinne and the LLamaSharp contributors
+- Source: https://github.com/SciSharp/LLamaSharp
+- The backend packages ship native builds of llama.cpp and ggml (MIT,
+  © The ggml authors, https://github.com/ggml-org/llama.cpp). The Vulkan
+  build uses the Vulkan loader installed with the graphics driver; Naad
+  doesn't ship the loader. Their Linux and macOS builds are left out of
+  Naad's output.
+- Used to run a language model on this PC (P26). Ships with Naad.
+
+## Language models (downloaded, not shipped)
+
+- `qwen2.5-1.5b-instruct-q4_k_m.gguf`, 1,117,320,736 bytes, SHA-256
+  `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`, from
+  https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF. Qwen2.5-1.5B-Instruct,
+  © Alibaba Cloud (Qwen team), Apache-2.0; 4-bit conversion by the Qwen team.
+- `Qwen3-4B-Instruct-2507-Q4_K_M.gguf`, 2,497,281,120 bytes, SHA-256
+  `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597`, from
+  https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF.
+  Qwen3-4B-Instruct-2507, © Alibaba Cloud (Qwen team), Apache-2.0; 4-bit
+  conversion by Unsloth AI, Apache-2.0.
+- Apache-2.0 allows redistribution and commercial use. Naad doesn't include
+  the models; one is downloaded only when the user asks for it in Settings,
+  and kept only if its checksum matches.
+
 ## NAudio
 
 - Packages: `NAudio.WinMM` 3.3.0, with its dependencies `NAudio.Core` 3.3.0

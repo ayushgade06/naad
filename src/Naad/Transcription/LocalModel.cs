@@ -33,9 +33,9 @@ internal enum ModelDownloadOutcome
 internal readonly record struct ModelDownloadResult(ModelDownloadOutcome Outcome, int Code = 0);
 
 /// <summary>
-/// The Whisper model for transcribing on this PC: where it lives, and its download. A file is
-/// only ever put in place after its SHA-256 matches the published one, so a damaged or tampered
-/// download is never loaded.
+/// A model file that runs on this PC, Whisper or a language model: where it lives, and its
+/// download. A file is only ever put in place after its SHA-256 matches the published one, so a
+/// damaged or tampered download is never loaded.
 /// </summary>
 /// <param name="path">Where the model is kept.</param>
 /// <param name="source">Where it is downloaded from.</param>
@@ -160,13 +160,17 @@ internal sealed class LocalModel(string path, Uri source, string sha256, long si
         }
     }
 
-    // A file from whisper.cpp's Hugging Face repository, kept in Naad's models folder.
-    private static LocalModel Published(string file, string sha256, long size) => new(
+    /// <summary>A file downloaded from <paramref name="source"/> into Naad's models folder.</summary>
+    public static LocalModel InModelsFolder(string file, Uri source, string sha256, long size) => new(
         System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Naad", "models", file),
-        new Uri($"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file}"),
+        source,
         sha256,
         size);
+
+    // A file from whisper.cpp's Hugging Face repository.
+    private static LocalModel Published(string file, string sha256, long size) => InModelsFolder(
+        file, new Uri($"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file}"), sha256, size);
 
     private static void TryDelete(string file)
     {

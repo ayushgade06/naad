@@ -91,6 +91,16 @@ internal enum LogEvent
     TranscriptCopied,
     TranscriptCopyFailed,
 
+    LocalLanguageModelLoaded,
+    LocalLanguageModelUnloaded,
+    LocalLanguageModelGpuFailed,
+    LocalLanguageModelFailed,
+    LanguageModelRetried,
+    LanguageModelTemperatureRefused,
+    TemperatureSupportWriteFailed,
+    LanguageModelDownloaded,
+    LanguageModelDownloadFailed,
+
     UpdateNotAvailable,
     UpdateAvailable,
     UpdateCheckFailed,

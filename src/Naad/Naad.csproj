@@ -24,6 +24,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="LLamaSharp" Version="0.30.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.30.0" />
+    <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.30.0" />
     <PackageReference Include="NAudio.WinMM" Version="3.3.0" />
     <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
@@ -31,12 +34,14 @@
     <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
 
-  <!-- Whisper.net.Runtime.Vulkan copies its Linux build (59 MB) into every output, whatever the
-       target; Naad runs only on Windows. -->
-  <Target Name="DropLinuxVulkanRuntime" BeforeTargets="AssignTargetPaths">
+  <!-- Whisper.net's and LLamaSharp's runtime packages copy their Linux and macOS builds (about
+       200 MB) into every output, whatever the target; Naad runs only on 64-bit Windows. -->
+  <Target Name="DropNonWindowsRuntimes" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
       <None Remove="@(None)"
-            Condition="$([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/vulkan/linux-x64/'))" />
+            Condition="$([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/vulkan/linux-x64/'))
+                       Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/linux-'))
+                       Or $([System.String]::Copy('%(None.TargetPath)').StartsWith('runtimes/osx-'))" />
     </ItemGroup>
   </Target>
 
