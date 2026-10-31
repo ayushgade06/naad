@@ -242,11 +242,8 @@ internal static class Program
             // Recording starts with focus on the window being dictated into, so the overlay
             // appears on that window's monitor.
             controller.StateChanged += state => overlay.ShowState(state, FocusGuard.Foreground().Handle);
-            if (sounds is not null)
-            {
-                controller.StateChanged += sounds.OnStateChanged;
-            }
-
+            controller.MicrophoneOpened += () => sounds?.PlayStart();
+            controller.MicrophoneClosed += () => sounds?.PlayStop();
             controller.StateChanged += state =>
             {
                 if (state == DictationState.Idle && pending is { } next)
@@ -438,17 +435,8 @@ internal static class Program
 
                 if (next.PlaySounds != settings.PlaySounds)
                 {
-                    if (sounds is not null)
-                    {
-                        controller.StateChanged -= sounds.OnStateChanged;
-                        sounds.Dispose();
-                    }
-
+                    sounds?.Dispose();
                     sounds = next.PlaySounds ? new SoundCues() : null;
-                    if (sounds is not null)
-                    {
-                        controller.StateChanged += sounds.OnStateChanged;
-                    }
                 }
 
                 hook.SetShortcut(next.DictationShortcut);

@@ -50,6 +50,12 @@ internal sealed class DictationController(
     /// <summary>The dictation state changed. Raised on the UI thread.</summary>
     public event Action<DictationState>? StateChanged;
 
+    /// <summary>The microphone is open and recording. Raised on the UI thread.</summary>
+    public event Action? MicrophoneOpened;
+
+    /// <summary>The microphone of a recording that opened is closed again. Raised on the UI thread.</summary>
+    public event Action? MicrophoneClosed;
+
     /// <summary>The microphone could not be opened for a dictation. Raised on the UI thread.</summary>
     public event Action<MicrophoneError>? MicrophoneFailed;
 
@@ -226,6 +232,7 @@ internal sealed class DictationController(
         }
 
         Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(time.GetElapsedTime(pressedAt))));
+        MicrophoneOpened?.Invoke();
         return true;
     }
 
@@ -237,8 +244,22 @@ internal sealed class DictationController(
         return stop;
     }
 
-    private async Task<byte[]?> StopAfterStartAsync(Task<bool> starting) =>
-        await starting ? await recorder.StopAsync() : null;
+    private async Task<byte[]?> StopAfterStartAsync(Task<bool> starting)
+    {
+        if (!await starting)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await recorder.StopAsync();
+        }
+        finally
+        {
+            MicrophoneClosed?.Invoke();
+        }
+    }
 
     // ponytail: every recording leaves a five-minute timer behind, ignored by job id once the
     // recording ends; cancel it per job if many short dictations ever show up in memory use.

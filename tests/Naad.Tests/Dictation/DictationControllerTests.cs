@@ -38,6 +38,28 @@ public sealed class DictationControllerTests : IDisposable
         Assert.Empty(_h.Kept);
     }
 
+    // The tones hang off these events. Played while the device opens or stops, a tone stalled
+    // WinMM capture by over a second, so each event comes after the device call, never before.
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(200)]
+    public async Task Dictate_RaisesMicrophoneOpenedAfterStartAndClosedAfterStop(int holdMs)
+    {
+        await _h.DictateAsync(TimeSpan.FromMilliseconds(holdMs));
+
+        Assert.Equal(["start", "opened", "stop", "closed"], _h.Recorder.Calls);
+    }
+
+    [Fact]
+    public async Task Dictate_MicrophoneFails_RaisesNeitherMicrophoneEvent()
+    {
+        _h.Recorder.Failure = new MicrophoneFailure(MicrophoneError.InUse, 4);
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(["start"], _h.Recorder.Calls);
+    }
+
     [Fact]
     public async Task Dictate_Twice_BothArePasted()
     {
@@ -453,6 +475,8 @@ public sealed class DictationControllerTests : IDisposable
             Controller.TranscriptionFailed += TranscriptionErrors.Add;
             Controller.TranscriptKept += Kept.Add;
             Controller.NothingHeard += () => NothingHeard++;
+            Controller.MicrophoneOpened += () => Recorder.Calls.Add("opened");
+            Controller.MicrophoneClosed += () => Recorder.Calls.Add("closed");
         }
 
         public UiThread Ui { get; } = new();
@@ -557,14 +581,21 @@ public sealed class DictationControllerTests : IDisposable
 
         public Exception? StopError { get; set; }
 
+        // Device calls and the controller's microphone events, in order. They never overlap.
+        public List<string> Calls { get; } = [];
+
         public MicrophoneFailure? Start()
         {
             Interlocked.Increment(ref _starts);
+            Calls.Add("start");
             return Failure;
         }
 
-        public Task<byte[]> StopAsync() =>
-            StopError is null ? Task.FromResult(Pcm) : Task.FromException<byte[]>(StopError);
+        public Task<byte[]> StopAsync()
+        {
+            Calls.Add("stop");
+            return StopError is null ? Task.FromResult(Pcm) : Task.FromException<byte[]>(StopError);
+        }
     }
 
     private sealed class FakeTranscriber : ITranscriber

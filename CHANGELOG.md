@@ -62,6 +62,11 @@ All notable changes to Naad are listed here. The format follows
 - At the five-minute limit the text is pasted as soon as you let go of the
   shortcut. With a modifier shortcut such as Right Ctrl, it used to be kept
   instead of pasted.
+- The tones no longer hold up the microphone: the start tone plays once
+  Naad is listening and the stop tone once the microphone is closed. Played
+  at the press and release, they delayed opening and closing the microphone
+  by over a second on some PCs, lost the first words, and made typing lag
+  right after a dictation.
 
 ## [0.1.0] - Unreleased
 
