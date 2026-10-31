@@ -27,6 +27,10 @@ internal sealed class DictationController(
     Func<WindowTarget, InsertionDecision> checkTarget,
     TimeProvider time) : IDisposable
 {
+    // At the time limit the user learns from the stop tone or the icon that recording ended, then
+    // lets go of the shortcut. Held longer than this, the transcript is kept instead.
+    private static readonly TimeSpan TimeLimitReleaseTimeout = TimeSpan.FromSeconds(30);
+
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
     private ITranscriber? _transcriber = transcriber;
@@ -188,7 +192,7 @@ internal sealed class DictationController(
                 _ = DiscardAsync(e, step.Held);
                 break;
             case DictationAction.Transcribe:
-                _ = TranscribeAsync(step, time.GetTimestamp());
+                _ = TranscribeAsync(step, time.GetTimestamp(), atTimeLimit: e == DictationEvent.MaxDurationReached);
                 break;
         }
 
@@ -271,7 +275,7 @@ internal sealed class DictationController(
         }
     }
 
-    private async Task TranscribeAsync(DictationStep step, long releasedAt)
+    private async Task TranscribeAsync(DictationStep step, long releasedAt, bool atTimeLimit)
     {
         // Read before the first await: Dispose may dispose the source later, and a transcriber
         // swapped in meanwhile is for the next dictation.
@@ -339,6 +343,13 @@ internal sealed class DictationController(
             if (Apply(DictationEvent.Transcribed, job).Action != DictationAction.Insert)
             {
                 return;
+            }
+
+            // At the time limit the shortcut is still held, and a modifier shortcut such as Right
+            // Ctrl would make the paste give up at once; so it waits for the user to let go.
+            if (atTimeLimit)
+            {
+                await inserter.WaitForModifiersReleasedAsync(TimeLimitReleaseTimeout, shutdown);
             }
 
             await InsertAsync(text, target, releasedAt, shutdown);

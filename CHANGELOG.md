@@ -59,6 +59,9 @@ All notable changes to Naad are listed here. The format follows
 
 - **Cancel** and Esc in the settings window close it, which also stops a
   model download in progress. They did nothing before.
+- At the five-minute limit the text is pasted as soon as you let go of the
+  shortcut. With a modifier shortcut such as Right Ctrl, it used to be kept
+  instead of pasted.
 
 ## [0.1.0] - Unreleased
 
