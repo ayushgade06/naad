@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Naad.Audio;
+using Naad.Cleanup;
 using Naad.Hotkey;
 using Naad.Insertion;
 using Naad.Transcription;
@@ -34,6 +35,7 @@ internal sealed class DictationController(
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
     private ITranscriber? _transcriber = transcriber;
+    private ITranscriptCleanup? _cleanup;
     private bool _handsFree;
     private Task<bool> _starting = Task.FromResult(false);
 
@@ -68,6 +70,15 @@ internal sealed class DictationController(
     /// </summary>
     public event Action? TranscriberMissing;
 
+    /// <summary>The transcript is being cleaned up by the language model. Raised on the UI thread.</summary>
+    public event Action? CleaningUp;
+
+    /// <summary>
+    /// Cleanup failed, ran out of time or gave an unusable reply, so the transcript is pasted as
+    /// it was said. Raised on the UI thread.
+    /// </summary>
+    public event Action? CleanupFellBack;
+
     /// <summary>The transcription service failed. Raised on the UI thread.</summary>
     public event Action<TranscriptionError>? TranscriptionFailed;
 
@@ -95,6 +106,12 @@ internal sealed class DictationController(
     /// on the UI thread.
     /// </summary>
     public void UseTranscriber(ITranscriber? replacement) => _transcriber = replacement;
+
+    /// <summary>
+    /// Tidies transcripts with <paramref name="replacement"/> from the next dictation on; null
+    /// pastes them as said. Call on the UI thread.
+    /// </summary>
+    public void UseCleanup(ITranscriptCleanup? replacement) => _cleanup = replacement;
 
     /// <summary>
     /// Hands-free: a press starts recording and the next press stops it; releasing the shortcut
@@ -191,6 +208,7 @@ internal sealed class DictationController(
         {
             case DictationAction.StartRecording:
                 _target = captureTarget();
+                _cleanup?.Prepare();
                 _starting = StartRecordingAsync(step.Job, _stopped, time.GetTimestamp());
                 _ = StopAtMaxDurationAsync(step.Job, _shutdown.Token);
                 break;
@@ -302,6 +320,7 @@ internal sealed class DictationController(
         // swapped in meanwhile is for the next dictation.
         var shutdown = _shutdown.Token;
         var service = _transcriber;
+        var cleanup = _cleanup;
         var job = step.Job;
 
         // The window the user was in when they pressed the shortcut, never whatever has focus now.
@@ -352,6 +371,11 @@ internal sealed class DictationController(
                 LogEvent.TranscriptionCompleted,
                 ("request_ms", Milliseconds(time.GetElapsedTime(requestStart))),
                 ("chars", text.Length));
+            if (text.Length > 0 && cleanup is not null)
+            {
+                text = await CleanAsync(cleanup, text, shutdown);
+            }
+
             if (text.Length == 0)
             {
                 Log.Info(LogEvent.TranscriptionEmpty);
@@ -393,6 +417,19 @@ internal sealed class DictationController(
                 : DictationEvent.TranscriptionFailed;
             Apply(end, job);
         }
+    }
+
+    // Never throws for a failed cleanup: the worst case is the transcript as it was said.
+    private async Task<string> CleanAsync(ITranscriptCleanup cleanup, string text, CancellationToken shutdown)
+    {
+        CleaningUp?.Invoke();
+        var cleaned = await cleanup.CleanAsync(text, shutdown);
+        if (cleaned.Outcome == CleanupOutcome.FellBack)
+        {
+            CleanupFellBack?.Invoke();
+        }
+
+        return cleaned.Text;
     }
 
     // Text goes only into the window the user dictated into, and only if it can take input.
