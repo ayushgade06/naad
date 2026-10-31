@@ -39,6 +39,29 @@ public sealed class DictationControllerCleanupTests : IDisposable
     }
 
     [Fact]
+    public async Task Dictate_CleanupThrows_PastesTheTranscriptAndSaysSo()
+    {
+        _h.Controller.UseCleanup(new FakeCleanup(default) { Error = new ObjectDisposedException("model") });
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(1, _h.CleanupFallbacks);
+        Assert.Equal(1, _h.Pastes);
+        Assert.Empty(_h.Kept);
+    }
+
+    [Fact]
+    public async Task Dictate_CleanupWithoutAModel_NeverSaysCleaningUp()
+    {
+        _h.Controller.UseCleanup(new FakeCleanup(new("Basic.", CleanupOutcome.Basic)) { UsesModel = false });
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(0, _h.Cleanups);
+        Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
     public async Task Dictate_CleanupSaysEmpty_PastesNothing()
     {
         _h.Controller.UseCleanup(new FakeCleanup(new("", CleanupOutcome.Empty)));

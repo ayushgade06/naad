@@ -29,6 +29,9 @@ internal readonly record struct CleanupResult(string Text, CleanupOutcome Outcom
 /// <summary>Turns a transcript into the text to paste. Never fails: the worst case is the transcript itself.</summary>
 internal interface ITranscriptCleanup
 {
+    /// <summary>Whether a language model runs, so the user is told it is cleaning up.</summary>
+    bool UsesModel { get; }
+
     /// <summary>A dictation started: a model on this PC may start loading while the user speaks.</summary>
     void Prepare();
 

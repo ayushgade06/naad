@@ -101,6 +101,8 @@ internal enum LogEvent
     RateLimitWriteFailed,
     CleanupCompleted,
     CleanupFellBack,
+    CleanupModelFailed,
+    CleanupReplyRefused,
     CleanupFallbackModelUsed,
     CleanupSkippedCoolingDown,
     CleanupPromptTested,

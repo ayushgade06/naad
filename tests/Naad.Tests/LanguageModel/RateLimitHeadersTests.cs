@@ -36,6 +36,15 @@ public sealed class RateLimitHeadersTests
     }
 
     [Fact]
+    public void Read_NoRequestsLeftThisMinute_IsNotDaily()
+    {
+        var read = RateLimitHeaders.Read(Headers(
+            ("x-ratelimit-remaining-requests", "0"), ("x-ratelimit-reset-requests", "1s"), ("retry-after", "1")));
+
+        Assert.Equal((TimeSpan.FromSeconds(1), false), read);
+    }
+
+    [Fact]
     public void Read_RetryAfter_WinsOverTheTokenReset()
     {
         var read = RateLimitHeaders.Read(Headers(

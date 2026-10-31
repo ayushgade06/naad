@@ -18,8 +18,21 @@ public sealed class BasicCleanupTests
     [InlineData("send it to the summary team", "Send it to the summary team.")]
     [InlineData("call 911", "Call 911.")]
     [InlineData("ok , so", "Ok, so.")]
+    [InlineData("call 5 5 5 1 2 3 4", "Call 5 5 5 1 2 3 4.")]
+    [InlineData("no, no, no", "No, no, no.")]
+    [InlineData("first line\nsecond line", "First line\nsecond line.")]
     public void Clean_Transcript_AppliesTheRules(string transcript, string expected)
     {
         Assert.Equal(expected, BasicCleanup.Clean(transcript));
+    }
+
+    [Theory]
+    [InlineData("we should meet", "We should meet.")]
+    [InlineData("Dear team,\n\nthanks um", "Dear team,\n\nthanks um.")]
+    [InlineData("Done?", "Done?")]
+    [InlineData("  ", "")]
+    public void Finish_ModelText_OnlyAddsTheCapitalAndStop(string text, string expected)
+    {
+        Assert.Equal(expected, BasicCleanup.Finish(text));
     }
 }

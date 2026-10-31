@@ -1,4 +1,5 @@
 using Naad.Audio;
+using Naad.Insertion;
 using Naad.Transcription;
 
 namespace Naad.Dictation;
@@ -65,6 +66,26 @@ internal static class DictationLog
                 break;
             default:
                 Log.Warn(LogEvent.TranscriptionFailed, ("http_status", failure.Code));
+                break;
+        }
+    }
+
+    /// <summary>Logs how text that went in got there; failed outcomes are logged when the text is kept.</summary>
+    public static void Inserted(InsertionOutcome outcome, int chars)
+    {
+        switch (outcome)
+        {
+            case InsertionOutcome.PastedClipboardChanged:
+                Log.Info(LogEvent.ClipboardRestoreSkippedChanged);
+                break;
+            case InsertionOutcome.PastedRestoreFailed:
+                Log.Warn(LogEvent.ClipboardRestoreFailed);
+                break;
+            case InsertionOutcome.Typed:
+                Log.Info(LogEvent.InsertedByTyping, ("chars", chars));
+                break;
+            case InsertionOutcome.Cancelled:
+                Log.Info(LogEvent.DictationCancelledByShutdown);
                 break;
         }
     }

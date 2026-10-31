@@ -31,11 +31,15 @@ internal sealed class TranscriptCleanup(CleanupLevel level, AiCleanup? ai, TimeS
     /// </summary>
     public static readonly TimeSpan Budget = TimeSpan.FromSeconds(8);
 
+    private static int _fallbacks;
+
+    public bool UsesModel => ai is not null && (level == CleanupLevel.Ai || ai.Translates);
+
     public void Prepare()
     {
-        if (ai is not null && (level == CleanupLevel.Ai || ai.Translates))
+        if (UsesModel)
         {
-            ai.Prepare();
+            ai!.Prepare();
         }
     }
 
@@ -46,7 +50,12 @@ internal sealed class TranscriptCleanup(CleanupLevel level, AiCleanup? ai, TimeS
         var milliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (result.Outcome == CleanupOutcome.FellBack)
         {
-            Log.Warn(LogEvent.CleanupFellBack, ("reason", (int)reason), ("cleanup_ms", milliseconds));
+            // The count since Naad started shows how often AI cleanup is failing the user.
+            Log.Warn(
+                LogEvent.CleanupFellBack,
+                ("reason", (int)reason),
+                ("cleanup_ms", milliseconds),
+                ("count", Interlocked.Increment(ref _fallbacks)));
         }
         else
         {
@@ -66,8 +75,7 @@ internal sealed class TranscriptCleanup(CleanupLevel level, AiCleanup? ai, TimeS
     {
         var text = level == CleanupLevel.Off ? transcript : BasicCleanup.Clean(transcript);
         var outcome = level == CleanupLevel.Off ? CleanupOutcome.Unchanged : CleanupOutcome.Basic;
-        var useModel = ai is not null && (level == CleanupLevel.Ai || ai.Translates);
-        if (!useModel)
+        if (!UsesModel)
         {
             return (new(text, outcome), FallbackReason.None);
         }
@@ -76,9 +84,11 @@ internal sealed class TranscriptCleanup(CleanupLevel level, AiCleanup? ai, TimeS
         timeout.CancelAfter(budget ?? Budget);
         try
         {
-            return level == CleanupLevel.Ai
-                ? await ai!.CleanAsync(transcript, timeout.Token)
-                : await ai!.TranslateAsync(text, timeout.Token);
+            // WaitAsync holds the budget even when the model can't stop at once, as while it loads.
+            var running = level == CleanupLevel.Ai
+                ? ai!.CleanAsync(transcript, timeout.Token)
+                : ai!.TranslateAsync(text, timeout.Token);
+            return await running.WaitAsync(timeout.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

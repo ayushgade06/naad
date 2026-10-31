@@ -54,6 +54,7 @@ internal sealed class CleanupPromptDialog : Form
         var reset = new Button { Text = "Reset to default", AutoSize = true };
         reset.Click += (_, _) => _prompt.Text = CleanupPrompt.DefaultInstructions.ReplaceLineEndings("\r\n");
         _testButton.Click += (_, _) => _ = TestAsync();
+        _sample.TextChanged += (_, _) => _testButton.Enabled = _sample.Text.Trim().Length > 0;
         var ok = new Button { Text = "OK", AutoSize = true };
         var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
         ok.Click += (_, _) => Accept();
@@ -68,13 +69,15 @@ internal sealed class CleanupPromptDialog : Form
         };
         if (custom is not null && string.CompareOrdinal(version ?? "", CleanupPrompt.DefaultVersion) < 0)
         {
+            var switchToDefault = new Button { Text = "Switch to default", AutoSize = true };
+            switchToDefault.Click += (_, _) => reset.PerformClick();
             layout.Controls.Add(new Label
             {
-                Text = "A newer default prompt is available. Reset to default to use it; your prompt is kept " +
-                    "until you save.",
+                Text = "A newer default prompt is available. Your own prompt is kept until you switch and click OK.",
                 AutoSize = true,
                 MaximumSize = new Size(TextWidth, 0),
             });
+            layout.Controls.Add(switchToDefault);
         }
 
         layout.Controls.Add(new Label { Text = "Instructions for the language model", AutoSize = true });

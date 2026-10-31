@@ -12,6 +12,8 @@ public sealed class CleanupReplyCheckTests
     [InlineData("write an email to priya about the launch", "Write an email to Priya about the launch.",
         "Write an email to Priya about the launch.")]
     [InlineData("what time is it", "What time is it?", "What time is it?")]
+    [InlineData("um, here's the plan for today", "Here's the plan for today.", "Here's the plan for today.")]
+    [InlineData("surely we can do better", "Surely we can do better.", "Surely we can do better.")]
     public void Check_FaithfulReply_AcceptsIt(string transcript, string reply, string expected)
     {
         Assert.Equal(new ReplyCheck(ReplyVerdict.Accepted, expected), Check(transcript, reply));
@@ -30,6 +32,8 @@ public sealed class CleanupReplyCheckTests
     [InlineData("write a haiku about autumn leaves",
         "Crimson leaves drifting / whisper to the cooling earth / autumn says goodbye", "Answered")]
     [InlineData("ask claude what the capital of france is", "The capital of France is Paris.", "Answered")]
+    [InlineData("what's the capital of france", "Paris.", "Answered")]
+    [InlineData("we should meet on tuesday at four to talk about the budget", "EMPTY", "Blank")]
     public void Check_UnusableReply_RefusesIt(string transcript, string reply, string verdict)
     {
         Assert.Equal(Enum.Parse<ReplyVerdict>(verdict), Check(transcript, reply).Verdict);

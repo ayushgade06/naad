@@ -93,7 +93,7 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
             var result = await model.CompleteAsync(prompt, token);
             if (result.Failure is { } failure)
             {
-                Log.Warn(LogEvent.CleanupFellBack, ("error", (int)failure.Error), ("code", failure.Code));
+                Log.Warn(LogEvent.CleanupModelFailed, ("error", (int)failure.Error), ("code", failure.Code));
                 if (failure.Error != CompletionError.RateLimited)
                 {
                     return (Raw(transcript), FallbackReason.Failed);
@@ -108,12 +108,14 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
             switch (check.Verdict)
             {
                 case ReplyVerdict.Accepted:
-                    // Small models sometimes leave the first letter small or the last stop off.
-                    return (new(BasicCleanup.Clean(check.Text), CleanupOutcome.Cleaned), FallbackReason.None);
+                    // Small models sometimes leave the first letter small or the last stop off; a
+                    // translation is left as the model wrote it.
+                    var text = Translates ? check.Text : BasicCleanup.Finish(check.Text);
+                    return (new(text, CleanupOutcome.Cleaned), FallbackReason.None);
                 case ReplyVerdict.Empty:
                     return (new("", CleanupOutcome.Empty), FallbackReason.None);
                 default:
-                    Log.Warn(LogEvent.CleanupFellBack, ("verdict", (int)check.Verdict));
+                    Log.Warn(LogEvent.CleanupReplyRefused, ("verdict", (int)check.Verdict));
                     reason = FallbackReason.Rejected;
                     break;
             }

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Naad.Audio;
 using Naad.Cleanup;
 using Naad.Hotkey;
@@ -419,17 +418,30 @@ internal sealed class DictationController(
         }
     }
 
-    // Never throws for a failed cleanup: the worst case is the transcript as it was said.
+    // Never loses the transcript: a cleanup that throws is treated like one that fell back.
     private async Task<string> CleanAsync(ITranscriptCleanup cleanup, string text, CancellationToken shutdown)
     {
-        CleaningUp?.Invoke();
-        var cleaned = await cleanup.CleanAsync(text, shutdown);
-        if (cleaned.Outcome == CleanupOutcome.FellBack)
+        if (cleanup.UsesModel)
         {
-            CleanupFellBack?.Invoke();
+            CleaningUp?.Invoke();
         }
 
-        return cleaned.Text;
+        try
+        {
+            var cleaned = await cleanup.CleanAsync(text, shutdown);
+            if (cleaned.Outcome == CleanupOutcome.FellBack)
+            {
+                CleanupFellBack?.Invoke();
+            }
+
+            return cleaned.Text;
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !shutdown.IsCancellationRequested)
+        {
+            Log.Error(LogEvent.CleanupFellBack, e);
+            CleanupFellBack?.Invoke();
+            return text;
+        }
     }
 
     // Text goes only into the window the user dictated into, and only if it can take input.
@@ -439,7 +451,7 @@ internal sealed class DictationController(
         var decision = checkTarget(target);
         if (decision != InsertionDecision.Insert)
         {
-            KeepForDecision(text, decision);
+            Keep(text, InsertionOutcomes.ForDecision(decision));
             return;
         }
 
@@ -454,69 +466,31 @@ internal sealed class DictationController(
             Log.Warn(LogEvent.ClipboardFormatsSkipped, ("formats", inserter.LastSkippedFormats));
         }
 
+        DictationLog.Inserted(outcome, text.Length);
         switch (outcome)
         {
-            case InsertionOutcome.Pasted:
-                break;
-            case InsertionOutcome.PastedClipboardChanged:
-                Log.Info(LogEvent.ClipboardRestoreSkippedChanged);
-                break;
-            case InsertionOutcome.PastedRestoreFailed:
-                Log.Warn(LogEvent.ClipboardRestoreFailed);
-                break;
-            case InsertionOutcome.Typed:
-                Log.Info(LogEvent.InsertedByTyping, ("chars", text.Length));
-                break;
             case InsertionOutcome.TargetChanged:
                 // Focus moved while waiting for the modifiers; say why as precisely as possible.
                 var now = checkTarget(target);
-                KeepForDecision(text, now == InsertionDecision.Insert ? InsertionDecision.FocusChanged : now);
-                break;
-            case InsertionOutcome.ModifiersHeld:
-                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.PasteSkippedModifiersHeld);
-                break;
-            case InsertionOutcome.PasteRejected:
-                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.PasteRejected);
-                break;
-            case InsertionOutcome.ClipboardUnavailable:
-                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.ClipboardUnavailable);
-                break;
-            case InsertionOutcome.TypedPartially:
-                Keep(text, TranscriptKeptReason.NotInserted, LogEvent.TypingIncomplete);
-                break;
-            case InsertionOutcome.Cancelled:
-                Log.Info(LogEvent.DictationCancelledByShutdown);
+                Keep(text, InsertionOutcomes.ForDecision(now == InsertionDecision.Insert
+                    ? InsertionDecision.FocusChanged
+                    : now));
                 break;
             default:
-                // The session allows one insertion at a time, so the inserter is never busy here.
-                throw new UnreachableException($"Unexpected insertion outcome {outcome}.");
-        }
-    }
+                if (InsertionOutcomes.ForFailure(outcome) is { } kept)
+                {
+                    Keep(text, kept);
+                }
 
-    private void KeepForDecision(string text, InsertionDecision decision)
-    {
-        switch (decision)
-        {
-            case InsertionDecision.TargetElevated:
-                Keep(text, TranscriptKeptReason.TargetElevated, LogEvent.PasteSkippedTargetElevated);
-                break;
-            case InsertionDecision.TargetClosed:
-                Keep(text, TranscriptKeptReason.WindowChanged, LogEvent.PasteSkippedTargetClosed);
-                break;
-            case InsertionDecision.NoTarget:
-                Keep(text, TranscriptKeptReason.WindowChanged, LogEvent.PasteSkippedNoTarget);
-                break;
-            default:
-                Keep(text, TranscriptKeptReason.WindowChanged, LogEvent.PasteSkippedFocusChanged);
                 break;
         }
     }
 
-    private void Keep(string text, TranscriptKeptReason reason, LogEvent logEvent)
+    private void Keep(string text, KeptFor kept)
     {
         _keptTranscript = text;
-        Log.Warn(logEvent);
-        TranscriptKept?.Invoke(reason);
+        Log.Warn(kept.Event);
+        TranscriptKept?.Invoke(kept.Reason);
     }
 
     private static long Milliseconds(TimeSpan duration) => DictationLog.Milliseconds(duration);

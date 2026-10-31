@@ -47,6 +47,10 @@ internal static partial class CleanupReplyCheck
     // Below this share of the transcript's words, a reply is about something else.
     private const double MinOverlap = 0.35;
 
+    // A model may call only a short dictation empty ("okay", "hmm right"): one that says EMPTY to
+    // more has misread its instructions, and the transcript is kept.
+    private const int MaxWordsForEmpty = 3;
+
     private static readonly string[] Preambles =
     [
         "sure", "certainly", "of course", "here is", "here's", "here are", "okay, here", "ok, here",
@@ -74,9 +78,10 @@ internal static partial class CleanupReplyCheck
     public static ReplyCheck Check(string transcript, string reply, bool translating, bool guard)
     {
         var text = Unquote(reply.Trim());
+        var said = BasicCleanup.Clean(transcript);
         if (text.TrimEnd('.').Equals(CleanupPrompt.EmptyReply, StringComparison.Ordinal))
         {
-            return new(ReplyVerdict.Empty);
+            return new(Words(said).Count() <= MaxWordsForEmpty ? ReplyVerdict.Empty : ReplyVerdict.Blank);
         }
 
         if (text.Length == 0)
@@ -84,7 +89,7 @@ internal static partial class CleanupReplyCheck
             return new(ReplyVerdict.Blank);
         }
 
-        if (StartsWithPreamble(text) && !StartsWithPreamble(transcript.Trim()))
+        if (StartsWithPreamble(text) && !StartsWithPreamble(said))
         {
             return new(ReplyVerdict.Preamble);
         }
@@ -95,12 +100,12 @@ internal static partial class CleanupReplyCheck
             return new(ReplyVerdict.TooLong);
         }
 
-        // Only a dictation that reads like a request can be "answered": the reply then drops the
-        // request's own words ("write", "ask Claude") or most of what was said. A translation
-        // shares no words, so it is never judged this way.
+        // An answer drops most of what was said ("What's the capital of France?" becomes "Paris"),
+        // or a request's own words ("write", "ask Claude"). A translation shares no words, so it is
+        // never judged this way.
         var markers = Words(transcript).Where(Markers.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (guard && !translating && markers.Count > 0
-            && (!Words(text).Any(markers.Contains) || Overlap(transcript, text) < MinOverlap))
+        if (guard && !translating
+            && (Overlap(transcript, text) < MinOverlap || (markers.Count > 0 && !Words(text).Any(markers.Contains))))
         {
             return new(ReplyVerdict.Answered);
         }
@@ -112,8 +117,10 @@ internal static partial class CleanupReplyCheck
     private static string Unquote(string text) =>
         text.Length >= 2 && text[0] is '"' or '“' && text[^1] is '"' or '”' ? text[1..^1].Trim() : text;
 
-    private static bool StartsWithPreamble(string text) =>
-        Preambles.Any(p => text.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+    // A whole phrase: "Sure, …" but not "Surely" or "Suresh".
+    private static bool StartsWithPreamble(string text) => Preambles.Any(p =>
+        text.StartsWith(p, StringComparison.OrdinalIgnoreCase)
+        && (text.Length == p.Length || !char.IsLetterOrDigit(text[p.Length])));
 
     // The share of the transcript's content words that the reply kept.
     private static double Overlap(string transcript, string reply)

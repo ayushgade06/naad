@@ -195,6 +195,10 @@ internal sealed class FakeTranscriber : ITranscriber
 
 internal sealed class FakeCleanup(CleanupResult result) : ITranscriptCleanup
 {
+    public bool UsesModel { get; init; } = true;
+
+    public Exception? Error { get; init; }
+
     public int Prepared { get; private set; }
 
     public List<string> Cleaned { get; } = [];
@@ -204,6 +208,6 @@ internal sealed class FakeCleanup(CleanupResult result) : ITranscriptCleanup
     public Task<CleanupResult> CleanAsync(string transcript, CancellationToken cancellationToken)
     {
         Cleaned.Add(transcript);
-        return Task.FromResult(result);
+        return Error is null ? Task.FromResult(result) : Task.FromException<CleanupResult>(Error);
     }
 }

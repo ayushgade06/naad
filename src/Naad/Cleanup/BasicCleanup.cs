@@ -9,7 +9,8 @@ namespace Naad.Cleanup;
 /// </summary>
 internal static partial class BasicCleanup
 {
-    // Words that are legitimately doubled in English ("he had had", "that that is").
+    // Words that are legitimately doubled in English ("he had had", "that that is"). Numbers and
+    // words separated by a comma ("no, no, no") are never collapsed.
     private static readonly HashSet<string> Doubled = new(StringComparer.OrdinalIgnoreCase) { "had", "that" };
 
     public static string Clean(string transcript)
@@ -24,7 +25,22 @@ internal static partial class BasicCleanup
             return "";
         }
 
-        var result = new StringBuilder(text);
+        return Finish(text);
+    }
+
+    /// <summary>
+    /// Only a capital first letter and a final full stop, keeping everything else, line breaks
+    /// included: for text a language model already tidied.
+    /// </summary>
+    public static string Finish(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder(trimmed);
         result[0] = char.ToUpper(result[0], System.Globalization.CultureInfo.CurrentCulture);
         if (char.IsLetterOrDigit(result[^1]))
         {
@@ -38,10 +54,10 @@ internal static partial class BasicCleanup
     [GeneratedRegex(@"\b(?:u+m+|u+h+m*|e+r+m+|e+r+|a+h+|h+m+|m{2,})\b[,.…]*", RegexOptions.IgnoreCase)]
     private static partial Regex Filler();
 
-    [GeneratedRegex(@"\b(\w+)(?:[\s,]+\1\b)+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(\p{L}+)(?:[ \t]+\1\b)+", RegexOptions.IgnoreCase)]
     private static partial Regex RepeatedWord();
 
-    [GeneratedRegex(@"\s{2,}")]
+    [GeneratedRegex(@"[ \t]{2,}")]
     private static partial Regex Spaces();
 
     [GeneratedRegex(@"\s+([,.;:!?])")]
