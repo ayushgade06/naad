@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Naad.LanguageModel;
+using Naad.Providers;
 using Naad.Settings;
+using Naad.Transcription;
 
 namespace Naad.Cleanup;
 
@@ -23,23 +25,40 @@ internal static class CleanupSetup
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(90);
 
     /// <summary>
-    /// The language model the settings choose, or null when it can't run yet. <paramref name="key"/>
-    /// is the language model key, or null.
+    /// The language model the settings choose, or null when it can't run yet. A cloud model falls
+    /// back to the model on this PC when offline, if that is downloaded.
     /// </summary>
+    /// <param name="http">Shared and owned by the caller.</param>
+    /// <param name="keyFor">A service's API key, or null.</param>
+    /// <param name="s">The settings.</param>
+    /// <param name="temperature">Which cloud models refused a temperature.</param>
+    /// <param name="offline">Called when the model on this PC answered because the PC was offline.</param>
     public static ILanguageModel? CreateModel(
-        HttpClient http, string? key, AppSettings s, TemperatureSupport temperature) =>
-        LanguageModelSelection.Choose(
+        HttpClient http,
+        Func<CloudService, string?> keyFor,
+        AppSettings s,
+        TemperatureSupport temperature,
+        Action offline)
+    {
+        var file = LanguageModelFiles.For(s.LocalLanguageModel);
+        var key = keyFor(s.LanguageModelService);
+        var url = CloudServices.For(s.LanguageModelService).BaseUrl ?? s.LanguageModelBaseUrl;
+        ILanguageModel Local() => new LocalLanguageModel(file.Path, TimeProvider.System);
+        ILanguageModel Cloud(string model) => new OpenAiChatLanguageModel(
+            http, key, url, model, temperature, TimeSpan.FromSeconds(s.LanguageModelTimeoutSeconds));
+        return LanguageModelSelection.Choose(
             s.LanguageModelProvider,
             key is not null,
-            s.LanguageModelBaseUrl.IsLoopback,
-            LanguageModelFiles.For(s.LocalLanguageModel).IsReady()) switch
+            s.LanguageModelService == CloudService.Custom && url.IsLoopback,
+            file.IsReady()) switch
         {
-            LanguageModelProvider.Cloud => new OpenAiChatLanguageModel(
-                http, key, s.LanguageModelBaseUrl, s.LanguageModelName, temperature),
-            LanguageModelProvider.Local => new LocalLanguageModel(
-                LanguageModelFiles.For(s.LocalLanguageModel).Path, TimeProvider.System),
+            LanguageModelProvider.Cloud when file.IsReady() => new OfflineFallbackLanguageModel(
+                Cloud(s.LanguageModelName), () => file.IsReady() ? Local() : null, Reachability.IsOnline, offline),
+            LanguageModelProvider.Cloud => Cloud(s.LanguageModelName),
+            LanguageModelProvider.Local => Local(),
             _ => null,
         };
+    }
 
     /// <summary>
     /// The cleanup step for <paramref name="s"/>, using <paramref name="model"/> and, in the
@@ -48,27 +67,29 @@ internal static class CleanupSetup
     public static TranscriptCleanup Create(
         ILanguageModel? model,
         HttpClient http,
-        string? key,
+        Func<CloudService, string?> keyFor,
         AppSettings s,
         TemperatureSupport temperature,
         RateLimitCooldowns cooldowns)
     {
+        var budget = TimeSpan.FromSeconds(s.LanguageModelTimeoutSeconds);
         if (model is null)
         {
-            return new(s.Cleanup, ai: null);
+            return new(s.Cleanup, ai: null, budget);
         }
 
         // Rate limits are per cloud model; a model on this PC has none.
-        var models = new List<NamedModel> { new(model is LocalLanguageModel ? "local" : s.LanguageModelName, model) };
-        if (model is OpenAiChatLanguageModel && s.LanguageModelFallbackName is { } fallback
-            && fallback != s.LanguageModelName)
+        var cloud = s.LanguageModelProvider == LanguageModelProvider.Cloud;
+        var models = new List<NamedModel> { new(cloud ? s.LanguageModelName : "local", model) };
+        if (cloud && s.LanguageModelFallbackName is { } fallback && fallback != s.LanguageModelName)
         {
+            var url = CloudServices.For(s.LanguageModelService).BaseUrl ?? s.LanguageModelBaseUrl;
             models.Add(new(fallback, new OpenAiChatLanguageModel(
-                http, key, s.LanguageModelBaseUrl, fallback, temperature)));
+                http, keyFor(s.LanguageModelService), url, fallback, temperature, budget)));
         }
 
         var options = new CleanupOptions(s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard);
-        return new(s.Cleanup, new AiCleanup(models, cooldowns, options));
+        return new(s.Cleanup, new AiCleanup(models, cooldowns, options), budget);
     }
 
     /// <summary>

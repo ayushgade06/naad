@@ -1,5 +1,6 @@
 using Naad.Cleanup;
 using Naad.LanguageModel;
+using Naad.Providers;
 using Naad.Settings;
 
 namespace Naad.Tests.Settings;
@@ -11,7 +12,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_LanguageModelSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 2, "languageModelProvider": "cloud", "localLanguageModel": "Large",
+            { "version": 3, "languageModelProvider": "cloud", "localLanguageModel": "Large",
               "languageModelBaseUrl": "http://localhost:11434/v1", "languageModelName": "qwen2.5:1.5b",
               "languageModelFallbackName": "llama-3.3-70b-versatile" }
             """);
@@ -28,7 +29,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_CleanupSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 2, "cleanup": "basic", "cleanupPrompt": "Tidy it.\nKeep it short.",
+            { "version": 3, "cleanup": "basic", "cleanupPrompt": "Tidy it.\nKeep it short.",
               "cleanupPromptVersion": "2026-10-01", "instructionGuard": false, "outputLanguage": "Portuguese (Brazil)" }
             """);
 
@@ -44,7 +45,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_InvalidAiSettings_FallBackToDefaultsAsRepaired()
     {
         var result = SettingsStore.Parse("""
-            { "version": 2, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
+            { "version": 3, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
               "languageModelBaseUrl": "http://llm.example.test/v1", "languageModelName": "two words",
               "languageModelFallbackName": "", "cleanup": "Max", "cleanupPrompt": "bell\u0007",
               "cleanupPromptVersion": "yesterday", "instructionGuard": "yes", "outputLanguage": "<b>" }
@@ -52,5 +53,42 @@ public sealed class SettingsStoreAiTests
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults, result.Settings);
+    }
+
+    [Theory]
+    [InlineData("https://api.openai.com/v1", "OpenAI")]
+    [InlineData("https://api.groq.com/openai/v1", "Groq")]
+    [InlineData("http://localhost:8000/v1", "Custom")]
+    public void Parse_Version2_PicksTheServiceFromTheBaseUrl(string url, string service)
+    {
+        var result = SettingsStore.Parse($$"""
+            { "version": 2, "transcriptionBaseUrl": "{{url}}", "languageModelBaseUrl": "{{url}}" }
+            """);
+
+        Assert.Equal(SettingsStatus.Migrated, result.Status);
+        Assert.Equal(service, result.Settings.TranscriptionService.ToString());
+        Assert.Equal(service, result.Settings.LanguageModelService.ToString());
+        Assert.Equal(new Uri(url), result.Settings.TranscriptionBaseUrl);
+    }
+
+    [Fact]
+    public void Parse_Version2WithoutUrls_UsesGroq()
+    {
+        var result = SettingsStore.Parse("""{ "version": 2 }""");
+
+        Assert.Equal((CloudService.Groq, CloudService.Groq),
+            (result.Settings.TranscriptionService, result.Settings.LanguageModelService));
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("301")]
+    [InlineData("\"20\"")]
+    public void Parse_InvalidTimeout_FallsBackAsRepaired(string value)
+    {
+        var result = SettingsStore.Parse($$"""{ "version": 3, "transcriptionTimeoutSeconds": {{value}} }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(20, result.Settings.TranscriptionTimeoutSeconds);
     }
 }

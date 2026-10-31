@@ -152,7 +152,11 @@ internal sealed class TrayIcon : IDisposable
             "and model in Settings.",
         TranscriptionError.Network => "Naad couldn't reach the transcription service. Check your internet " +
             "connection.",
-        TranscriptionError.Timeout => "The transcription service didn't answer in time. Try again.",
+        TranscriptionError.NoInternet => "No internet connection. Connect and try again, or download the " +
+            "model in Settings to transcribe on this PC when offline.",
+        TranscriptionError.ConnectionLost => "The connection was lost while transcribing. Try again.",
+        TranscriptionError.Timeout => "The request timed out: the transcription service didn't answer in time. " +
+            "Try again.",
         TranscriptionError.LocalFailed => "Transcribing on this PC failed. Download the model again in Settings, " +
             "or switch to the cloud service.",
         _ => "The transcription service sent an unexpected answer. Check the base URL in Settings.",
@@ -240,6 +244,13 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>Tells the user a recording was silent, so nothing was sent.</summary>
     public void ShowNothingHeard() =>
         Notify(TranscriptionErrorTitle, NothingHeardMessage, ToolTipIcon.Info, clicked: null);
+
+    /// <summary>Says that the PC is offline, so Naad is working on this PC instead of the cloud.</summary>
+    public void ShowOfflineFallback() => Notify(
+        "Naad is offline",
+        "There's no internet connection, so Naad is transcribing and cleaning up on this PC until it's back.",
+        ToolTipIcon.Info,
+        clicked: null);
 
     /// <summary>
     /// Tells the user their text was kept, and enables Copy last transcript. Clicking the

@@ -42,7 +42,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_ValidCurrentFile_ReturnsItsValues()
     {
-        var result = LoadFrom("""{ "version": 2, "fileLogging": false }""");
+        var result = LoadFrom("""{ "version": 3, "fileLogging": false }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.False(result.Settings.FileLogging);
@@ -51,7 +51,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_MissingField_UsesItsDefault()
     {
-        var result = LoadFrom("""{ "version": 2 }""");
+        var result = LoadFrom("""{ "version": 3 }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(AppSettings.Defaults.FileLogging, result.Settings.FileLogging);
@@ -60,7 +60,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_UnknownFields_AreIgnored()
     {
-        var result = LoadFrom("""{ "version": 2, "fileLogging": false, "someFutureOption": { "x": [1, 2] } }""");
+        var result = LoadFrom("""{ "version": 3, "fileLogging": false, "someFutureOption": { "x": [1, 2] } }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.False(result.Settings.FileLogging);
@@ -72,7 +72,7 @@ public sealed class SettingsStoreTests : IDisposable
         var result = LoadFrom("""
             {
               // turned off on purpose
-              "Version": 2,
+              "Version": 3,
               "FileLogging": false,
             }
             """);
@@ -117,9 +117,9 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{ "version": 2, "fileLogging": "no" }""")]
-    [InlineData("""{ "version": 2, "fileLogging": 0 }""")]
-    [InlineData("""{ "version": 2, "fileLogging": null }""")]
+    [InlineData("""{ "version": 3, "fileLogging": "no" }""")]
+    [InlineData("""{ "version": 3, "fileLogging": 0 }""")]
+    [InlineData("""{ "version": 3, "fileLogging": null }""")]
     public void Load_WrongTypedValue_FallsBackToDefaultAsRepaired(string json)
     {
         var result = LoadFrom(json);
@@ -134,7 +134,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("LeftAlt+LeftShift+F9")]
     public void Load_ValidShortcut_ReturnsIt(string text)
     {
-        var result = LoadFrom($$"""{ "version": 2, "dictationShortcut": "{{text}}" }""");
+        var result = LoadFrom($$"""{ "version": 3, "dictationShortcut": "{{text}}" }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.True(Chord.TryParse(text, out var expected));
@@ -144,7 +144,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_NoShortcut_UsesRightCtrl()
     {
-        var result = LoadFrom("""{ "version": 2, "fileLogging": true }""");
+        var result = LoadFrom("""{ "version": 3, "fileLogging": true }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(Chord.RightCtrl, result.Settings.DictationShortcut);
@@ -160,7 +160,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidShortcut_FallsBackToRightCtrlAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "fileLogging": false, "dictationShortcut": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "fileLogging": false, "dictationShortcut": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(Chord.RightCtrl, result.Settings.DictationShortcut);
@@ -172,7 +172,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("false", false)]
     public void Load_PlaySounds_ReturnsIt(string value, bool expected)
     {
-        var result = LoadFrom($$"""{ "version": 2, "playSounds": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "playSounds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(expected, result.Settings.PlaySounds);
@@ -184,7 +184,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidPlaySounds_FallsBackToOffAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "playSounds": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "playSounds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.False(result.Settings.PlaySounds);
@@ -201,7 +201,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_NoTranscriptionSettings_UsesGroqDefaults()
     {
-        var result = LoadFrom("""{ "version": 2 }""");
+        var result = LoadFrom("""{ "version": 3 }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal("https://api.groq.com/openai/v1", result.Settings.TranscriptionBaseUrl.AbsoluteUri);
@@ -216,7 +216,7 @@ public sealed class SettingsStoreTests : IDisposable
     public void Load_ValidTranscriptionSettings_ReturnsThem(string baseUrl, string model)
     {
         var result = LoadFrom(
-            $$"""{ "version": 2, "transcriptionBaseUrl": "{{baseUrl}}", "transcriptionModel": "{{model}}" }""");
+            $$"""{ "version": 3, "transcriptionBaseUrl": "{{baseUrl}}", "transcriptionModel": "{{model}}" }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(new Uri(baseUrl), result.Settings.TranscriptionBaseUrl);
@@ -236,7 +236,7 @@ public sealed class SettingsStoreTests : IDisposable
     public void Load_InvalidBaseUrl_FallsBackToGroqAsRepaired(string value)
     {
         var result = LoadFrom(
-            $$"""{ "version": 2, "transcriptionModel": "whisper-1", "transcriptionBaseUrl": {{value}} }""");
+            $$"""{ "version": 3, "transcriptionModel": "whisper-1", "transcriptionBaseUrl": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults.TranscriptionBaseUrl, result.Settings.TranscriptionBaseUrl);
@@ -252,7 +252,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidModel_FallsBackToDefaultAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "transcriptionModel": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "transcriptionModel": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults.TranscriptionModel, result.Settings.TranscriptionModel);
@@ -261,15 +261,15 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_ModelOver100Characters_FallsBackAsRepaired()
     {
-        var result = LoadFrom($$"""{ "version": 2, "transcriptionModel": "{{new string('m', 101)}}" }""");
+        var result = LoadFrom($$"""{ "version": 3, "transcriptionModel": "{{new string('m', 101)}}" }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
     }
 
     [Theory]
-    [InlineData("""{ "version": 2 }""")]
-    [InlineData("""{ "version": 2, "language": null, "microphone": null }""")]
-    [InlineData("""{ "version": 2, "language": "", "microphone": "" }""")]
+    [InlineData("""{ "version": 3 }""")]
+    [InlineData("""{ "version": 3, "language": null, "microphone": null }""")]
+    [InlineData("""{ "version": 3, "language": "", "microphone": "" }""")]
     public void Load_LanguageAndMicrophoneUnset_LeavesThemNull(string json)
     {
         var result = LoadFrom(json);
@@ -286,7 +286,7 @@ public sealed class SettingsStoreTests : IDisposable
     public void Load_ValidLanguageAndMicrophone_ReturnsThem(string language, string microphone)
     {
         var result = LoadFrom(
-            $$"""{ "version": 2, "language": "{{language}}", "microphone": "{{microphone}}" }""");
+            $$"""{ "version": 3, "language": "{{language}}", "microphone": "{{microphone}}" }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(language, result.Settings.Language);
@@ -301,7 +301,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("5")]
     public void Load_InvalidLanguage_FallsBackToUnsetAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "language": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "language": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Null(result.Settings.Language);
@@ -313,16 +313,16 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("true")]
     public void Load_InvalidMicrophone_FallsBackToDefaultDeviceAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "microphone": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "microphone": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Null(result.Settings.Microphone);
     }
 
     [Theory]
-    [InlineData("""{ "version": 2 }""", null, false)]
-    [InlineData("""{ "version": 2, "vocabulary": "Naad, Groq", "handsFree": true }""", "Naad, Groq", true)]
-    [InlineData("""{ "version": 2, "vocabulary": "", "handsFree": false }""", null, false)]
+    [InlineData("""{ "version": 3 }""", null, false)]
+    [InlineData("""{ "version": 3, "vocabulary": "Naad, Groq", "handsFree": true }""", "Naad, Groq", true)]
+    [InlineData("""{ "version": 3, "vocabulary": "", "handsFree": false }""", null, false)]
     public void Load_VocabularyAndHandsFree_ReturnsThem(string json, string? vocabulary, bool handsFree)
     {
         var result = LoadFrom(json);
@@ -333,10 +333,10 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{ "version": 2, "vocabulary": "line one\nline two" }""")]
-    [InlineData("""{ "version": 2, "vocabulary": 5 }""")]
-    [InlineData("""{ "version": 2, "handsFree": "yes" }""")]
-    [InlineData("""{ "version": 2, "handsFree": null }""")]
+    [InlineData("""{ "version": 3, "vocabulary": "line one\nline two" }""")]
+    [InlineData("""{ "version": 3, "vocabulary": 5 }""")]
+    [InlineData("""{ "version": 3, "handsFree": "yes" }""")]
+    [InlineData("""{ "version": 3, "handsFree": null }""")]
     public void Load_InvalidVocabularyOrHandsFree_FallsBackAsRepaired(string json)
     {
         var result = LoadFrom(json);
@@ -349,16 +349,16 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_VocabularyOver500Characters_FallsBackAsRepaired()
     {
-        var result = LoadFrom($$"""{ "version": 2, "vocabulary": "{{new string('v', 501)}}" }""");
+        var result = LoadFrom($$"""{ "version": 3, "vocabulary": "{{new string('v', 501)}}" }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
     }
 
     [Theory]
-    [InlineData("""{ "version": 2 }""", "Local")]
-    [InlineData("""{ "version": 2, "transcriptionProvider": "Local" }""", "Local")]
-    [InlineData("""{ "version": 2, "transcriptionProvider": "local" }""", "Local")]
-    [InlineData("""{ "version": 2, "transcriptionProvider": "CLOUD" }""", "Cloud")]
+    [InlineData("""{ "version": 3 }""", "Local")]
+    [InlineData("""{ "version": 3, "transcriptionProvider": "Local" }""", "Local")]
+    [InlineData("""{ "version": 3, "transcriptionProvider": "local" }""", "Local")]
+    [InlineData("""{ "version": 3, "transcriptionProvider": "CLOUD" }""", "Cloud")]
     public void Load_TranscriptionProvider_ReturnsIt(string json, string expected)
     {
         var result = LoadFrom(json);
@@ -375,17 +375,17 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidTranscriptionProvider_FallsBackToLocalAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "transcriptionProvider": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "transcriptionProvider": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(TranscriptionProvider.Local, result.Settings.TranscriptionProvider);
     }
 
     [Theory]
-    [InlineData("""{ "version": 2 }""", "Base")]
-    [InlineData("""{ "version": 2, "localModel": "Turbo" }""", "Turbo")]
-    [InlineData("""{ "version": 2, "localModel": "turbo" }""", "Turbo")]
-    [InlineData("""{ "version": 2, "localModel": "BASE" }""", "Base")]
+    [InlineData("""{ "version": 3 }""", "Base")]
+    [InlineData("""{ "version": 3, "localModel": "Turbo" }""", "Turbo")]
+    [InlineData("""{ "version": 3, "localModel": "turbo" }""", "Turbo")]
+    [InlineData("""{ "version": 3, "localModel": "BASE" }""", "Base")]
     public void Load_LocalModel_ReturnsIt(string json, string expected)
     {
         var result = LoadFrom(json);
@@ -402,7 +402,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidLocalModel_FallsBackToBaseAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 2, "localModel": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 3, "localModel": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(WhisperModel.Base, result.Settings.LocalModel);
@@ -451,7 +451,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_FileLockedByAnotherProcess_ReturnsDefaultsAsReadFailed()
     {
-        File.WriteAllText(SettingsPath, """{ "version": 2, "fileLogging": false }""");
+        File.WriteAllText(SettingsPath, """{ "version": 3, "fileLogging": false }""");
         using var exclusive = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.None);
 
         var result = new SettingsStore(SettingsPath).Load();

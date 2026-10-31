@@ -1,26 +1,25 @@
 using Naad.Cleanup;
 using Naad.LanguageModel;
+using Naad.Providers;
 using Naad.Transcription;
 
 namespace Naad.Settings;
 
 /// <summary>
-/// The settings window's AI page: where the language model runs, its download, and the cloud
-/// endpoint and key. Like the window, it only shows fields; <see cref="SettingsInput"/> checks
-/// them. The key is write-only here. Create and use it on the UI thread.
+/// The settings window's AI page: cleanup, where the language model runs, its download, and the
+/// cloud service. Like the window, it only shows fields; <see cref="SettingsInput"/> and
+/// <see cref="CloudServiceFields"/> check them. Create and use it on the UI thread.
 /// </summary>
 internal sealed class LanguageModelPanel : TableLayoutPanel
 {
     private const int FieldWidth = 300;
 
-    private readonly ApiKeyResult _key;
     private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _download;
-    private readonly Func<string, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
     private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _testPrompt;
     private readonly CancellationToken _closing;
+    private readonly CloudServiceFields _cloud;
 
     private readonly ComboBox _cleanup = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
-    private readonly TextBox _fallback = new() { Width = FieldWidth };
     private readonly TextBox _outputLanguage = new() { Width = 160 };
     private readonly CheckBox _guard = new()
     {
@@ -31,31 +30,32 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     private readonly Button _promptButton = new() { Text = "Edit prompt...", AutoSize = true };
     private readonly Button _testModelButton = new() { Text = "Test model", AutoSize = true };
     private readonly Label _testModelResult = Note("");
-    private string? _customPrompt;
-    private string? _promptVersion;
-
     private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly ComboBox _localModel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly Label _modelStatus = Note("");
     private readonly Button _downloadButton = new() { Text = "Download model", AutoSize = true };
-    private readonly TextBox _baseUrl = new() { Width = FieldWidth };
-    private readonly TextBox _model = new() { Width = FieldWidth };
-    private readonly TextBox _newKey = new() { UseSystemPasswordChar = true, Width = FieldWidth };
-    private readonly Button _testKeyButton = new() { Text = "Test key", AutoSize = true };
-    private readonly Label _testResult = Note("");
+    private readonly NumericUpDown _timeout = new()
+    {
+        Minimum = AppSettings.MinTimeoutSeconds,
+        Maximum = AppSettings.MaxTimeoutSeconds,
+        Width = 60,
+    };
+
+    private string? _customPrompt;
+    private string? _promptVersion;
 
     /// <param name="current">The settings in use.</param>
-    /// <param name="key">Where the language model key comes from.</param>
+    /// <param name="keyFor">Where a service's key comes from.</param>
     /// <param name="download">Downloads a model file, reporting progress.</param>
-    /// <param name="testKey">Checks a key against a base URL.</param>
+    /// <param name="testKey">Checks a service's key.</param>
     /// <param name="testPrompt">Sends instructions (null for the default) and a sample to the saved model.</param>
     /// <param name="cooldownFor">A cloud model's running rate limit, if any.</param>
     /// <param name="closing">Cancelled when the window closes.</param>
     public LanguageModelPanel(
         AppSettings current,
-        ApiKeyResult key,
+        Func<CloudService, ApiKeyResult> keyFor,
         Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> download,
-        Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
+        Func<CloudService, string?, Uri, CancellationToken, Task<KeyTestResult>> testKey,
         Func<string?, string, CancellationToken, Task<PromptTest>> testPrompt,
         Func<string, Cooldown?> cooldownFor,
         CancellationToken closing)
@@ -63,25 +63,31 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         _testPrompt = testPrompt;
         _customPrompt = current.CleanupPrompt;
         _promptVersion = current.CleanupPromptVersion;
-        _key = key;
         _download = download;
-        _testKey = testKey;
         _closing = closing;
+        _cloud = new(
+            CloudServices.ForLanguageModel,
+            current.LanguageModelService,
+            current.LanguageModelBaseUrl,
+            current.LanguageModelName,
+            current.LanguageModelFallbackName,
+            withFallback: true,
+            keyFor,
+            testKey,
+            closing);
         AutoSize = true;
         ColumnCount = 2;
         Padding = new Padding(12);
 
-        _provider.Items.AddRange(["This PC: offline and free", "Cloud: the OpenAI-compatible service below"]);
+        _provider.Items.AddRange(["This PC: offline and free", "Cloud: the service below"]);
         _provider.SelectedIndex = (int)current.LanguageModelProvider;
         _localModel.Items.AddRange(["Small: fast on any PC", "Large: more accurate, needs a GPU"]);
         _localModel.SelectedIndex = (int)current.LocalLanguageModel;
-        _baseUrl.Text = current.LanguageModelBaseUrl.AbsoluteUri;
-        _model.Text = current.LanguageModelName;
         _cleanup.Items.AddRange(["Off: paste as said", "Basic: instant rules", "AI: the language model"]);
         _cleanup.SelectedIndex = (int)current.Cleanup;
-        _fallback.Text = current.LanguageModelFallbackName ?? "";
         _outputLanguage.Text = current.OutputLanguage ?? "";
         _guard.Checked = current.InstructionGuard;
+        _timeout.Value = current.LanguageModelTimeoutSeconds;
         ShowModelStatus();
 
         Row("Cleanup", _cleanup);
@@ -91,16 +97,12 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         Row("", _testModelResult);
         Row("Write in", Flow(_outputLanguage, Note("A language such as German; blank keeps yours.")));
         Row("", _guard);
+        Row("Wait up to", Flow(_timeout, Note("seconds for the AI, then paste as said")));
         Row("AI runs on", _provider);
         Row("Model on this PC", _localModel);
         Row("", Flow(_modelStatus, _downloadButton));
-        Row("Base URL", _baseUrl);
-        Row("Model", _model);
-        Row("Fallback model", _fallback);
-        Row("API key", Note(SettingsInput.KeyStatus(key, SecretStore.LanguageModelOverrideVariable)));
-        Row("New key", Flow(_newKey, _testKeyButton));
-        Row("", _testResult);
-        Row("", Note("A server on this PC, such as Ollama (http://localhost:11434/v1), needs no key."));
+        _cloud.AddRows(Row);
+        Row("", Note("Offline, a cloud choice uses the model on this PC if it is downloaded."));
         foreach (var name in new[] { current.LanguageModelName, current.LanguageModelFallbackName })
         {
             if (name is not null && SettingsInput.CooldownMessage(name, cooldownFor(name)) is { } cooling)
@@ -111,38 +113,41 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
 
         _promptButton.Click += (_, _) => EditPrompt();
         _testModelButton.Click += (_, _) => _ = TestModelAsync();
-
         _localModel.SelectedIndexChanged += (_, _) => ShowModelStatus();
         _downloadButton.Click += (_, _) => _ = DownloadAsync();
-        _testKeyButton.Click += (_, _) => _ = TestKeyAsync();
     }
 
     private LocalModel ChosenFile => LanguageModelFiles.For((LocalLanguageModelChoice)_localModel.SelectedIndex);
 
     /// <summary>
-    /// <paramref name="chosen"/> with this page's fields applied, or false with
-    /// <paramref name="error"/> naming what to fix.
+    /// <paramref name="chosen"/> with this page's fields applied, and a key typed for the chosen
+    /// service, or false with <paramref name="error"/> naming what to fix.
     /// </summary>
-    public bool TryApply(AppSettings chosen, out AppSettings settings, out string? newKey, out string? error)
+    public bool TryApply(AppSettings chosen, out AppSettings settings, out CloudChoice cloud, out string? error)
     {
-        newKey = _newKey.Text.Trim() is { Length: > 0 } typed ? typed : null;
-        error = SettingsInput.KeyError(_newKey.Text);
         settings = chosen;
-        if (error is not null)
+        var language = _outputLanguage.Text.Trim();
+        if (!_cloud.TryRead(out cloud, out error))
         {
             return false;
         }
 
-        if (!SettingsInput.TryBuildLanguageModel(
-            chosen, _baseUrl.Text, _model.Text, _fallback.Text, _outputLanguage.Text, out var built, out error))
+        if (language.Length > 0 && !AppSettings.IsValidOutputLanguage(language))
         {
+            error = "The output language must be a language name such as German, or blank.";
             return false;
         }
 
-        settings = built with
+        settings = chosen with
         {
             LanguageModelProvider = (LanguageModelProvider)_provider.SelectedIndex,
             LocalLanguageModel = (LocalLanguageModelChoice)_localModel.SelectedIndex,
+            LanguageModelService = cloud.Service,
+            LanguageModelBaseUrl = cloud.CustomUrl,
+            LanguageModelName = cloud.Model,
+            LanguageModelFallbackName = cloud.Fallback,
+            LanguageModelTimeoutSeconds = (int)_timeout.Value,
+            OutputLanguage = language.Length == 0 ? null : language,
             Cleanup = (CleanupLevel)_cleanup.SelectedIndex,
             CleanupPrompt = _customPrompt,
             CleanupPromptVersion = _promptVersion,
@@ -245,54 +250,6 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
                 _downloadButton.Enabled = true;
                 _localModel.Enabled = true;
                 _downloadButton.Visible = !file.IsReady();
-            }
-        }
-    }
-
-    // Fire-and-forget from a click: anything not caught here would vanish silently.
-    private async Task TestKeyAsync()
-    {
-        var typed = _newKey.Text.Trim();
-        if (SettingsInput.KeyError(typed) is { } keyError)
-        {
-            _testResult.Text = keyError;
-            return;
-        }
-
-        if (!AppSettings.TryParseBaseUrl(_baseUrl.Text.Trim(), out var url))
-        {
-            _testResult.Text = "Fix the base URL first.";
-            return;
-        }
-
-        if ((typed.Length > 0 ? typed : _key.Key) is not { } key)
-        {
-            _testResult.Text = url.IsLoopback
-                ? "A server on this PC needs no key here."
-                : "Paste a key first.";
-            return;
-        }
-
-        _testKeyButton.Enabled = false;
-        _testResult.Text = "Testing...";
-        try
-        {
-            _testResult.Text = SettingsInput.KeyTestMessage(await _testKey(key, url, _closing));
-        }
-        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
-        {
-            // The window closed while the test ran.
-        }
-        catch (Exception e)
-        {
-            Log.Error(LogEvent.ApiKeyTestFailed, e);
-            _testResult.Text = "The key couldn't be checked.";
-        }
-        finally
-        {
-            if (!IsDisposed)
-            {
-                _testKeyButton.Enabled = true;
             }
         }
     }

@@ -50,25 +50,16 @@ internal sealed class SecretStore(string path)
     /// <summary>For development: when set, it is used instead of the stored key.</summary>
     public const string OverrideVariable = "NAAD_GROQ_API_KEY";
 
-    /// <summary>For development: overrides the stored language model key.</summary>
-    public const string LanguageModelOverrideVariable = "NAAD_LLM_API_KEY";
-
     // Ties the ciphertext to Naad, so a DPAPI blob made by another program for this user
     // doesn't decrypt as a Naad key. Not a secret; changing it orphans stored keys.
     private static readonly byte[] Entropy = "Naad API key v1"u8.ToArray();
 
-    // Local, not roaming, AppData: the key never follows the profile to another machine,
-    // where DPAPI couldn't decrypt it anyway.
+    // Naad 1.0's single key; ServiceKeys moves it to its service's file. Local, not roaming,
+    // AppData: a key never follows the profile to another machine, where DPAPI couldn't decrypt it.
     public static string DefaultPath { get; } = Path.Combine(
         System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
         "Naad",
         "api-key.dpapi");
-
-    /// <summary>The language model's key, kept apart from the transcription key.</summary>
-    public static string LanguageModelPath { get; } = Path.Combine(
-        System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
-        "Naad",
-        "llm-api-key.dpapi");
 
     /// <summary>
     /// Whether <paramref name="key"/> can be an API key: visible ASCII only, since it is sent in

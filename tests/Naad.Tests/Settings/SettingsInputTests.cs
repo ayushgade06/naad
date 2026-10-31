@@ -13,19 +13,11 @@ public sealed class SettingsInputTests
     {
         var chosen = AppSettings.Defaults with { PlaySounds = true };
 
-        var ok = SettingsInput.TryBuild(
-            chosen, " https://stt.example.test/v1 ", " whisper-1 ", " HI ", "", out var settings, out var error);
+        var ok = SettingsInput.TryBuild(chosen, " HI ", "", out var settings, out var error);
 
         Assert.True(ok);
         Assert.Null(error);
-        Assert.Equal(
-            chosen with
-            {
-                TranscriptionBaseUrl = new Uri("https://stt.example.test/v1"),
-                TranscriptionModel = "whisper-1",
-                Language = "hi",
-            },
-            settings);
+        Assert.Equal(chosen with { Language = "hi" }, settings);
     }
 
     [Theory]
@@ -35,36 +27,27 @@ public sealed class SettingsInputTests
     {
         var chosen = AppSettings.Defaults with { Language = "en" };
 
-        Assert.True(SettingsInput.TryBuild(
-            chosen, "https://api.groq.com/openai/v1", "whisper-large-v3-turbo", language, "", out var settings, out _));
+        Assert.True(SettingsInput.TryBuild(chosen, language, "", out var settings, out _));
         Assert.Null(settings.Language);
     }
 
     [Theory]
-    [InlineData("http://stt.example.test/v1", "m", "", "base URL")]
-    [InlineData("https://stt.example.test/v1?key=1", "m", "", "base URL")]
-    [InlineData("", "m", "", "base URL")]
-    [InlineData("https://stt.example.test/v1", "", "", "model")]
-    [InlineData("https://stt.example.test/v1", "whisper 1", "", "model")]
-    [InlineData("https://stt.example.test/v1", "m", "english", "language")]
-    [InlineData("https://stt.example.test/v1", "m", "en-US", "language")]
-    public void TryBuild_InvalidField_NamesIt(string baseUrl, string model, string language, string field)
+    [InlineData("english")]
+    [InlineData("en-US")]
+    public void TryBuild_InvalidLanguage_NamesIt(string language)
     {
-        var ok = SettingsInput.TryBuild(
-            AppSettings.Defaults, baseUrl, model, language, "", out var settings, out var error);
+        var ok = SettingsInput.TryBuild(AppSettings.Defaults, language, "", out var settings, out var error);
 
         Assert.False(ok);
         Assert.Null(settings);
-        Assert.Contains(field, error, StringComparison.Ordinal);
+        Assert.Contains("language", error, StringComparison.Ordinal);
     }
 
     [Fact]
     public void TryBuild_Vocabulary_IsTrimmedAndBlankMeansNone()
     {
-        const string Url = "https://api.groq.com/openai/v1";
-
-        Assert.True(SettingsInput.TryBuild(AppSettings.Defaults, Url, "m", "", " Naad, Groq ", out var some, out _));
-        Assert.True(SettingsInput.TryBuild(some, Url, "m", "", "   ", out var none, out _));
+        Assert.True(SettingsInput.TryBuild(AppSettings.Defaults, "", " Naad, Groq ", out var some, out _));
+        Assert.True(SettingsInput.TryBuild(some, "", "   ", out var none, out _));
 
         Assert.Equal("Naad, Groq", some.Vocabulary);
         Assert.Null(none.Vocabulary);
@@ -73,14 +56,7 @@ public sealed class SettingsInputTests
     [Fact]
     public void TryBuild_VocabularyTooLong_NamesIt()
     {
-        var ok = SettingsInput.TryBuild(
-            AppSettings.Defaults,
-            "https://api.groq.com/openai/v1",
-            "m",
-            "",
-            new string('v', 501),
-            out _,
-            out var error);
+        var ok = SettingsInput.TryBuild(AppSettings.Defaults, "", new string('v', 501), out _, out var error);
 
         Assert.False(ok);
         Assert.Contains("vocabulary", error, StringComparison.Ordinal);
@@ -120,7 +96,7 @@ public sealed class SettingsInputTests
             new(null, ApiKeySource.None, SecretStatus.ReadFailed),
         ];
 
-        var texts = results.Select(SettingsInput.KeyStatus).ToList();
+        var texts = results.Select(r => SettingsInput.KeyStatus(r, "NAAD_GROQ_API_KEY")).ToList();
 
         Assert.All(texts, text => Assert.DoesNotContain(FakeKey, text, StringComparison.Ordinal));
         Assert.Equal(5, texts.Distinct().Count());
@@ -168,24 +144,6 @@ public sealed class SettingsInputTests
         Assert.All(texts, text => Assert.False(string.IsNullOrWhiteSpace(text)));
     }
 
-    [Fact]
-    public void TryBuildLanguageModel_ValidFields_AppliesTrimmed()
-    {
-        Assert.True(SettingsInput.TryBuildLanguageModel(
-            AppSettings.Defaults, " http://localhost:11434/v1 ", " qwen2.5:1.5b ", out var settings, out _));
-        Assert.Equal(new Uri("http://localhost:11434/v1"), settings.LanguageModelBaseUrl);
-        Assert.Equal("qwen2.5:1.5b", settings.LanguageModelName);
-    }
-
-    [Theory]
-    [InlineData("http://llm.example.test/v1", "m", "base URL")]
-    [InlineData("https://llm.example.test/v1", "two words", "model")]
-    public void TryBuildLanguageModel_InvalidField_NamesIt(string baseUrl, string model, string field)
-    {
-        Assert.False(SettingsInput.TryBuildLanguageModel(AppSettings.Defaults, baseUrl, model, out _, out var error));
-        Assert.Contains(field, error, StringComparison.Ordinal);
-    }
-
     [Theory]
     [InlineData(1_117_320_736, "1.1 GB")]
     [InlineData(2_497_281_120, "2.5 GB")]
@@ -195,12 +153,12 @@ public sealed class SettingsInputTests
     }
 
     [Fact]
-    public void KeyStatus_LanguageModelOverride_NamesItsVariable()
+    public void KeyStatus_Override_NamesItsVariable()
     {
         var text = SettingsInput.KeyStatus(
-            new("fake-key", ApiKeySource.Environment, SecretStatus.Loaded), SecretStore.LanguageModelOverrideVariable);
+            new("fake-key", ApiKeySource.Environment, SecretStatus.Loaded), "NAAD_OPENAI_API_KEY");
 
-        Assert.Contains("NAAD_LLM_API_KEY", text, StringComparison.Ordinal);
+        Assert.Contains("NAAD_OPENAI_API_KEY", text, StringComparison.Ordinal);
     }
 
     [Fact]

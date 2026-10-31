@@ -3,7 +3,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Naad.Hotkey;
+using Naad.Providers;
 using Naad.Transcription;
+using static Naad.Settings.SettingsFields;
 
 namespace Naad.Settings;
 
@@ -68,10 +70,25 @@ internal sealed class SettingsStore(string path)
         // 1 -> 2: transcribing on this PC became the default. A version-1 file without the
         // field was using the cloud, so it keeps the cloud instead of changing provider unasked.
         root => root.TryAdd("transcriptionProvider", nameof(TranscriptionProvider.Cloud)),
+
+        // 2 -> 3: cloud services are chosen by name; the base URL is only for a custom endpoint.
+        // A version-2 file names its service through its URL, so the URL picks it.
+        root =>
+        {
+            root.TryAdd("transcriptionService", ServiceFromUrl(root, "transcriptionBaseUrl"));
+            root.TryAdd("languageModelService", ServiceFromUrl(root, "languageModelBaseUrl"));
+        },
     ];
 
     public static string DefaultPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Naad", "settings.json");
+
+    // A missing or invalid URL meant the default, Groq.
+    private static string ServiceFromUrl(JsonObject root, string name) =>
+        (root.TryGetPropertyValue(name, out var node) && node is JsonValue value
+            && value.TryGetValue(out string? text) && AppSettings.TryParseBaseUrl(text, out var url)
+                ? CloudServices.FromUrl(url)
+                : CloudService.Groq).ToString();
 
     internal static int MigrationCount => Migrations.Length;
 
@@ -314,7 +331,10 @@ internal sealed class SettingsStore(string path)
             DictationShortcut = shortcut,
             TranscriptionProvider = provider,
             LocalModel = localModel,
+            TranscriptionService = ReadName(root, "transcriptionService", defaults.TranscriptionService, ref repaired),
             TranscriptionBaseUrl = ReadUrl(root, "transcriptionBaseUrl", defaults.TranscriptionBaseUrl, ref repaired),
+            TranscriptionTimeoutSeconds = ReadTimeout(
+                root, "transcriptionTimeoutSeconds", defaults.TranscriptionTimeoutSeconds, ref repaired),
             TranscriptionModel = ReadModel(root, "transcriptionModel", defaults.TranscriptionModel, ref repaired),
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
             Microphone = ReadOptional(root, "microphone", AppSettings.IsValidMicrophone, ref repaired),
@@ -323,7 +343,10 @@ internal sealed class SettingsStore(string path)
             LanguageModelProvider = ReadName(
                 root, "languageModelProvider", defaults.LanguageModelProvider, ref repaired),
             LocalLanguageModel = ReadName(root, "localLanguageModel", defaults.LocalLanguageModel, ref repaired),
+            LanguageModelService = ReadName(root, "languageModelService", defaults.LanguageModelService, ref repaired),
             LanguageModelBaseUrl = ReadUrl(root, "languageModelBaseUrl", defaults.LanguageModelBaseUrl, ref repaired),
+            LanguageModelTimeoutSeconds = ReadTimeout(
+                root, "languageModelTimeoutSeconds", defaults.LanguageModelTimeoutSeconds, ref repaired),
             LanguageModelName = ReadModel(root, "languageModelName", defaults.LanguageModelName, ref repaired),
             LanguageModelFallbackName = ReadOptional(
                 root, "languageModelFallbackName", AppSettings.IsValidModel, ref repaired),
@@ -335,114 +358,5 @@ internal sealed class SettingsStore(string path)
             OutputLanguage = ReadOptional(root, "outputLanguage", AppSettings.IsValidOutputLanguage, ref repaired),
         };
         return (settings, repaired);
-    }
-
-    // Absent means the default. A name of one of the enum's members, in any casing, selects it;
-    // anything else falls back to the default and marks the settings repaired. Names only:
-    // Enum.TryParse would also take "1" or "Cloud, Local".
-    private static TEnum ReadName<TEnum>(JsonObject root, string name, TEnum fallback, ref bool repaired)
-        where TEnum : struct, Enum
-    {
-        if (TryReadString(root, name, ref repaired) is not { } text)
-        {
-            return fallback;
-        }
-
-        if (Array.Find(Enum.GetNames<TEnum>(), member =>
-                string.Equals(member, text, StringComparison.OrdinalIgnoreCase)) is { } match)
-        {
-            return Enum.Parse<TEnum>(match);
-        }
-
-        repaired = true;
-        return fallback;
-    }
-
-    // Absent means the default; a URL that TryParseBaseUrl refuses falls back to it and marks
-    // the settings repaired.
-    private static Uri ReadUrl(JsonObject root, string name, Uri fallback, ref bool repaired)
-    {
-        if (TryReadString(root, name, ref repaired) is not { } text)
-        {
-            return fallback;
-        }
-
-        if (AppSettings.TryParseBaseUrl(text, out var url))
-        {
-            return url;
-        }
-
-        repaired = true;
-        return fallback;
-    }
-
-    // Absent means the default; an id that IsValidModel refuses falls back to it.
-    private static string ReadModel(JsonObject root, string name, string fallback, ref bool repaired)
-    {
-        if (TryReadString(root, name, ref repaired) is not { } text)
-        {
-            return fallback;
-        }
-
-        if (AppSettings.IsValidModel(text))
-        {
-            return text;
-        }
-
-        repaired = true;
-        return fallback;
-    }
-
-    // Absent means the default; anything but true or false falls back to it and marks the
-    // settings repaired.
-    private static bool ReadBool(JsonObject root, string name, bool fallback, ref bool repaired)
-    {
-        if (!root.TryGetPropertyValue(name, out var node))
-        {
-            return fallback;
-        }
-
-        if (node?.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
-        {
-            return node.GetValue<bool>();
-        }
-
-        repaired = true;
-        return fallback;
-    }
-
-    // Absent, null and "" all mean unset. Any other value must pass isValid; if it doesn't, the
-    // setting is unset and the settings are marked repaired.
-    private static string? ReadOptional(JsonObject root, string name, Func<string?, bool> isValid, ref bool repaired)
-    {
-        if (!root.TryGetPropertyValue(name, out var node) || node is null)
-        {
-            return null;
-        }
-
-        if (node is JsonValue value && value.TryGetValue(out string? text) && (text.Length == 0 || isValid(text)))
-        {
-            return text.Length == 0 ? null : text;
-        }
-
-        repaired = true;
-        return null;
-    }
-
-    // Null when the field is absent, or present but not a string (which marks it repaired).
-    private static string? TryReadString(JsonObject root, string name, ref bool repaired)
-    {
-        if (!root.TryGetPropertyValue(name, out var node))
-        {
-            return null;
-        }
-
-        if (node is JsonValue value && value.TryGetValue(out string? text))
-        {
-            return text;
-        }
-
-        repaired = true;
-        return null;
     }
 }

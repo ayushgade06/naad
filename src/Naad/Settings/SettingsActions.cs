@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Naad.Audio;
+using Naad.Providers;
 using Naad.Transcription;
 
 namespace Naad.Settings;
@@ -9,15 +11,13 @@ namespace Naad.Settings;
 /// content. Applying the new settings to the running app stays with the caller. Use on the UI thread.
 /// </summary>
 /// <param name="store">settings.json.</param>
-/// <param name="keys">The transcription key.</param>
-/// <param name="languageModelKeys">The language model key.</param>
+/// <param name="keys">The API keys, one per service.</param>
 /// <param name="startup">The start-at-login entry.</param>
 /// <param name="canSave">False when a newer Naad wrote settings.json, which this build never replaces.</param>
 /// <param name="http">Shared and owned by the caller.</param>
 internal sealed class SettingsActions(
     SettingsStore store,
-    SecretStore keys,
-    SecretStore languageModelKeys,
+    ServiceKeys keys,
     StartupEntry startup,
     bool canSave,
     HttpClient http)
@@ -28,22 +28,15 @@ internal sealed class SettingsActions(
     /// </summary>
     public string? SaveKeys(SettingsChange change)
     {
-        var both = new[] { (change.NewKey, keys), (change.NewLanguageModelKey, languageModelKeys) };
-        for (var which = 0; which < both.Length; which++)
+        foreach (var (service, key) in change.NewKeys)
         {
-            var (key, secrets) = both[which];
-            if (key is null)
+            if (keys.Save(service, key) is { } error)
             {
-                continue;
-            }
-
-            if (secrets.Save(key) is { } error)
-            {
-                Log.Error(LogEvent.ApiKeyStoreFailed, error, ("key", which));
+                Log.Error(LogEvent.ApiKeyStoreFailed, error, ("service", (int)service));
                 return "An API key couldn't be saved, so the settings weren't changed. Try again.";
             }
 
-            Log.Info(LogEvent.ApiKeyStored, ("key", which));
+            Log.Info(LogEvent.ApiKeyStored, ("service", (int)service));
         }
 
         return null;
@@ -117,20 +110,44 @@ internal sealed class SettingsActions(
         return result;
     }
 
-    /// <summary>Asks a provider whether a key works, logging the outcome but never the key.</summary>
-    public async Task<KeyTestResult> TestKeyAsync(string key, Uri baseUrl, CancellationToken cancellationToken)
+    /// <summary>
+    /// Transcribes a second of silence with <paramref name="transcriber"/>, the one in use, to
+    /// check it works: an empty transcript is a pass.
+    /// </summary>
+    public static async Task<TranscriptionTest> TestTranscriptionAsync(
+        ITranscriber? transcriber, CancellationToken cancellationToken)
     {
-        var result = await OpenAiCompatibleTranscriber.TestKeyAsync(http, key, baseUrl, cancellationToken);
+        if (transcriber is null)
+        {
+            return new(0, null, NotSetUp: true);
+        }
+
+        var silence = Wav.Encode(new byte[AudioRecorder.Format.AverageBytesPerSecond], AudioRecorder.Format);
+        var started = Stopwatch.GetTimestamp();
+        var result = await transcriber.TranscribeAsync(silence, cancellationToken);
+        var milliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        Log.Info(
+            LogEvent.TranscriptionTested,
+            ("error", result.Failure is { } f ? (int)f.Error : -1),
+            ("request_ms", milliseconds));
+        return new(milliseconds, result.Failure);
+    }
+
+    /// <summary>Asks a service whether a key works, logging the outcome but never the key.</summary>
+    public async Task<KeyTestResult> TestKeyAsync(
+        CloudService service, string? key, Uri customUrl, CancellationToken cancellationToken)
+    {
+        var result = await ServiceKeyCheck.TestAsync(http, service, key, customUrl, cancellationToken);
         switch (result.Outcome)
         {
             case KeyTestOutcome.Accepted:
-                Log.Info(LogEvent.ApiKeyTestAccepted);
+                Log.Info(LogEvent.ApiKeyTestAccepted, ("service", (int)service));
                 break;
             case KeyTestOutcome.CannotVerify:
-                Log.Info(LogEvent.ApiKeyTestUnverifiable);
+                Log.Info(LogEvent.ApiKeyTestUnverifiable, ("service", (int)service));
                 break;
             default:
-                Log.Warn(LogEvent.ApiKeyTestFailed, ("code", result.Failure?.Code ?? 0));
+                Log.Warn(LogEvent.ApiKeyTestFailed, ("service", (int)service), ("code", result.Failure?.Code ?? 0));
                 break;
         }
 

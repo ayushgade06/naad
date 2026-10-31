@@ -61,8 +61,9 @@ internal static class DictationLog
             case TranscriptionError.MalformedResponse:
                 Log.Warn(LogEvent.TranscriptionMalformedResponse);
                 break;
-            case TranscriptionError.Network:
-                Log.Warn(LogEvent.TranscriptionFailed, ("network_error", failure.Code));
+            case TranscriptionError.Network or TranscriptionError.NoInternet or TranscriptionError.ConnectionLost:
+                Log.Warn(
+                    LogEvent.TranscriptionFailed, ("error", (int)failure.Error), ("network_error", failure.Code));
                 break;
             default:
                 Log.Warn(LogEvent.TranscriptionFailed, ("http_status", failure.Code));

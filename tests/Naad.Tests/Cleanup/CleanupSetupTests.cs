@@ -18,7 +18,10 @@ public sealed class CleanupSetupTests : IDisposable
         using var http = new HttpClient();
         var s = AppSettings.Defaults with { LanguageModelProvider = LanguageModelProvider.Cloud };
 
-        Assert.IsType<OpenAiChatLanguageModel>(CleanupSetup.CreateModel(http, FakeKey, s, Temperature()));
+        var model = CleanupSetup.CreateModel(http, _ => FakeKey, s, Temperature(), () => { });
+
+        // Wrapped for offline use when this PC has the local model downloaded.
+        Assert.True(model is OpenAiChatLanguageModel or OfflineFallbackLanguageModel);
     }
 
     [Fact]
@@ -27,7 +30,7 @@ public sealed class CleanupSetupTests : IDisposable
         using var http = new HttpClient();
         var s = AppSettings.Defaults with { LanguageModelProvider = LanguageModelProvider.Cloud };
 
-        Assert.Null(CleanupSetup.CreateModel(http, null, s, Temperature()));
+        Assert.Null(CleanupSetup.CreateModel(http, _ => null, s, Temperature(), () => { }));
     }
 
     [Fact]
@@ -37,10 +40,11 @@ public sealed class CleanupSetupTests : IDisposable
         var s = AppSettings.Defaults with
         {
             LanguageModelProvider = LanguageModelProvider.Cloud,
+            LanguageModelService = Naad.Providers.CloudService.Custom,
             LanguageModelBaseUrl = new("http://localhost:11434/v1"),
         };
 
-        Assert.NotNull(CleanupSetup.CreateModel(http, null, s, Temperature()));
+        Assert.NotNull(CleanupSetup.CreateModel(http, _ => null, s, Temperature(), () => { }));
     }
 
     [Fact]
@@ -68,7 +72,7 @@ public sealed class CleanupSetupTests : IDisposable
         using var http = new HttpClient();
         var s = AppSettings.Defaults with { Cleanup = CleanupLevel.Ai, LanguageModelFallbackName = "other" };
         var cleanup = CleanupSetup.Create(
-            new Reply("Sure! Here you go."), http, FakeKey, s, Temperature(), Cooldowns());
+            new Reply("Sure! Here you go."), http, _ => FakeKey, s, Temperature(), Cooldowns());
 
         var result = await cleanup.CleanAsync("hello there", CancellationToken.None);
 
@@ -79,7 +83,7 @@ public sealed class CleanupSetupTests : IDisposable
     public async Task Create_NoModel_CleansLikeBasic()
     {
         using var http = new HttpClient();
-        var cleanup = CleanupSetup.Create(null, http, null, AppSettings.Defaults, Temperature(), Cooldowns());
+        var cleanup = CleanupSetup.Create(null, http, _ => null, AppSettings.Defaults, Temperature(), Cooldowns());
 
         Assert.Equal(CleanupOutcome.Basic, (await cleanup.CleanAsync("um hi", CancellationToken.None)).Outcome);
     }

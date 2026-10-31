@@ -13,12 +13,8 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
     // Long enough for minutes of audio on Groq, short enough not to leave the user waiting.
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(20);
 
-    // Listing models is a tiny request; any provider answers it within a few seconds, and the
-    // user is watching the settings window while it runs.
-    public static readonly TimeSpan KeyTestTimeout = TimeSpan.FromSeconds(10);
-
     private readonly HttpClient _http;
-    private readonly string _apiKey;
+    private readonly string? _apiKey;
     private readonly string _model;
     private readonly string? _language;
     private readonly string? _prompt;
@@ -31,22 +27,28 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
     /// <param name="language">An ISO 639-1 code such as "en", or null to let the provider detect it.</param>
     /// <param name="prompt">Names and terms to expect, sent as Whisper's prompt; never logged.</param>
     /// <param name="timeout">Tests shorten it; the app uses <see cref="DefaultTimeout"/>.</param>
+    /// <param name="path">The endpoint under the base URL; xAI names it "stt".</param>
     /// <exception cref="ArgumentException">A blank key or model, an invalid language, or a base URL
     /// that isn't an absolute http(s) URL. Settings validation keeps these from reaching here.</exception>
     public OpenAiCompatibleTranscriber(
         HttpClient http,
-        string apiKey,
+        string? apiKey,
         Uri baseUrl,
         string model,
         string? language = null,
         string? prompt = null,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null,
+        string path = "audio/transcriptions")
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        // A server on this PC may need no key; one elsewhere always does.
+        if (apiKey is null && !baseUrl.IsLoopback)
+        {
+            throw new ArgumentException("A key is needed for a server on another machine.", nameof(apiKey));
+        }
 
         // A key that can't go in a header fails every request before it is sent, which would
         // otherwise surface as a vague network error. SecretStore rejects such keys earlier.
-        if (!SecretStore.IsValidKey(apiKey))
+        if (apiKey is not null && !SecretStore.IsValidKey(apiKey))
         {
             throw new ArgumentException("The API key holds characters an HTTP header can't carry.", nameof(apiKey));
         }
@@ -67,53 +69,10 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
         _language = language;
         _prompt = prompt;
         _timeout = timeout ?? DefaultTimeout;
-        Endpoint = Under(baseUrl, "audio/transcriptions");
+        Endpoint = new(baseUrl.AbsoluteUri.TrimEnd('/') + "/" + path);
     }
 
     public Uri Endpoint { get; }
-
-    /// <summary>
-    /// Asks the provider whether <paramref name="apiKey"/> works, with GET {baseUrl}/models: an
-    /// OpenAI-compatible request that needs the key and uploads nothing. Only the status is read,
-    /// never the body. Expected failures come back as values, as for transcription.
-    /// </summary>
-    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
-    /// <exception cref="ArgumentException">The key isn't <see cref="SecretStore.IsValidKey"/>.</exception>
-    public static async Task<KeyTestResult> TestKeyAsync(
-        HttpClient http, string apiKey, Uri baseUrl, CancellationToken cancellationToken, TimeSpan? timeout = null)
-    {
-        if (!SecretStore.IsValidKey(apiKey))
-        {
-            throw new ArgumentException("Not a valid API key.", nameof(apiKey));
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(timeout ?? KeyTestTimeout);
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, Under(baseUrl, "models"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            using var response = await http.SendAsync(
-                request, HttpCompletionOption.ResponseHeadersRead, timeoutSource.Token);
-            return (int)response.StatusCode switch
-            {
-                >= 200 and < 300 => new(KeyTestOutcome.Accepted),
-
-                // Not every OpenAI-compatible server lists models; that says nothing about the key.
-                404 or 405 => new(KeyTestOutcome.CannotVerify),
-                _ => new(KeyTestOutcome.Failed, TranscriptionFailure.FromStatus(response.StatusCode)),
-            };
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return new(KeyTestOutcome.Failed, new(TranscriptionError.Timeout));
-        }
-        catch (HttpRequestException e)
-        {
-            return new(KeyTestOutcome.Failed, new(TranscriptionError.Network, (int)e.HttpRequestError));
-        }
-    }
 
     public async Task<TranscriptionResult> TranscribeAsync(byte[] wav, CancellationToken cancellationToken)
     {
@@ -153,12 +112,14 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
             }
             catch (HttpRequestException e)
             {
-                return new("", new(TranscriptionError.Network, (int)e.HttpRequestError));
+                return new("", new(
+                    Reachability.IsOnline() ? TranscriptionError.Network : TranscriptionError.NoInternet,
+                    (int)e.HttpRequestError));
             }
             catch (IOException)
             {
                 // The connection dropped while the body was being read.
-                return new("", new(TranscriptionError.Network));
+                return new("", new(TranscriptionError.ConnectionLost));
             }
             catch (JsonException)
             {
@@ -190,11 +151,12 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
 
         // Disposing the request disposes the content and its parts.
         var request = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = content };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        if (_apiKey is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        }
         return request;
     }
-
-    private static Uri Under(Uri baseUrl, string path) => new(baseUrl.AbsoluteUri.TrimEnd('/') + "/" + path);
 
     private static TranscriptionResult ReadTranscript(JsonDocument json)
     {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using Naad.Providers;
 using Naad.Transcription;
 
 namespace Naad.Tests.Transcription;
@@ -131,13 +132,13 @@ public sealed class OpenAiCompatibleTranscriberTests
     }
 
     [Fact]
-    public async Task Transcribe_ConnectionDropsMidResponse_ReturnsNetwork()
+    public async Task Transcribe_ConnectionDropsMidResponse_ReturnsConnectionLost()
     {
         using var handler = FakeHandler.Throwing(new IOException("connection reset"));
 
         var result = await Transcribe(handler);
 
-        Assert.Equal(TranscriptionError.Network, result.Failure?.Error);
+        Assert.Equal(TranscriptionError.ConnectionLost, result.Failure?.Error);
     }
 
     [Fact]
@@ -323,8 +324,8 @@ public sealed class OpenAiCompatibleTranscriberTests
         using var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, "{}"));
         using var http = new HttpClient(handler);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OpenAiCompatibleTranscriber.TestKeyAsync(
-            http, FakeKey, BaseUrl, new CancellationToken(canceled: true)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ServiceKeyCheck.TestAsync(
+            http, CloudService.Custom, FakeKey, BaseUrl, new CancellationToken(canceled: true)));
         Assert.Null(handler.Method);
     }
 
@@ -337,7 +338,7 @@ public sealed class OpenAiCompatibleTranscriberTests
         using var http = new HttpClient(handler);
 
         var error = await Assert.ThrowsAsync<ArgumentException>(
-            () => OpenAiCompatibleTranscriber.TestKeyAsync(http, key, BaseUrl, CancellationToken.None));
+            () => ServiceKeyCheck.TestAsync(http, CloudService.Custom, key, BaseUrl, CancellationToken.None));
         Assert.Null(handler.Method);
         Assert.DoesNotContain("fake", error.Message, StringComparison.Ordinal);
     }
@@ -371,7 +372,8 @@ public sealed class OpenAiCompatibleTranscriberTests
     private static async Task<KeyTestResult> TestKey(FakeHandler handler, TimeSpan? timeout = null)
     {
         using var http = new HttpClient(handler);
-        return await OpenAiCompatibleTranscriber.TestKeyAsync(http, FakeKey, BaseUrl, CancellationToken.None, timeout);
+        return await ServiceKeyCheck.TestAsync(
+            http, CloudService.Custom, FakeKey, BaseUrl, CancellationToken.None, timeout);
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>

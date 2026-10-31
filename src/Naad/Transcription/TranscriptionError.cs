@@ -19,8 +19,14 @@ internal enum TranscriptionError
     /// <summary>Any other 4xx, such as an unknown model or a wrong base URL (404).</summary>
     Rejected,
 
-    /// <summary>No HTTP response: DNS, connection, TLS or a dropped connection.</summary>
+    /// <summary>No HTTP response: DNS, connection or TLS failed with a network connected.</summary>
     Network,
+
+    /// <summary>No HTTP response, and the PC has no network connection.</summary>
+    NoInternet,
+
+    /// <summary>The connection dropped while the answer was arriving.</summary>
+    ConnectionLost,
 
     /// <summary>No response within the request timeout.</summary>
     Timeout,

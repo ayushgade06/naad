@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Naad.Cleanup;
 using Naad.Hotkey;
 using Naad.LanguageModel;
+using Naad.Providers;
 using Naad.Transcription;
 
 namespace Naad.Settings;
@@ -17,7 +18,7 @@ internal sealed record AppSettings
     /// Bump when a property is renamed, removed or changes meaning, and add the matching
     /// migration to <see cref="SettingsStore"/>. Adding a property with a default needs no bump.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public static AppSettings Defaults { get; } = new();
 
@@ -46,8 +47,18 @@ internal sealed record AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter<WhisperModel>))]
     public WhisperModel LocalModel { get; init; } = WhisperModel.Base;
 
-    /// <summary>The OpenAI-compatible API root; "/audio/transcriptions" is appended to it.</summary>
+    /// <summary>The cloud service that transcribes when the provider is Cloud.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<CloudService>))]
+    public CloudService TranscriptionService { get; init; } = CloudService.Groq;
+
+    /// <summary>
+    /// The OpenAI-compatible API root used with the Custom service; "/audio/transcriptions" is
+    /// appended to it. A named service uses its own address.
+    /// </summary>
     public Uri TranscriptionBaseUrl { get; init; } = new("https://api.groq.com/openai/v1");
+
+    /// <summary>How long one transcription request may take, in seconds.</summary>
+    public int TranscriptionTimeoutSeconds { get; init; } = 20;
 
     /// <summary>The provider's speech-to-text model.</summary>
     public string TranscriptionModel { get; init; } = "whisper-large-v3-turbo";
@@ -78,8 +89,21 @@ internal sealed record AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter<LocalLanguageModelChoice>))]
     public LocalLanguageModelChoice LocalLanguageModel { get; init; } = LocalLanguageModelChoice.Small;
 
-    /// <summary>The OpenAI-compatible API root; "/chat/completions" is appended to it.</summary>
+    /// <summary>The cloud service that runs AI steps when the provider is Cloud.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<CloudService>))]
+    public CloudService LanguageModelService { get; init; } = CloudService.Groq;
+
+    /// <summary>
+    /// The OpenAI-compatible API root used with the Custom service; "/chat/completions" is
+    /// appended to it. A named service uses its own address.
+    /// </summary>
     public Uri LanguageModelBaseUrl { get; init; } = new("https://api.groq.com/openai/v1");
+
+    /// <summary>
+    /// How long cleanup waits for the language model, in seconds; past it the text is pasted as
+    /// said. Raise it for a slow server on this PC.
+    /// </summary>
+    public int LanguageModelTimeoutSeconds { get; init; } = 8;
 
     /// <summary>The cloud provider's chat model.</summary>
     public string LanguageModelName { get; init; } = "openai/gpt-oss-20b";
@@ -115,6 +139,11 @@ internal sealed record AppSettings
     // Whisper reads only the last 224 tokens of a prompt; 500 characters of names and terms
     // stay well inside that.
     private const int MaxVocabularyLength = 500;
+
+    // A request shorter than this can't finish even on a fast connection; longer than five
+    // minutes, the user has long given up.
+    public const int MinTimeoutSeconds = 2;
+    public const int MaxTimeoutSeconds = 300;
 
     // Room for a long set of instructions, far below what a model's context holds.
     private const int MaxPromptLength = 8000;
@@ -157,9 +186,13 @@ internal sealed record AppSettings
     public static bool IsValidVocabulary(string? vocabulary) =>
         vocabulary is { Length: > 0 and <= MaxVocabularyLength } && !vocabulary.Any(char.IsControl);
 
+    /// <summary>A timeout from 2 to 300 seconds.</summary>
+    public static bool IsValidTimeout(int seconds) => seconds is >= MinTimeoutSeconds and <= MaxTimeoutSeconds;
+
     /// <summary>1 to 8,000 characters; new lines and tabs are the only control characters allowed.</summary>
     public static bool IsValidCleanupPrompt(string? prompt) =>
-        prompt is { Length: > 0 and <= MaxPromptLength } && !prompt.Any(c => char.IsControl(c) && c is not '\n' and not '\r' and not '\t');
+        prompt is { Length: > 0 and <= MaxPromptLength }
+        && !prompt.Any(c => char.IsControl(c) && c is not '\n' and not '\r' and not '\t');
 
     /// <summary>A yyyy-MM-dd date, as <see cref="Naad.Cleanup.CleanupPrompt.DefaultVersion"/> is written.</summary>
     public static bool IsValidPromptVersion(string? version) =>

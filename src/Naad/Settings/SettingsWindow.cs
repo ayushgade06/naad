@@ -1,5 +1,5 @@
-using Naad.Cleanup;
 using Naad.Hotkey;
+using Naad.Providers;
 using Naad.Transcription;
 using Naad.Tray;
 
@@ -17,13 +17,9 @@ internal sealed class SettingsWindow : Form
     private const int FieldWidth = 300;
 
     private readonly AppSettings _current;
-    private readonly ApiKeyResult _key;
-    private readonly Func<string, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
-    private readonly Func<SettingsChange, string?> _save;
-    private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _downloadModel;
+    private readonly SettingsWindowActions _actions;
     private readonly LanguageModelPanel _languageModel;
-    private readonly Func<bool> _beginCapture;
-    private readonly Action _cancelCapture;
+    private readonly CloudServiceFields _cloud;
     private readonly CancellationTokenSource _closing = new();
     private readonly Icon _icon = TrayIcon.LoadIcon();
 
@@ -34,16 +30,19 @@ internal sealed class SettingsWindow : Form
     private readonly ComboBox _localModel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly Label _modelStatus = Note();
     private readonly Button _downloadModelButton = new() { Text = "Download model", AutoSize = true };
-    private readonly TextBox _newKey = new() { UseSystemPasswordChar = true, Width = FieldWidth };
-    private readonly Button _testKeyButton = new() { Text = "Test key", AutoSize = true };
-    private readonly Label _testResult = Note();
+    private readonly Button _testTranscriptionButton = new() { Text = "Test", AutoSize = true };
+    private readonly Label _testTranscriptionResult = Note();
+    private readonly NumericUpDown _timeout = new()
+    {
+        Minimum = AppSettings.MinTimeoutSeconds,
+        Maximum = AppSettings.MaxTimeoutSeconds,
+        Width = 60,
+    };
     private readonly Label _shortcutText = new() { AutoSize = true, Anchor = AnchorStyles.Left };
     private readonly Button _changeShortcut = new() { Text = "Change...", AutoSize = true };
     private readonly ComboBox _microphone = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly TextBox _language = new() { Width = 60 };
     private readonly TextBox _vocabulary = new() { Width = FieldWidth };
-    private readonly TextBox _baseUrl = new() { Width = FieldWidth };
-    private readonly TextBox _model = new() { Width = FieldWidth };
     private readonly CheckBox _playSounds = new()
     {
         Text = "Play a tone when listening starts and stops",
@@ -69,39 +68,25 @@ internal sealed class SettingsWindow : Form
     private bool _capturing;
 
     /// <param name="current">The settings in use.</param>
-    /// <param name="key">Where the key in use comes from; the key itself is only used for Test key.</param>
-    /// <param name="languageModelKey">The same for the language model's key.</param>
     /// <param name="microphones">The connected recording devices' names.</param>
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
-    /// <param name="downloadModel">Downloads a model file to run on this PC, reporting progress.</param>
-    /// <param name="testKey">Checks a key against a base URL.</param>
-    /// <param name="testPrompt">Sends cleanup instructions and a sample to the saved language model.</param>
-    /// <param name="cooldownFor">A cloud model's running rate limit, if any.</param>
-    /// <param name="save">Saves and applies the change. Returns what went wrong, or null.</param>
-    /// <param name="beginCapture">Starts capturing a shortcut; false if a dictation is running.</param>
-    /// <param name="cancelCapture">Stops a capture early.</param>
+    /// <param name="actions">What the buttons do.</param>
     public SettingsWindow(
-        AppSettings current,
-        ApiKeyResult key,
-        ApiKeyResult languageModelKey,
-        IReadOnlyList<string> microphones,
-        bool startsAtLogin,
-        Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> downloadModel,
-        Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
-        Func<string?, string, CancellationToken, Task<PromptTest>> testPrompt,
-        Func<string, Cooldown?> cooldownFor,
-        Func<SettingsChange, string?> save,
-        Func<bool> beginCapture,
-        Action cancelCapture)
+        AppSettings current, IReadOnlyList<string> microphones, bool startsAtLogin, SettingsWindowActions actions)
     {
         _current = current;
-        _key = key;
-        _testKey = testKey;
-        _save = save;
-        _downloadModel = downloadModel;
-        _beginCapture = beginCapture;
-        _cancelCapture = cancelCapture;
+        _actions = actions;
         _shortcut = current.DictationShortcut;
+        _cloud = new(
+            CloudServices.ForTranscription,
+            current.TranscriptionService,
+            current.TranscriptionBaseUrl,
+            current.TranscriptionModel,
+            fallback: null,
+            withFallback: false,
+            actions.KeyFor,
+            actions.TestKey,
+            _closing.Token);
 
         Text = "Naad settings";
         Icon = _icon;
@@ -115,10 +100,16 @@ internal sealed class SettingsWindow : Form
         FillFields(microphones);
         _startAtLogin.Checked = startsAtLogin;
         _languageModel = new(
-            current, languageModelKey, downloadModel, testKey, testPrompt, cooldownFor, _closing.Token);
+            current,
+            actions.KeyFor,
+            actions.DownloadModel,
+            actions.TestKey,
+            actions.TestPrompt,
+            actions.CooldownFor,
+            _closing.Token);
         Controls.Add(BuildLayout());
 
-        _testKeyButton.Click += (_, _) => _ = TestKeyAsync();
+        _testTranscriptionButton.Click += (_, _) => _ = TestTranscriptionAsync();
         _downloadModelButton.Click += (_, _) => _ = DownloadModelAsync();
         _localModel.SelectedIndexChanged += (_, _) => ShowModelStatus();
         _changeShortcut.Click += (_, _) => BeginCapture();
@@ -188,8 +179,7 @@ internal sealed class SettingsWindow : Form
         _language.Text = _current.Language ?? "";
         _vocabulary.Text = _current.Vocabulary ?? "";
         _handsFree.Checked = _current.HandsFree;
-        _baseUrl.Text = _current.TranscriptionBaseUrl.AbsoluteUri;
-        _model.Text = _current.TranscriptionModel;
+        _timeout.Value = _current.TranscriptionTimeoutSeconds;
         _playSounds.Checked = _current.PlaySounds;
         _fileLogging.Checked = _current.FileLogging;
     }
@@ -201,7 +191,7 @@ internal sealed class SettingsWindow : Form
         var table = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Padding = new Padding(8) };
         var save = new Button { Text = "Save", AutoSize = true };
         var cancel = new Button { Text = "Cancel", AutoSize = true };
-        save.Click += (_, _) => Save();
+        save.Click += (_, _) => _ = SaveAsync();
 
         // The window is modeless (Show, not ShowDialog), so a DialogResult wouldn't close it.
         cancel.Click += (_, _) => Close();
@@ -211,17 +201,15 @@ internal sealed class SettingsWindow : Form
         Row(dictation, "Transcribe with", _provider);
         Row(dictation, "Model on this PC", _localModel);
         Row(dictation, "", Flow(_modelStatus, _downloadModelButton));
-        Row(dictation, "API key", Note(SettingsInput.KeyStatus(_key)));
-        Row(dictation, "New key", Flow(_newKey, _testKeyButton));
-        Row(dictation, "", _testResult);
         Row(dictation, "Shortcut", Flow(_shortcutText, _changeShortcut));
         Row(dictation, "", _handsFree);
         Row(dictation, "Microphone", _microphone);
         Row(dictation, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
         Row(dictation, "Vocabulary", _vocabulary);
         Row(dictation, "", Note("Names and terms you use, separated by commas. Sent with each recording."));
-        Row(dictation, "Base URL", _baseUrl);
-        Row(dictation, "Model", _model);
+        _cloud.AddRows((label, control) => Row(dictation, label, control));
+        Row(dictation, "Wait up to", Flow(_timeout, Note("seconds for the cloud service")));
+        Row(dictation, "Transcription", Flow(_testTranscriptionButton, _testTranscriptionResult));
         Row(dictation, "", _playSounds);
         Row(dictation, "", _fileLogging);
         Row(dictation, "", _startAtLogin);
@@ -279,7 +267,7 @@ internal sealed class SettingsWindow : Form
 
     private void BeginCapture()
     {
-        if (_capturing || !_beginCapture())
+        if (_capturing || !_actions.BeginCapture())
         {
             return;
         }
@@ -293,7 +281,7 @@ internal sealed class SettingsWindow : Form
     {
         if (_capturing)
         {
-            _cancelCapture();
+            _actions.CancelCapture();
             EndCapture();
         }
     }
@@ -305,7 +293,8 @@ internal sealed class SettingsWindow : Form
         _shortcutText.Text = _shortcut.Describe();
     }
 
-    private void Save()
+    // Fire-and-forget from a click: anything not caught here would vanish silently.
+    private async Task SaveAsync()
     {
         CancelCapture();
         var chosen = _current with
@@ -317,6 +306,7 @@ internal sealed class SettingsWindow : Form
             HandsFree = _handsFree.Checked,
             TranscriptionProvider = (TranscriptionProvider)_provider.SelectedIndex,
             LocalModel = ChosenModel,
+            TranscriptionTimeoutSeconds = (int)_timeout.Value,
         };
         if (chosen.TranscriptionProvider == TranscriptionProvider.Local && !LocalModel.For(ChosenModel).IsReady())
         {
@@ -324,33 +314,67 @@ internal sealed class SettingsWindow : Form
             return;
         }
 
-        if (!SettingsInput.TryBuild(
-            chosen, _baseUrl.Text, _model.Text, _language.Text, _vocabulary.Text, out var settings, out var error))
+        if (!SettingsInput.TryBuild(chosen, _language.Text, _vocabulary.Text, out var settings, out var error)
+            || !_cloud.TryRead(out var transcription, out error)
+            || !_languageModel.TryApply(settings, out settings, out var languageModel, out error))
         {
             _error.Text = error;
             return;
         }
 
-        if (SettingsInput.KeyError(_newKey.Text) is { } keyError)
+        settings = settings with
         {
-            _error.Text = keyError;
-            return;
+            TranscriptionService = transcription.Service,
+            TranscriptionBaseUrl = transcription.CustomUrl,
+            TranscriptionModel = transcription.Model,
+        };
+
+        // A new key is checked first; one the service rejects is never stored.
+        var newKeys = new Dictionary<CloudService, string>();
+        foreach (var choice in new[] { transcription, languageModel })
+        {
+            if (choice.NewKey is { } key)
+            {
+                newKeys[choice.Service] = key;
+            }
         }
 
-        if (!_languageModel.TryApply(settings, out settings, out var newLanguageModelKey, out error))
+        _error.Text = newKeys.Count > 0 ? "Checking the new key..." : "";
+        foreach (var (service, key) in newKeys)
         {
-            _error.Text = error;
-            return;
+            if (await RejectsAsync(service, key, settings) is { } rejected)
+            {
+                _error.Text = rejected;
+                return;
+            }
         }
 
-        var newKey = _newKey.Text.Trim() is { Length: > 0 } typed ? typed : null;
-        if (_save(new(settings, newKey, newLanguageModelKey, _startAtLogin.Checked)) is { } problem)
+        if (!IsDisposed && _actions.Save(new(settings, newKeys, _startAtLogin.Checked)) is { } problem)
         {
             _error.Text = problem;
             return;
         }
 
         Close();
+    }
+
+    // Only a definite rejection stops the save: a service that can't be reached may work later.
+    private async Task<string?> RejectsAsync(CloudService service, string key, AppSettings settings)
+    {
+        var url = service == settings.LanguageModelService
+            ? settings.LanguageModelBaseUrl
+            : settings.TranscriptionBaseUrl;
+        try
+        {
+            var result = await _actions.TestKey(service, key, url, _closing.Token);
+            return result.Failure?.Error == TranscriptionError.Unauthorized
+                ? $"{CloudServices.For(service).Name} rejected the new key, so nothing was saved."
+                : null;
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            return "Settings closed before the key was checked.";
+        }
     }
 
     // Fire-and-forget from a click: anything not caught here would vanish silently.
@@ -363,7 +387,7 @@ internal sealed class SettingsWindow : Form
         var progress = new Progress<double>(fraction => _modelStatus.Text = $"Downloading... {fraction:P0}");
         try
         {
-            var result = await _downloadModel(LocalModel.For(choice), progress, _closing.Token);
+            var result = await _actions.DownloadModel(LocalModel.For(choice), progress, _closing.Token);
             _modelStatus.Text = SettingsInput.ModelDownloadMessage(result);
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
@@ -387,32 +411,14 @@ internal sealed class SettingsWindow : Form
     }
 
     // Fire-and-forget from a click: anything not caught here would vanish silently.
-    private async Task TestKeyAsync()
+    private async Task TestTranscriptionAsync()
     {
-        var typed = _newKey.Text.Trim();
-        if (SettingsInput.KeyError(typed) is { } keyError)
-        {
-            _testResult.Text = keyError;
-            return;
-        }
-
-        if ((typed.Length > 0 ? typed : _key.Key) is not { } key)
-        {
-            _testResult.Text = "Paste a key first.";
-            return;
-        }
-
-        if (!AppSettings.TryParseBaseUrl(_baseUrl.Text.Trim(), out var url))
-        {
-            _testResult.Text = "Fix the base URL first.";
-            return;
-        }
-
-        _testKeyButton.Enabled = false;
-        _testResult.Text = "Testing...";
+        _testTranscriptionButton.Enabled = false;
+        _testTranscriptionResult.Text = "Sending a second of silence with the saved settings...";
         try
         {
-            _testResult.Text = SettingsInput.KeyTestMessage(await _testKey(key, url, _closing.Token));
+            _testTranscriptionResult.Text = SettingsInput.TranscriptionTestMessage(
+                await _actions.TestTranscription(_closing.Token));
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
         {
@@ -420,14 +426,14 @@ internal sealed class SettingsWindow : Form
         }
         catch (Exception e)
         {
-            Log.Error(LogEvent.ApiKeyTestFailed, e);
-            _testResult.Text = "The key couldn't be checked.";
+            Log.Error(LogEvent.TranscriptionTestFailed, e);
+            _testTranscriptionResult.Text = "The test couldn't run.";
         }
         finally
         {
             if (!IsDisposed)
             {
-                _testKeyButton.Enabled = true;
+                _testTranscriptionButton.Enabled = true;
             }
         }
     }

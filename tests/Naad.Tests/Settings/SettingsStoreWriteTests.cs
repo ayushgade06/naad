@@ -29,13 +29,15 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.True(result.Saved);
         Assert.Equal("""
             {
-              "version": 2,
+              "version": 3,
               "fileLogging": true,
               "playSounds": false,
               "dictationShortcut": "RightCtrl",
               "transcriptionProvider": "Local",
               "localModel": "Base",
+              "transcriptionService": "Groq",
               "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
+              "transcriptionTimeoutSeconds": 20,
               "transcriptionModel": "whisper-large-v3-turbo",
               "language": null,
               "microphone": null,
@@ -43,7 +45,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "handsFree": false,
               "languageModelProvider": "Local",
               "localLanguageModel": "Small",
+              "languageModelService": "Groq",
               "languageModelBaseUrl": "https://api.groq.com/openai/v1",
+              "languageModelTimeoutSeconds": 8,
               "languageModelName": "openai/gpt-oss-20b",
               "languageModelFallbackName": null,
               "cleanup": "Ai",
@@ -80,7 +84,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
 
     [Theory]
     [InlineData("""{ "fileLogging": false }""", "v0")]
-    [InlineData("""{ "version": 2, "fileLogging": "no" }""", "invalid")]
+    [InlineData("""{ "version": 3, "fileLogging": "no" }""", "invalid")]
     [InlineData("{ not json", "corrupt")]
     public void Load_FileNeedingRewrite_BacksUpOriginalThenRewrites(string original, string reason)
     {
@@ -97,7 +101,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Load_ValidCurrentFile_IsNotRewritten()
     {
-        const string Original = """{ "version": 2, "fileLogging": false, "unknownKept": true }""";
+        const string Original = """{ "version": 3, "fileLogging": false, "unknownKept": true }""";
         File.WriteAllText(SettingsPath, Original);
 
         var result = new SettingsStore(SettingsPath).Load();
@@ -180,7 +184,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Save_WriteFails_ReturnsErrorAndKeepsPreviousFile()
     {
-        const string Original = """{ "version": 2, "fileLogging": false }""";
+        const string Original = """{ "version": 3, "fileLogging": false }""";
         File.WriteAllText(SettingsPath, Original);
         BlockWrites();
 
@@ -207,9 +211,10 @@ public sealed class SettingsStoreWriteTests : IDisposable
             [
                 "cleanup", "cleanupPrompt", "cleanupPromptVersion", "dictationShortcut", "fileLogging",
                 "handsFree", "instructionGuard", "language", "languageModelBaseUrl", "languageModelFallbackName",
-                "languageModelName", "languageModelProvider", "localLanguageModel", "localModel", "microphone",
-                "outputLanguage", "playSounds", "transcriptionBaseUrl", "transcriptionModel",
-                "transcriptionProvider", "version", "vocabulary",
+                "languageModelName", "languageModelProvider", "languageModelService", "languageModelTimeoutSeconds",
+                "localLanguageModel", "localModel", "microphone", "outputLanguage", "playSounds",
+                "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "transcriptionService",
+                "transcriptionTimeoutSeconds", "version", "vocabulary",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

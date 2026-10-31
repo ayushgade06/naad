@@ -45,22 +45,25 @@ public sealed class SettingsWindowTests
             clicker.ClickOn((Control)window.AcceptButton!);
         });
 
-        Assert.Equal(new SettingsChange(current, null, null, StartAtLogin: false), saved);
+        Assert.Equal(current, saved?.Settings);
+        Assert.Empty(saved!.NewKeys);
+        Assert.False(saved.StartAtLogin);
     }
 
     private static SettingsWindow Window(Func<SettingsChange, string?> save, AppSettings? current = null) => new(
         current ?? AppSettings.Defaults,
-        new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
-        new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
         microphones: [],
         startsAtLogin: false,
-        downloadModel: (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
-        testKey: (_, _, _) => throw new InvalidOperationException("Not used."),
-        testPrompt: (_, _, _) => throw new InvalidOperationException("Not used."),
-        cooldownFor: _ => null,
-        save: save,
-        beginCapture: () => false,
-        cancelCapture: () => { });
+        new SettingsWindowActions(
+            _ => new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
+            (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
+            (_, _, _, _) => throw new InvalidOperationException("Not used."),
+            _ => throw new InvalidOperationException("Not used."),
+            (_, _, _) => throw new InvalidOperationException("Not used."),
+            _ => null,
+            save,
+            () => false,
+            () => { }));
 
     private sealed class Clicker : Control
     {

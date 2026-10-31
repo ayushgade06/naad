@@ -15,6 +15,7 @@ internal enum LogEvent
     ApiKeyFromEnvironment,
     ApiKeyLoaded,
     ApiKeyStored,
+    ApiKeyMoved,
     ApiKeyStoreFailed,
     ApiKeyTestAccepted,
     ApiKeyTestUnverifiable,
@@ -106,6 +107,9 @@ internal enum LogEvent
     CleanupFallbackModelUsed,
     CleanupSkippedCoolingDown,
     CleanupPromptTested,
+    TranscriptionTestFailed,
+    TranscriptionTested,
+    OfflineFallbackUsed,
 
     UpdateNotAvailable,
     UpdateAvailable,

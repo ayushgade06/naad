@@ -13,15 +13,13 @@ internal static class SettingsInput
 {
     /// <summary>
     /// The settings to save: <paramref name="chosen"/> (shortcut, microphone and switches,
-    /// which the window can't get wrong) with the typed fields checked and applied. Text is
-    /// trimmed, a blank language means "detect it", a language is lowercased, and a blank
-    /// vocabulary sends none. On failure,
-    /// <paramref name="error"/> says what to fix and names the field.
+    /// which the window can't get wrong) with the typed language and vocabulary checked and
+    /// applied. Text is trimmed, a blank language means "detect it", a language is lowercased,
+    /// and a blank vocabulary sends none. On failure, <paramref name="error"/> says what to fix
+    /// and names the field. The cloud fields are checked by <see cref="CloudServiceFields"/>.
     /// </summary>
     public static bool TryBuild(
         AppSettings chosen,
-        string baseUrl,
-        string model,
         string language,
         string vocabulary,
         [NotNullWhen(true)] out AppSettings? settings,
@@ -30,12 +28,7 @@ internal static class SettingsInput
         settings = null;
         var languageCode = language.Trim().ToLowerInvariant();
         var terms = vocabulary.Trim();
-        error = !AppSettings.TryParseBaseUrl(baseUrl.Trim(), out var url)
-                ? "The base URL must start with https:// (or http:// for a server on this PC) and have no " +
-                    "query string."
-            : !AppSettings.IsValidModel(model.Trim())
-                ? "The model must be up to 100 visible characters, without spaces."
-            : languageCode.Length > 0 && !AppSettings.IsValidLanguage(languageCode)
+        error = languageCode.Length > 0 && !AppSettings.IsValidLanguage(languageCode)
                 ? "The language must be a two-letter code such as en or hi, or blank to detect it."
             : terms.Length > 0 && !AppSettings.IsValidVocabulary(terms)
                 ? "The vocabulary must be one line of up to 500 characters."
@@ -47,8 +40,6 @@ internal static class SettingsInput
 
         settings = chosen with
         {
-            TranscriptionBaseUrl = url!,
-            TranscriptionModel = model.Trim(),
             Language = languageCode.Length == 0 ? null : languageCode,
             Vocabulary = terms.Length == 0 ? null : terms,
         };
@@ -63,58 +54,6 @@ internal static class SettingsInput
         typed.Trim() is { Length: > 0 } key && !SecretStore.IsValidKey(key)
             ? "That isn't a valid API key: it has spaces or characters outside plain ASCII."
             : null;
-
-    /// <summary>
-    /// The language model fields applied to <paramref name="chosen"/>, checked like the
-    /// transcription ones; on failure <paramref name="error"/> names the field.
-    /// </summary>
-    public static bool TryBuildLanguageModel(
-        AppSettings chosen,
-        string baseUrl,
-        string model,
-        [NotNullWhen(true)] out AppSettings? settings,
-        [NotNullWhen(false)] out string? error) =>
-        TryBuildLanguageModel(chosen, baseUrl, model, "", "", out settings, out error);
-
-    /// <summary>
-    /// As above, with the fallback model and the output language, both optional: blank means none.
-    /// </summary>
-    public static bool TryBuildLanguageModel(
-        AppSettings chosen,
-        string baseUrl,
-        string model,
-        string fallbackModel,
-        string outputLanguage,
-        [NotNullWhen(true)] out AppSettings? settings,
-        [NotNullWhen(false)] out string? error)
-    {
-        settings = null;
-        var fallback = fallbackModel.Trim();
-        var language = outputLanguage.Trim();
-        error = !AppSettings.TryParseBaseUrl(baseUrl.Trim(), out var url)
-                ? "The AI base URL must start with https:// (or http:// for a server on this PC) and have no " +
-                    "query string."
-            : !AppSettings.IsValidModel(model.Trim())
-                ? "The AI model must be up to 100 visible characters, without spaces."
-            : fallback.Length > 0 && !AppSettings.IsValidModel(fallback)
-                ? "The fallback model must be up to 100 visible characters, without spaces."
-            : language.Length > 0 && !AppSettings.IsValidOutputLanguage(language)
-                ? "The output language must be a language name such as German, or blank."
-            : null;
-        if (error is not null)
-        {
-            return false;
-        }
-
-        settings = chosen with
-        {
-            LanguageModelBaseUrl = url!,
-            LanguageModelName = model.Trim(),
-            LanguageModelFallbackName = fallback.Length == 0 ? null : fallback,
-            OutputLanguage = language.Length == 0 ? null : language,
-        };
-        return true;
-    }
 
     /// <summary>What a prompt test found. Never includes the reply, which the dialog shows on its own.</summary>
     public static string PromptTestMessage(PromptTest test) => test switch
@@ -156,9 +95,6 @@ internal static class SettingsInput
         ? "The model is downloaded. AI steps work offline."
         : $"Running AI on this PC needs a one-time download of {size / 1e9:0.0} GB.";
 
-    /// <summary>Where the transcription key in use comes from. Never shows the key.</summary>
-    public static string KeyStatus(ApiKeyResult result) => KeyStatus(result, SecretStore.OverrideVariable);
-
     /// <summary>Where a key in use comes from, given its override variable. Never shows the key.</summary>
     public static string KeyStatus(ApiKeyResult result, string overrideVariable) =>
         (result.Source, result.Status) switch
@@ -167,7 +103,7 @@ internal static class SettingsInput
                 "saved here is used once that variable is removed.",
             (_, SecretStatus.Loaded) => "A key is stored, encrypted for your Windows account. Paste a new one " +
                 "to replace it.",
-            (_, SecretStatus.Missing) => "No key is stored. Paste one below; Groq's are at console.groq.com/keys.",
+            (_, SecretStatus.Missing) => "No key is stored. Paste one below.",
             (_, SecretStatus.Invalid) => $"{overrideVariable} holds characters a key can't have. Fix " +
                 "or remove it; a key saved here is used once it is removed.",
             _ => "The stored key can't be read: it may be damaged, or another Windows user saved it. Paste it " +
@@ -192,6 +128,14 @@ internal static class SettingsInput
         _ => "The model couldn't be saved. Check that the disk has room for it, then try again.",
     };
 
+    /// <summary>The result of the transcription Test button. Never includes a response body.</summary>
+    public static string TranscriptionTestMessage(TranscriptionTest test) => test switch
+    {
+        { NotSetUp: true } => "Transcription isn't set up yet: add a key, or download the model, and save.",
+        { Failure: null } => $"Transcription works: the service answered in {test.Milliseconds} ms.",
+        { Failure: { } failure } => Naad.Tray.TrayIcon.TranscriptionErrorMessage(failure.Error),
+    };
+
     /// <summary>The result of the Test key button. Never includes a response body.</summary>
     public static string KeyTestMessage(KeyTestResult result) => result switch
     {
@@ -202,6 +146,7 @@ internal static class SettingsInput
         { Failure.Error: TranscriptionError.RateLimited } => "The provider's rate limit was reached; the key " +
             "itself was not rejected. Try again in a moment.",
         { Failure.Error: TranscriptionError.ServerError } => "The provider had a problem. Try again in a moment.",
+        { Failure.Error: TranscriptionError.NoInternet } => "No internet connection. Connect and try again.",
         { Failure.Error: TranscriptionError.Network } => "Naad couldn't reach the provider. Check the base " +
             "URL and your internet connection.",
         { Failure.Error: TranscriptionError.Timeout } => "The provider didn't answer in time. Try again.",

@@ -4,6 +4,7 @@ using Naad.Dictation;
 using Naad.Hotkey;
 using Naad.Insertion;
 using Naad.LanguageModel;
+using Naad.Providers;
 using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
@@ -55,13 +56,12 @@ internal static class Program
 
         var store = new SettingsStore(SettingsStore.DefaultPath);
         var loaded = LoadSettings(store);
-        var keys = new SecretStore(SecretStore.DefaultPath);
-        var languageModelKeys = new SecretStore(SecretStore.LanguageModelPath);
+        var keys = Keys(loaded.Settings.TranscriptionService);
 
         try
         {
             // Without a usable key Naad still starts, and opens its settings window to ask for one.
-            Run(store, loaded, keys, languageModelKeys, ResolveKey(keys, log: true));
+            Run(store, loaded, keys);
             Log.Info(LogEvent.AppStopped);
             return 0;
         }
@@ -92,7 +92,11 @@ internal static class Program
             return 1;
         }
 
-        if (new SecretStore(SecretStore.DefaultPath).Save(key) is { } error)
+        // The key is for the transcription service settings.json names, read without writing it.
+        var service = File.Exists(SettingsStore.DefaultPath)
+            ? SettingsStore.Parse(File.ReadAllText(SettingsStore.DefaultPath)).Settings.TranscriptionService
+            : AppSettings.Defaults.TranscriptionService;
+        if (Keys(service).Save(service, key) is { } error)
         {
             Log.Error(LogEvent.ApiKeyStoreFailed, error);
             StartupError.Show("The API key could not be saved. The previously stored key, if any, is unchanged.");
@@ -118,19 +122,16 @@ internal static class Program
         return result;
     }
 
-    private static ApiKeyResult ResolveLanguageModelKey(SecretStore keys) =>
-        keys.Resolve(Environment.GetEnvironmentVariable(SecretStore.LanguageModelOverrideVariable));
+    // Naad 1.0's single key belonged to the transcription service its settings named.
+    private static ServiceKeys Keys(CloudService legacyService) => new(
+        ServiceKeys.DefaultFolder, SecretStore.DefaultPath, legacyService, Environment.GetEnvironmentVariable);
 
-    private static ApiKeyResult ResolveKey(SecretStore keys, bool log)
+    // Logs where the transcription key comes from, and keeps it to redact from error dialogs.
+    private static void ResolveTranscriptionKey(ServiceKeys keys, AppSettings s)
     {
-        var resolved = keys.Resolve(Environment.GetEnvironmentVariable(SecretStore.OverrideVariable));
-        if (log)
-        {
-            SecretStore.LogOutcome(resolved);
-            _apiKey = resolved.Key;
-        }
-
-        return resolved;
+        var resolved = keys.Resolve(s.TranscriptionService);
+        SecretStore.LogOutcome(resolved);
+        _apiKey = resolved.Key;
     }
 
     private static void StartFileLogging()
@@ -171,34 +172,16 @@ internal static class Program
         };
     }
 
-    // Null when the chosen provider can't run yet; the shortcut then asks the user to finish setup.
-    private static ITranscriber? CreateTranscriber(HttpClient http, string? apiKey, AppSettings s)
-    {
-        var model = LocalModel.For(s.LocalModel);
-        return ProviderSelection.Choose(s.TranscriptionProvider, apiKey is not null, model.IsReady()) switch
-        {
-            TranscriptionProvider.Cloud => new OpenAiCompatibleTranscriber(
-                http, apiKey!, s.TranscriptionBaseUrl, s.TranscriptionModel, s.Language, s.Vocabulary),
-            TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.Vocabulary),
-            _ => null,
-        };
-    }
-
     // Every local function below runs on this UI thread: the hook, the tray, the controller's
     // events and the settings window all live on it.
-    private static void Run(
-        SettingsStore store,
-        SettingsLoadResult loaded,
-        SecretStore keys,
-        SecretStore languageModelKeys,
-        ApiKeyResult key)
+    private static void Run(SettingsStore store, SettingsLoadResult loaded, ServiceKeys keys)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
         var settings = loaded.Settings;
-        var apiKey = key.Key;
-        var languageModelKey = ResolveLanguageModelKey(languageModelKeys).Key;
+        ResolveTranscriptionKey(keys, settings);
+        string? KeyFor(CloudService service) => keys.Resolve(service).Key;
         var temperature = new TemperatureSupport(TemperatureSupport.DefaultPath, TimeProvider.System);
         var cooldowns = new RateLimitCooldowns(RateLimitCooldowns.DefaultPath, TimeProvider.System);
 
@@ -207,6 +190,10 @@ internal static class Program
 
         // A newer Naad wrote settings.json; this build never replaces it (docs/settings.md).
         var canSave = loaded.Status != SettingsStatus.FutureVersion;
+
+        // Offline, a cloud choice falls back to this PC; the user is told once per session.
+        var offlineNoticeShown = false;
+        Action? offline = null;
 
         // Settings saved during a dictation, applied once it ends.
         AppSettings? pending = null;
@@ -246,7 +233,7 @@ internal static class Program
                 clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
             using var controller = new DictationController(
                 recorder,
-                transcriber = CreateTranscriber(http, apiKey, settings),
+                transcriber = TranscriberSetup.Create(http, KeyFor, settings, Offline),
                 inserter,
                 FocusGuard.Foreground,
                 FocusGuard.Check,
@@ -255,7 +242,16 @@ internal static class Program
             controller.UseHandsFree(settings.HandsFree);
             UseLanguageModel(settings, replace: true);
             var startup = StartupEntry.ForThisApp();
-            var actions = new SettingsActions(store, keys, languageModelKeys, startup, canSave, http);
+            var actions = new SettingsActions(store, keys, startup, canSave, http);
+            offline = () =>
+            {
+                Log.Info(LogEvent.OfflineFallbackUsed);
+                if (!offlineNoticeShown)
+                {
+                    offlineNoticeShown = true;
+                    tray.ShowOfflineFallback();
+                }
+            };
             controller.StateChanged += tray.ShowState;
 
             // Recording starts with focus on the window being dictated into, so the overlay
@@ -314,12 +310,14 @@ internal static class Program
                         _ = Task.Run(old.Dispose);
                     }
 
-                    languageModel = CleanupSetup.CreateModel(http, languageModelKey, s, temperature);
+                    languageModel = CleanupSetup.CreateModel(http, KeyFor, s, temperature, Offline);
                 }
 
                 controller.UseCleanup(
-                    CleanupSetup.Create(languageModel, http, languageModelKey, s, temperature, cooldowns));
+                    CleanupSetup.Create(languageModel, http, KeyFor, s, temperature, cooldowns));
             }
+
+            void Offline() => offline?.Invoke();
 
             void OpenSettings()
             {
@@ -329,19 +327,16 @@ internal static class Program
                     return;
                 }
 
-                window = new SettingsWindow(
-                    pending ?? settings,
-                    ResolveKey(keys, log: false),
-                    ResolveLanguageModelKey(languageModelKeys),
-                    Microphones(),
-                    startup.IsEnabled(),
+                window = new SettingsWindow(pending ?? settings, Microphones(), startup.IsEnabled(), new(
+                    keys.Resolve,
                     actions.DownloadModelAsync,
                     actions.TestKeyAsync,
+                    token => SettingsActions.TestTranscriptionAsync(transcriber, token),
                     (instructions, sample, token) =>
                         CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
                     cooldowns.For,
                     Save,
-                    beginCapture: () =>
+                    BeginCapture: () =>
                     {
                         // A capture swallows every key, so it never starts during a dictation.
                         if (controller.State != DictationState.Idle)
@@ -352,7 +347,7 @@ internal static class Program
                         hook.BeginCapture();
                         return true;
                     },
-                    hook.CancelCapture);
+                    hook.CancelCapture));
                 window.FormClosed += (_, _) => window = null;
                 window.Show();
                 Log.Info(LogEvent.SettingsWindowOpened);
@@ -363,18 +358,9 @@ internal static class Program
             {
                 var keyError = actions.SaveKeys(change);
 
-                // Even after a failure: the transcription key may have been stored before it.
-                if (change.NewKey is not null)
-                {
-                    apiKey = ResolveKey(keys, log: true).Key;
-                }
-
-                var languageModelKeyChanged = change.NewLanguageModelKey is not null;
-                if (languageModelKeyChanged)
-                {
-                    languageModelKey = ResolveLanguageModelKey(languageModelKeys).Key;
-                }
-
+                // Even after a failure: a key may have been stored before it.
+                ResolveTranscriptionKey(keys, change.Settings);
+                var languageModelKeyChanged = change.NewKeys.ContainsKey(change.Settings.LanguageModelService);
                 if (keyError is not null)
                 {
                     return keyError;
@@ -420,7 +406,7 @@ internal static class Program
                 controller.UseHandsFree(next.HandsFree);
                 recorder.UseMicrophone(next.Microphone);
                 var replaced = transcriber;
-                transcriber = CreateTranscriber(http, apiKey, next);
+                transcriber = TranscriberSetup.Create(http, KeyFor, next, Offline);
                 controller.UseTranscriber(transcriber);
                 UseLanguageModel(next, replaceLanguageModel || languageModelKeyChanged || ModelChanged(settings, next));
                 replaceLanguageModel = false;
@@ -440,8 +426,10 @@ internal static class Program
     private static bool ModelChanged(AppSettings before, AppSettings after) =>
         before.LanguageModelProvider != after.LanguageModelProvider
         || before.LocalLanguageModel != after.LocalLanguageModel
+        || before.LanguageModelService != after.LanguageModelService
         || before.LanguageModelBaseUrl != after.LanguageModelBaseUrl
-        || before.LanguageModelName != after.LanguageModelName;
+        || before.LanguageModelName != after.LanguageModelName
+        || before.LanguageModelTimeoutSeconds != after.LanguageModelTimeoutSeconds;
 
     private static IReadOnlyList<string> Microphones()
     {
