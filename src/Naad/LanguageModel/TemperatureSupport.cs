@@ -19,7 +19,9 @@ internal sealed class TemperatureSupport(string path, TimeProvider time)
     private Dictionary<string, DateTimeOffset>? _refused;
 
     public static string DefaultPath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Naad", "temperature-refused.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Naad",
+        "temperature-refused.json");
 
     /// <summary>Whether <paramref name="model"/> at <paramref name="baseUrl"/> refused a temperature this week.</summary>
     public bool IsRefused(Uri baseUrl, string model)

@@ -70,7 +70,6 @@ public sealed class OpenAiChatLanguageModelTests : IDisposable
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, "Unauthorized")]
     [InlineData(HttpStatusCode.Forbidden, "Unauthorized")]
-    [InlineData(HttpStatusCode.TooManyRequests, "RateLimited")]
     [InlineData(HttpStatusCode.NotFound, "Rejected")]
     [InlineData(HttpStatusCode.BadRequest, "Rejected")]
     [InlineData(HttpStatusCode.BadGateway, "ServerError")]
@@ -85,11 +84,28 @@ public sealed class OpenAiChatLanguageModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Complete_RateLimited_ReportsTheWaitFromTheHeaders()
+    {
+        using var handler = new FakeHandler(_ =>
+        {
+            var response = Reply(HttpStatusCode.TooManyRequests, "{}");
+            response.Headers.Add("retry-after", "7");
+            return response;
+        });
+
+        var result = await Complete(handler);
+
+        Assert.Equal(new CompletionFailure(CompletionError.RateLimited, 429, TimeSpan.FromSeconds(7)), result.Failure);
+    }
+
+    [Fact]
     public async Task Complete_TemperatureRefused_SendsAgainWithoutItAndRemembers()
     {
         var calls = 0;
         using var handler = new FakeHandler(_ => ++calls == 1
-            ? Reply(HttpStatusCode.BadRequest, """{ "error": { "param": "temperature", "code": "unsupported_value" } }""")
+            ? Reply(
+                HttpStatusCode.BadRequest,
+                """{ "error": { "param": "temperature", "code": "unsupported_value" } }""")
             : Reply(HttpStatusCode.OK, Choice("Hello.")));
         var temperature = Temperature();
 

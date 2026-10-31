@@ -40,6 +40,9 @@ internal sealed class LocalLanguageModel : ILanguageModel, IDisposable
     private readonly string _path;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ITimer _idle;
+
+    // Cancelled by Dispose, so it waits only for a prompt to stop, not to finish.
+    private readonly CancellationTokenSource _stopping = new();
     private LLamaWeights? _weights;
     private ModelParams? _parameters;
     private bool _disposed;
@@ -64,11 +67,16 @@ internal sealed class LocalLanguageModel : ILanguageModel, IDisposable
             _idle.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
             // Loading and running take seconds of CPU or GPU work: never on the UI thread.
-            return await Task.Run(() => RunAsync(prompt, cancellationToken), cancellationToken);
+            using var run = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
+            return await Task.Run(() => RunAsync(prompt, run.Token), run.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
+        {
+            throw new ObjectDisposedException(nameof(LocalLanguageModel));
         }
         catch (Exception e) when (e is not ObjectDisposedException)
         {
@@ -87,8 +95,51 @@ internal sealed class LocalLanguageModel : ILanguageModel, IDisposable
         }
     }
 
+    /// <summary>
+    /// Loads the model now, so a prompt sent a few seconds later doesn't wait for it: a dictation
+    /// calls this when recording starts. A failure is logged and left for the prompt to report.
+    /// </summary>
+    public async Task PreloadAsync()
+    {
+        if (_weights is not null || !await _gate.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_disposed && _weights is null && File.Exists(_path))
+            {
+                _idle.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _weights = await Task.Run(Load);
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Error(LogEvent.LocalLanguageModelFailed, e);
+        }
+        finally
+        {
+            if (!_disposed)
+            {
+                _idle.Change(IdleUnload, Timeout.InfiniteTimeSpan);
+            }
+
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Stops a running prompt and frees the model. Waits for a model that is loading, which can
+    /// take seconds, so call it off the UI thread.
+    /// </summary>
     public void Dispose()
     {
+        if (!_stopping.IsCancellationRequested)
+        {
+            _stopping.Cancel();
+        }
+
         _gate.Wait();
         try
         {

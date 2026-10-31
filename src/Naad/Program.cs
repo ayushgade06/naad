@@ -185,7 +185,11 @@ internal static class Program
     // Every local function below runs on this UI thread: the hook, the tray, the controller's
     // events and the settings window all live on it.
     private static void Run(
-        SettingsStore store, SettingsLoadResult loaded, SecretStore keys, SecretStore languageModelKeys, ApiKeyResult key)
+        SettingsStore store,
+        SettingsLoadResult loaded,
+        SecretStore keys,
+        SecretStore languageModelKeys,
+        ApiKeyResult key)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());

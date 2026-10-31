@@ -100,6 +100,12 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
                         continue;
                     }
 
+                    if ((int)response.StatusCode == 429)
+                    {
+                        var (wait, daily) = RateLimitHeaders.Read(response.Headers);
+                        return new("", new(CompletionError.RateLimited, 429, wait, daily));
+                    }
+
                     return new("", CompletionFailure.FromStatus(response.StatusCode));
                 }
 

@@ -98,6 +98,11 @@ internal enum LogEvent
     LanguageModelRetried,
     LanguageModelTemperatureRefused,
     TemperatureSupportWriteFailed,
+    RateLimitWriteFailed,
+    CleanupCompleted,
+    CleanupFellBack,
+    CleanupFallbackModelUsed,
+    CleanupSkippedCoolingDown,
 
     UpdateNotAvailable,
     UpdateAvailable,

@@ -11,5 +11,6 @@ internal sealed record ChatPrompt(string Instructions, string Text, int MaxToken
     public const int DefaultMaxTokens = 1024;
 
     // The generated ToString would print the user's text into any log or exception that used it.
-    public override string ToString() => $"ChatPrompt {{ InstructionChars = {Instructions.Length}, TextChars = {Text.Length} }}";
+    public override string ToString() =>
+        $"ChatPrompt {{ InstructionChars = {Instructions.Length}, TextChars = {Text.Length} }}";
 }

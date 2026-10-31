@@ -33,7 +33,10 @@ internal enum CompletionError
 /// <param name="Error">The kind of failure.</param>
 /// <param name="Code">For the log: the HTTP status, or for Network the <see cref="HttpRequestError"/>;
 /// otherwise 0.</param>
-internal readonly record struct CompletionFailure(CompletionError Error, int Code = 0)
+/// <param name="Wait">For RateLimited: how long the provider asked to wait.</param>
+/// <param name="Daily">For RateLimited: whether the daily request quota ran out.</param>
+internal readonly record struct CompletionFailure(
+    CompletionError Error, int Code = 0, TimeSpan? Wait = null, bool Daily = false)
 {
     /// <summary>Maps a non-success HTTP status to a failure.</summary>
     public static CompletionFailure FromStatus(HttpStatusCode status) => new(
