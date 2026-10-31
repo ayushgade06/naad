@@ -327,14 +327,17 @@ internal static class Program
             // Keys first, so a key that can't be stored changes nothing else.
             string? Save(SettingsChange change)
             {
-                if (actions.SaveKeys(change) is { } keyError)
-                {
-                    return keyError;
-                }
+                var keyError = actions.SaveKeys(change);
 
+                // Even after a failure: the transcription key may have been stored before it.
                 if (change.NewKey is not null)
                 {
                     apiKey = ResolveKey(keys, log: true).Key;
+                }
+
+                if (keyError is not null)
+                {
+                    return keyError;
                 }
 
                 var problem = actions.SaveSettings(change);

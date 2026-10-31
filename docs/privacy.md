@@ -13,7 +13,7 @@ HTTPS.
 | When | Destination | What is sent |
 |---|---|---|
 | You dictate with **Cloud** chosen under **Transcribe with** | The base URL in Settings, `https://api.groq.com/openai/v1` by default | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and your API key in the `Authorization` header |
-| You click **Test key** in Settings | The same base URL | The key you typed, to ask whether the provider accepts it. No audio |
+| You click **Test key** in Settings | The base URL on the same tab | The key you typed, to ask whether the provider accepts it. No audio or text |
 | You click **Download model** | `huggingface.co`: whisper.cpp's model files, or the language models on the **AI** tab | An ordinary download request. No data about you |
 | An installed copy, a minute after it starts, then daily, and when you choose **Check for updates** | `github.com/ayushgade06/naad` releases | An ordinary request for the release list. No data about you or how you use Naad |
 

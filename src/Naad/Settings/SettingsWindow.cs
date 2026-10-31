@@ -225,6 +225,7 @@ internal sealed class SettingsWindow : Form
         var largest = new Size(
             Math.Max(dictation.PreferredSize.Width, _languageModel.PreferredSize.Width),
             Math.Max(dictation.PreferredSize.Height, _languageModel.PreferredSize.Height));
+        // The tab strip and border around the page, and a little room so nothing touches them.
         tabs.Size = largest + (tabs.Size - tabs.DisplayRectangle.Size) + new Size(8, 8);
         table.Controls.Add(tabs);
         table.Controls.Add(_error);

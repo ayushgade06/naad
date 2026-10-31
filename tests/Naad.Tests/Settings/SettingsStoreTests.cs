@@ -230,6 +230,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("\"ftp://api.example.test/v1\"")]
     [InlineData("\"api.groq.com/openai/v1\"")]
     [InlineData("\"https://api.example.test/v1?key=1\"")]
+    [InlineData("\"https://user:secret@api.example.test/v1\"")]
     [InlineData("\"\"")]
     [InlineData("5")]
     [InlineData("null")]

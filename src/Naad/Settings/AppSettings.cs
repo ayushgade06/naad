@@ -96,12 +96,14 @@ internal sealed record AppSettings
 
     /// <summary>
     /// An absolute https URL, or http only for a server on this PC: the API key is sent with
-    /// every request and must never cross a network in plain text.
+    /// every request and must never cross a network in plain text. A user name or password in the
+    /// URL is refused: it would sit in settings.json in plain text.
     /// </summary>
     public static bool TryParseBaseUrl(string? text, [NotNullWhen(true)] out Uri? url)
     {
         url = Uri.TryCreate(text, UriKind.Absolute, out var parsed)
             && string.IsNullOrEmpty(parsed.Query) && string.IsNullOrEmpty(parsed.Fragment)
+            && string.IsNullOrEmpty(parsed.UserInfo)
             && (parsed.Scheme == Uri.UriSchemeHttps || (parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback))
                 ? parsed
                 : null;

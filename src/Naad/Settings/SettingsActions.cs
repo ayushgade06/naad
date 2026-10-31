@@ -23,13 +23,15 @@ internal sealed class SettingsActions(
     HttpClient http)
 {
     /// <summary>
-    /// Stores the new keys, if any. Returns what went wrong, or null; on failure nothing else
-    /// should be changed, so a key that can't be stored never leaves the settings half-saved.
+    /// Stores the new keys, if any. Returns what went wrong, or null; on failure the settings
+    /// should not be changed. A key stored before the failure stays stored.
     /// </summary>
     public string? SaveKeys(SettingsChange change)
     {
-        foreach (var (key, secrets) in new[] { (change.NewKey, keys), (change.NewLanguageModelKey, languageModelKeys) })
+        var both = new[] { (change.NewKey, keys), (change.NewLanguageModelKey, languageModelKeys) };
+        for (var which = 0; which < both.Length; which++)
         {
+            var (key, secrets) = both[which];
             if (key is null)
             {
                 continue;
@@ -37,11 +39,11 @@ internal sealed class SettingsActions(
 
             if (secrets.Save(key) is { } error)
             {
-                Log.Error(LogEvent.ApiKeyStoreFailed, error);
-                return "The API key couldn't be saved, so nothing was changed. Try again.";
+                Log.Error(LogEvent.ApiKeyStoreFailed, error, ("key", which));
+                return "An API key couldn't be saved, so the settings weren't changed. Try again.";
             }
 
-            Log.Info(LogEvent.ApiKeyStored);
+            Log.Info(LogEvent.ApiKeyStored, ("key", which));
         }
 
         return null;
@@ -94,6 +96,7 @@ internal sealed class SettingsActions(
     {
         var started = Stopwatch.GetTimestamp();
         var result = await model.DownloadAsync(http, progress, cancellationToken);
+        // Identifies the file in the log without naming it: each model has its own size.
         var megabytes = model.Size / 1_000_000;
         if (result.Outcome == ModelDownloadOutcome.Downloaded)
         {

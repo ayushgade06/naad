@@ -92,7 +92,7 @@ internal static class SettingsInput
     /// <summary>Whether the chosen language model is in place, or its download size.</summary>
     public static string LanguageModelStatus(long size, bool ready) => ready
         ? "The model is downloaded. AI steps work offline."
-        : $"Running AI on this PC needs a one-time download of {(size + 50_000_000) / 100_000_000 / 10.0:0.0} GB.";
+        : $"Running AI on this PC needs a one-time download of {size / 1e9:0.0} GB.";
 
     /// <summary>Where the transcription key in use comes from. Never shows the key.</summary>
     public static string KeyStatus(ApiKeyResult result) => KeyStatus(result, SecretStore.OverrideVariable);

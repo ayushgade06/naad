@@ -169,15 +169,17 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             return;
         }
 
-        if ((typed.Length > 0 ? typed : _key.Key) is not { } key)
-        {
-            _testResult.Text = "Paste a key first.";
-            return;
-        }
-
         if (!AppSettings.TryParseBaseUrl(_baseUrl.Text.Trim(), out var url))
         {
             _testResult.Text = "Fix the base URL first.";
+            return;
+        }
+
+        if ((typed.Length > 0 ? typed : _key.Key) is not { } key)
+        {
+            _testResult.Text = url.IsLoopback
+                ? "A server on this PC needs no key here."
+                : "Paste a key first.";
             return;
         }
 
