@@ -26,7 +26,13 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
   "languageModelBaseUrl": "https://api.groq.com/openai/v1",
-  "languageModelName": "openai/gpt-oss-20b"
+  "languageModelName": "openai/gpt-oss-20b",
+  "languageModelFallbackName": null,
+  "cleanup": "Ai",
+  "cleanupPrompt": null,
+  "cleanupPromptVersion": null,
+  "instructionGuard": true,
+  "outputLanguage": null
 }
 ```
 
@@ -48,6 +54,12 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `localLanguageModel` | `"Small"` or `"Large"` | `"Small"` | The language model on this PC: `"Small"` (Qwen2.5-1.5B-Instruct, 1.1 GB, fast on any PC) or `"Large"` (Qwen3-4B-Instruct-2507, 2.5 GB, more accurate, for PCs with a graphics card). |
 | `languageModelBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible chat API; Naad posts to `<root>/chat/completions`. The same rules as `transcriptionBaseUrl`: `https://`, or `http://` only for a server on this PC such as Ollama (`http://localhost:11434/v1`) or LM Studio. |
 | `languageModelName` | text | `"openai/gpt-oss-20b"` | The cloud provider's chat model id. Up to 100 visible ASCII characters, no spaces. |
+| `languageModelFallbackName` | text or `null` | `null` | A second cloud model on the same endpoint, tried when the first is rate limited, gives a blank reply or answers the dictation instead of tidying it. |
+| `cleanup` | `"Off"`, `"Basic"` or `"Ai"` | `"Ai"` | How a transcript is tidied before it is pasted. See [Cleanup](#cleanup). |
+| `cleanupPrompt` | text or `null` | `null` | Your own instructions for the language model, up to 8,000 characters; `null` uses the default. Edit it with **Edit prompt...** on the **AI** tab. |
+| `cleanupPromptVersion` | text or `null` | `null` | The date of the default prompt your instructions were based on, such as `"2026-10-31"`. Naad uses it to tell you when a newer default ships; don't change it. |
+| `instructionGuard` | `true` or `false` | `true` | Paste the text as said when the language model seems to answer the dictation ("ask Claude what…") instead of tidying it. |
+| `outputLanguage` | text or `null` | `null` | A language to write dictations in, such as `"German"`, translating them. With `cleanup` `"Off"`, a literal translation still runs. Needs a language model. |
 
 Hand edits are forgiving. Property names may use any casing, and `//`
 comments and trailing commas are accepted. Naad keeps the file as you wrote
@@ -205,6 +217,39 @@ transcript. Settings has an **AI** tab for it.
   `temperature`, Naad sends the request again without it and remembers
   that for a week in `%LOCALAPPDATA%\Naad\temperature-refused.json`.
 
+## Cleanup
+
+Before Naad pastes a transcript, it tidies it at the level chosen under
+**Cleanup** on the **AI** tab:
+
+- **Off:** pasted exactly as transcribed.
+- **Basic:** instant rules: hesitations (um, uh) and a word said twice are
+  removed, and the text starts with a capital and ends with a full stop.
+- **AI** (the default): the language model removes filler words, false
+  starts and self-corrections ("at three, no, four" becomes "at four"),
+  fixes punctuation and spells your vocabulary right. Until a language
+  model is set up (see above), AI tidies like Basic.
+
+The AI step never costs you a dictation. It gets 8 seconds; if it takes
+longer, fails, or gives a reply that looks like a chat answer or is far
+longer than what you said, Naad pastes your words as transcribed, and the
+overlay shows **Pasted as said** for a moment. A dictation of only
+hesitations pastes nothing. The overlay shows **Cleaning up** while the
+model works, and a model on this PC starts loading when you start
+speaking.
+
+In the cloud, a rate-limited model is skipped until its limit resets, for
+as long as the provider says; a used-up daily quota is remembered across
+restarts in `%LOCALAPPDATA%\Naad\rate-limits.json`, and the **AI** tab
+shows when it resets. Set a **Fallback model** to keep AI cleanup going
+meanwhile.
+
+**Edit prompt...** shows the instructions the model gets. Change them, or
+**Reset to default**; **Test** sends the sample text to the saved model and
+shows the reply, how long it took and the full prompt. When a newer default
+prompt ships, the dialog says so. **Test model** on the tab does the same
+with the sample text.
+
 ## Starting Naad when you sign in
 
 **Start Naad when I sign in** in Settings adds a `Naad` value to
@@ -219,7 +264,7 @@ Settings and save with the box ticked to point the entry at the new place.
 | Value | Why it is not in settings.json |
 |---|---|
 | API keys | They are secrets, and settings.json is plain text. It is stored encrypted on its own; see [The API key](#the-api-key). It must never be added to this file. |
-| Timeouts (20 s per transcription or chat request), the 10-minute idle unload of the language model, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
+| Timeouts (20 s per transcription or chat request, 8 s for cleanup), the 10-minute idle unload of the language model, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
 
 A setting is added only when the app actually reads it.
 

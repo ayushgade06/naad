@@ -17,9 +17,18 @@ All notable changes to Naad are listed here. The format follows
   endpoint, such as Groq, OpenAI, OpenRouter, Ollama or LM Studio, with its
   own encrypted key.
 
+- **Cleanup before pasting**, AI by default: filler words, stutters and
+  self-corrections are removed and punctuation fixed by the language model,
+  or by instant rules with **Basic**. A slow (over 8 s), failed or
+  chat-like reply pastes your words as said, and the overlay says so.
+- A cleanup prompt you can edit and test, a fallback cloud model, rate
+  limits that are waited out instead of retried, an instruction guard,
+  and an output language that translates dictations.
+
 ### Changed
 
 - Settings is split into **Dictation** and **AI** tabs.
+- The overlay shows **Cleaning up** while the language model works.
 
 ## [1.0.0] - 2026-10-31
 

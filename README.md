@@ -12,6 +12,10 @@ appear wherever your cursor is.
 - **Private by default.** Speech is transcribed on your PC with Whisper:
   free and offline, with no account. A graphics card is used when there is
   one.
+- **Clean text.** Filler words, stutters and self-corrections are removed
+  and punctuation fixed, by a small language model on your PC (or a cloud
+  model, if you choose), or by instant rules. If the AI is slow or fails,
+  your words are pasted as said.
 - **Works in any app.** Text is pasted into the focused window, and your
   clipboard is restored afterwards.
 - **Never types into the wrong place.** If the window changes before the
@@ -45,8 +49,10 @@ Everything else is in **Settings...** in the tray menu. See
 
 - Windows 11 (Windows 10 22H2 should work, but is untested)
 - A microphone
-- 150 MB of disk for the model; 574 MB for the more accurate model, which
-  needs a graphics card
+- 150 MB of disk for the speech model; 574 MB for the more accurate one,
+  which needs a graphics card
+- For AI cleanup on your PC, 1.1 GB of disk and memory (2.5 GB for the
+  more accurate model, best with a graphics card)
 
 ## Build from source
 

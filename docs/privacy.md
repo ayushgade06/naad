@@ -13,6 +13,8 @@ HTTPS.
 | When | Destination | What is sent |
 |---|---|---|
 | You dictate with **Cloud** chosen under **Transcribe with** | The base URL in Settings, `https://api.groq.com/openai/v1` by default | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and your API key in the `Authorization` header |
+| You dictate with **Cloud** chosen under **AI runs on** and cleanup set to **AI**, or an output language set | The AI base URL in Settings | The transcript, your vocabulary, your cleanup instructions and the model name, and your language model key in the `Authorization` header. No audio |
+| You click **Test** or **Test model** for the cleanup prompt with **Cloud** chosen | The same AI base URL | The sample text and the instructions. No audio |
 | You click **Test key** in Settings | The base URL on the same tab | The key you typed, to ask whether the provider accepts it. No audio or text |
 | You click **Download model** | `huggingface.co`: whisper.cpp's model files, or the language models on the **AI** tab | An ordinary download request. No data about you |
 | An installed copy, a minute after it starts, then daily, and when you choose **Check for updates** | `github.com/ayushgade06/naad` releases | An ordinary request for the release list. No data about you or how you use Naad |
@@ -33,6 +35,7 @@ model is missing, it asks you to download it rather than upload your audio.
 | Diagnostic log | `%LOCALAPPDATA%\Naad\logs\naad.log`, and `naad.1.log` after 1 MB | See below. Turn it off with **Write a diagnostic log** in Settings |
 | Language model API key | `%LOCALAPPDATA%\Naad\llm-api-key.dpapi` | Encrypted like the API key, and kept apart from it |
 | Whisper and language models | `%LOCALAPPDATA%\Naad\models` | Checked against a SHA-256 before use |
+| Rate limits | `%LOCALAPPDATA%\Naad\rate-limits.json` | Cloud model ids whose daily quota ran out, and when it resets. Nothing you said |
 | Models that refuse a temperature | `%LOCALAPPDATA%\Naad\temperature-refused.json` | The cloud base URL and model id, and a date a week ahead. Nothing you said |
 | Start at sign-in | A `Naad` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Only if you tick **Start Naad when I sign in** |
 | The installed app | `%LOCALAPPDATA%\Naad.App` | Removed when you uninstall |

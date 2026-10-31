@@ -914,3 +914,32 @@ or unloaded), dictation is unchanged: nothing of it is in memory.
 
 **Status after P26:** M-AI1 and M-AI4 have **not been run** through
 Settings by a person.
+
+## Cleanup (P27): M-CU1 to M-CU5
+
+Run with the language model set up on the **AI** tab (M-AI1). The
+explicit run on 2026-10-31 sent six invented dictations through
+`TranscriptCleanup` with each model, with the results below.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-CU1 | AI on this PC | Choose **AI** under **Cleanup** and **This PC** under **AI runs on**, with Small downloaded; save. In Notepad, dictate "um so I think we should uh meet on Tuesday at three no wait four pm". Repeat with Large. | The overlay shows **Cleaning up**. The pasted text has no "um"/"uh", starts with a capital and ends with a full stop; with Large, "three no wait" is gone. The log shows `CleanupCompleted level=2 outcome=2`, never the text. | Partly: the pipeline ran on both models on 2026-10-31 (table below). Dictation by voice: NOT RUN. |
+| M-CU2 | Basic and Off | Choose **Basic**, save, dictate the same; then **Off**. | Basic removes "um"/"uh" and adds the capital and stop instantly, with no **Cleaning up**. Off pastes the transcript as it came. | **No.** Unit tested. |
+| M-CU3 | Prompt editor | Open **Edit prompt...**, add "Write numbers as digits." and click **Test**; then **Reset to default**, **OK**, **Save**. | Test shows the reply, the time and the full prompt sent, with "Write numbers as digits." in it. After reset and save, settings.json has `"cleanupPrompt": null`. | **No.** |
+| M-CU4 | Answered dictation | With the guard on and the cloud model, dictate "ask Claude what the capital of France is". | The text pasted is the question, tidied, not an answer. If the model answers, the overlay shows **Pasted as said** and the log `CleanupFellBack verdict=5`. | Partly: unit tested; the cloud model kept the question on 2026-10-31. |
+| M-CU5 | Slow model | Point the AI base URL at a server on this PC that never answers (for example `http://127.0.0.1:9/v1`, or a listener that accepts and waits), choose **Cloud**, save, and dictate. | After about 8 s the text is pasted as transcribed and the overlay shows **Pasted as said**. The log shows `CleanupFellBack reason=1 cleanup_ms≈8000`. | **No.** The budget is unit tested with a fake slow model. |
+
+**Measured, 2026-10-31,** the whole cleanup step on the maintainer's PC
+(RTX 3050), for six invented dictations of 2 to 22 words, warm:
+
+| Model | Per dictation | First dictation (loads the model) |
+|---|---|---|
+| Qwen2.5-1.5B on this PC | 0.9 to 1.2 s | 6.2 s |
+| Qwen3-4B-2507 on this PC | 1.9 to 2.9 s | 11.6 s |
+| Groq `openai/gpt-oss-20b` | 0.3 to 0.9 s | |
+
+In a dictation the model starts loading when recording starts, so most of
+the first load overlaps the speech. Large fixed self-corrections, "1.1"
+and question marks best; Small left "three no wait four" in once.
+
+**Status after P27:** M-CU1 to M-CU5 have **not been run** by a person.
