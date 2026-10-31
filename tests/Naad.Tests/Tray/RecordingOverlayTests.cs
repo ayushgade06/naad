@@ -13,6 +13,7 @@ public sealed class RecordingOverlayTests
     [InlineData(0x0000_0008)] // WS_EX_TOPMOST: above the window being dictated into.
     [InlineData(0x0000_0080)] // WS_EX_TOOLWINDOW: not in Alt+Tab or the taskbar.
     [InlineData(0x0000_0020)] // WS_EX_TRANSPARENT: clicks pass through.
+    [InlineData(0x0008_0000)] // WS_EX_LAYERED: per-pixel alpha, and needed for click-through.
     public void ExtendedStyles_IncludeEachRequiredStyle(int style)
     {
         Assert.Equal(style, RecordingOverlay.ExtendedStyles & style);

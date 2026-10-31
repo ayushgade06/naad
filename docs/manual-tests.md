@@ -558,8 +558,8 @@ restore it afterwards.
 
 ## Recording overlay (P18): M-O1 to M-O3
 
-Since P18, a small bar near the bottom of the screen shows **Listening**
-with a level meter while you hold the shortcut, then **Transcribing**, and
+Since P18, a small pill near the bottom of the screen shows voice bars
+while you hold the shortcut, then **Transcribing**, and
 disappears when Naad is idle. It appears on the monitor of the window you
 are dictating into. It never activates, takes no keyboard input, lets
 clicks through, and isn't in Alt+Tab or the taskbar: if it ever became the
@@ -571,8 +571,8 @@ window and checks that window keeps the foreground.
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
-| M-O1 | Never takes focus | Dictate a sentence into Notepad, then Chrome, then VS Code, watching the overlay each time. Once, while holding the shortcut, click on the overlay itself. | The overlay shows **Listening** while you hold and **Transcribing** after release, then disappears. The text is pasted in all three apps. The app's title bar stays active throughout. Clicking the overlay clicks the window under it (and, as any click, cancels that dictation). The log shows no `PasteSkippedFocusChanged`. | Partly: the explicit `RecordingOverlayTests` test showed the overlay over the real foreground window on 2026-10-29 and the foreground window never changed. Dictation into the three apps: NOT RUN. |
-| M-O2 | Level meter | Hold the shortcut and stay silent for 2 s, then speak normally, then loudly, then stop. | The bar stays near empty in silence, moves with your voice, nearly fills when loud, and sinks smoothly within about half a second after you stop. | **No.** It needs a microphone. |
+| M-O1 | Never takes focus | Dictate a sentence into Notepad, then Chrome, then VS Code, watching the overlay each time. Once, while holding the shortcut, click on the overlay itself. | The overlay shows voice bars while you hold and **Transcribing** after release, then disappears. The text is pasted in all three apps. The app's title bar stays active throughout. Clicking the overlay clicks the window under it (and, as any click, cancels that dictation). The log shows no `PasteSkippedFocusChanged`. | Partly: the explicit `RecordingOverlayTests` test showed the overlay over the real foreground window on 2026-10-29 and the foreground window never changed. Dictation into the three apps: NOT RUN. |
+| M-O2 | Level meter | Hold the shortcut and stay silent for 2 s, then speak normally, then loudly, then stop. | The bars stay a row of dots in silence, rise with your voice from the centre outward, nearly fill the pill when loud, and sink back to dots within about a second after you stop. The pill's edges are smooth, not jagged. | **No.** It needs a microphone. |
 | M-O3 | Monitor and Alt+Tab | With two monitors, dictate into a window on each. While holding the shortcut once, press Alt+Tab, hold Alt and look at the switcher, then release everything. | The overlay appears near the bottom of the monitor holding the window you dictate into. The Alt+Tab switcher and the taskbar never list it. (Alt+Tab cancels that dictation, as any other key does.) | **No.** |
 
 **Status after P18:** M-O1 to M-O3 have **not been run** by a person.
