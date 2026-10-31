@@ -20,8 +20,9 @@ appear wherever your cursor is.
   clipboard is restored afterwards.
 - **Never types into the wrong place.** If the window changes before the
   text is ready, Naad keeps the text and tells you.
-- **Cloud optional.** Any OpenAI-compatible transcription API, such as Groq,
-  with the key encrypted by Windows.
+- **Cloud optional.** Groq, OpenAI, Gemini, xAI, Deepgram, Anthropic,
+  Cerebras or any OpenAI-compatible server, with keys encrypted by Windows.
+  Offline, Naad falls back to your PC.
 - **Configurable.** Any shortcut, hands-free mode, a custom vocabulary, the
   language and the microphone.
 

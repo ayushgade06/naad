@@ -12,10 +12,11 @@ HTTPS.
 
 | When | Destination | What is sent |
 |---|---|---|
-| You dictate with **Cloud** chosen under **Transcribe with** | The base URL in Settings, `https://api.groq.com/openai/v1` by default | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and your API key in the `Authorization` header |
-| You dictate with **Cloud** chosen under **AI runs on** and cleanup set to **AI**, or an output language set | The AI base URL in Settings | The transcript, your vocabulary, your cleanup instructions and the model name, and your language model key in the `Authorization` header. No audio |
+| You dictate with **Cloud** chosen under **Transcribe with** | The chosen cloud service (Groq by default; OpenAI, Gemini, xAI, Deepgram, or your custom base URL) | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and your API key in the `Authorization` header |
+| You dictate with **Cloud** chosen under **AI runs on** and cleanup set to **AI**, or an output language set | The chosen AI service (Groq by default; OpenAI, Gemini, xAI, Anthropic, Cerebras, or your custom base URL) | The transcript, your vocabulary, your cleanup instructions and the model name, and your language model key in the `Authorization` header. No audio |
 | You click **Test** or **Test model** for the cleanup prompt with **Cloud** chosen | The same AI base URL | The sample text and the instructions. No audio |
-| You click **Test key** in Settings | The base URL on the same tab | The key you typed, to ask whether the provider accepts it. No audio or text |
+| You click **Test key**, or **Save** with a new key | The chosen service | The key, to ask whether the service accepts it (a request listing its models). No audio or text |
+| You click **Test** under **Transcription** | The transcription service | One second of generated silence. Nothing you said |
 | You click **Download model** | `huggingface.co`: whisper.cpp's model files, or the language models on the **AI** tab | An ordinary download request. No data about you |
 | An installed copy, a minute after it starts, then daily, and when you choose **Check for updates** | `github.com/ayushgade06/naad` releases | An ordinary request for the release list. No data about you or how you use Naad |
 
@@ -23,17 +24,18 @@ With **This PC** chosen, which is the default, dictation never touches the
 network: the recording is transcribed by Whisper on your PC. A copy run
 from source never checks for updates.
 
-Naad never switches from one provider to the other by itself. If the
-model is missing, it asks you to download it rather than upload your audio.
+Naad never switches from this PC to the cloud by itself. If the model is
+missing, it asks you to download it rather than upload your audio. The
+other way round, a cloud choice uses the models on this PC while you are
+offline, which keeps your audio and text on the PC.
 
 ## What Naad stores
 
 | What | Where | Notes |
 |---|---|---|
 | Settings | `%APPDATA%\Naad\settings.json`, plus `.bak` copies made when the file is repaired or migrated | Plain JSON. It holds your vocabulary and the name of your chosen microphone, if you set them; nothing you said |
-| API key | `%LOCALAPPDATA%\Naad\api-key.dpapi` | Encrypted with Windows DPAPI for your Windows account. Only your account on this PC can read it. Naad never shows it again, even in Settings. The key never goes into settings.json |
+| API keys | `%LOCALAPPDATA%\Naad\keys\<service>.dpapi` (Naad 1.0: `api-key.dpapi`, moved there) | Encrypted with Windows DPAPI for your Windows account, one file per service. Only your account on this PC can read them. Naad never shows a key again, even in Settings. Keys never go into settings.json |
 | Diagnostic log | `%LOCALAPPDATA%\Naad\logs\naad.log`, and `naad.1.log` after 1 MB | See below. Turn it off with **Write a diagnostic log** in Settings |
-| Language model API key | `%LOCALAPPDATA%\Naad\llm-api-key.dpapi` | Encrypted like the API key, and kept apart from it |
 | Whisper and language models | `%LOCALAPPDATA%\Naad\models` | Checked against a SHA-256 before use |
 | Rate limits | `%LOCALAPPDATA%\Naad\rate-limits.json` | Cloud model ids whose daily quota ran out, and when it resets. Nothing you said |
 | Models that refuse a temperature | `%LOCALAPPDATA%\Naad\temperature-refused.json` | The cloud base URL and model id, and a date a week ahead. Nothing you said |
@@ -76,4 +78,4 @@ data in case you reinstall. To remove the data too, delete
 `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad`.
 
 To revoke an API key, delete it at your provider. Deleting
-`api-key.dpapi` only removes Naad's copy.
+its file in `%LOCALAPPDATA%Naadkeys` only removes Naad's copy.

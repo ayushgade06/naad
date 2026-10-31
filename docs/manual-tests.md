@@ -943,3 +943,16 @@ the first load overlaps the speech. Large fixed self-corrections, "1.1"
 and question marks best; Small left "three no wait four" in once.
 
 **Status after P27:** M-CU1 to M-CU5 have **not been run** by a person.
+
+## More providers and offline fallback (P28): M-PV1 to M-PV5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-PV1 | Each service | For each service with a key (Groq, OpenAI, Gemini, xAI, Deepgram on the Dictation tab; Groq, OpenAI, Gemini, xAI, Anthropic, Cerebras on the AI tab): choose it, paste the key, **Save**, then **Test** (Dictation) or **Test model** (AI). | Save checks the key first; Test says the service answered; a dictation pastes text. | Partly: Groq's key check and a second of silence passed on 2026-11-01 (214 ms); a wrong key was refused with 401. Other services: NOT RUN (no keys). |
+| M-PV2 | Rejected key | Paste a wrong key and **Save**. | "Groq rejected the new key, so nothing was saved." No file changes under `%LOCALAPPDATA%\Naad\keys`. | **No.** The key check is unit tested per service. |
+| M-PV3 | Key migration | On a PC with Naad 1.0's `api-key.dpapi` and a Groq base URL, start this build. | The file moves to `keys\groq.dpapi`; the log shows `ApiKeyMoved service=0`; dictation still works. | **No.** Unit tested. |
+| M-PV4 | Offline | Choose **Cloud** with the local Whisper model (and a language model) downloaded. Turn Wi-Fi off and dictate. | The text is pasted, transcribed on this PC; a notification says Naad is offline, once. Turn Wi-Fi on: the next dictation uses the cloud. | **No.** It needs the network turned off; the fallback is unit tested. |
+| M-PV5 | Custom server | Point **Custom** at a server on this PC (for example Ollama at `http://localhost:11434/v1` with a model pulled) with no key; **Test key**, **Save**, dictate. | Works without a key; Test key says a server on this PC needs no key, or that it accepted. | **No.** |
+
+**Status after P28:** M-PV1 (except Groq), M-PV2 to M-PV5 have **not been
+run** by a person.

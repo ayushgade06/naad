@@ -25,9 +25,21 @@ All notable changes to Naad are listed here. The format follows
   limits that are waited out instead of retried, an instruction guard,
   and an output language that translates dictations.
 
+- **Cloud services by name**: Groq, OpenAI, Gemini, xAI and Deepgram for
+  transcription; Groq, OpenAI, Gemini, xAI, Anthropic and Cerebras for AI;
+  or any OpenAI-compatible endpoint. Suggested models with **Reset**, one
+  key per service shared by both tabs, checked before it is saved.
+- **Offline fallback**: with no connection, a cloud choice transcribes and
+  cleans up on this PC if the models are downloaded, and says so once.
+- **Test** for transcription, and timeouts you can raise for slow servers.
+
 ### Changed
 
 - Settings is split into **Dictation** and **AI** tabs.
+- API keys move to one encrypted file per service; Naad 1.0's key moves
+  automatically. Settings version 3.
+- Network errors say whether there is no internet, the request timed out or
+  the connection was lost.
 - The overlay shows **Cleaning up** while the language model works.
 
 ## [1.0.0] - 2026-10-31
