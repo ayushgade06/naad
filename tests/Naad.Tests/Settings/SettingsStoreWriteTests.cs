@@ -31,7 +31,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
             {
               "version": 2,
               "fileLogging": true,
-              "playSounds": true,
+              "playSounds": false,
               "dictationShortcut": "RightCtrl",
               "transcriptionProvider": "Local",
               "localModel": "Base",
@@ -143,7 +143,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
         new SettingsStore(SettingsPath).Load();
         var changed = AppSettings.Defaults with
         {
-            PlaySounds = false,
+            PlaySounds = true,
             TranscriptionProvider = Naad.Transcription.TranscriptionProvider.Local,
             Language = "hi",
             Microphone = "Microphone (Test Device)",

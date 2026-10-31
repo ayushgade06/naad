@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Media;
 using Naad.Audio;
-using Naad.Dictation;
 
 namespace Naad.Tray;
 
@@ -9,6 +8,14 @@ namespace Naad.Tray;
 /// Short tones when listening starts and stops. The tones are synthesized at startup, so there
 /// are no sound files and nothing to license. Create, use and dispose on the UI thread.
 /// </summary>
+/// <remarks>
+/// A tone wakes speakers that have gone idle, which took about 1.3 s on a laptop on battery, and
+/// the wake stalls WinMM capture: a tone played while the microphone opened or stopped delayed
+/// both by that much, blocked the keyboard hook and lost the first words. So the start tone plays
+/// once the microphone is open, and the stop tone once it is closed.
+/// ponytail: the start tone still glitches about 1.3 s of capture on such PCs, before it is
+/// heard; keeping the speakers awake would prevent idle sleep, so the tones are off by default.
+/// </remarks>
 internal sealed class SoundCues : IDisposable
 {
     // A rising pair: higher when listening starts, lower when it stops, like a tap on and off.
@@ -25,22 +32,12 @@ internal sealed class SoundCues : IDisposable
 
     private readonly SoundPlayer _start = Player(StartHertz);
     private readonly SoundPlayer _stop = Player(StopHertz);
-    private DictationState _last;
 
-    /// <summary>Plays the start tone on entering Recording and the stop tone on leaving it.</summary>
-    public void OnStateChanged(DictationState state)
-    {
-        if (state == DictationState.Recording)
-        {
-            _start.Play();
-        }
-        else if (_last == DictationState.Recording)
-        {
-            _stop.Play();
-        }
+    /// <summary>Plays the start tone. Call once the microphone is open.</summary>
+    public void PlayStart() => _start.Play();
 
-        _last = state;
-    }
+    /// <summary>Plays the stop tone. Call once the microphone is closed.</summary>
+    public void PlayStop() => _stop.Play();
 
     /// <summary>A sine tone as a WAV file in the recorder's format.</summary>
     public static byte[] Tone(int hertz)

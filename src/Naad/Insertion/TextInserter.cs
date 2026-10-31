@@ -132,7 +132,7 @@ internal sealed class TextInserter(
     {
         // Waiting first means an abandoned paste never touches the clipboard. A held modifier
         // would turn Ctrl+V into Ctrl+Shift+V or Ctrl+Alt+V.
-        if (!await WaitForModifiersReleasedAsync(cancellationToken))
+        if (!await WaitForModifiersReleasedAsync(ModifierReleaseTimeout, cancellationToken))
         {
             return cancellationToken.IsCancellationRequested
                 ? InsertionOutcome.Cancelled
@@ -219,9 +219,13 @@ internal sealed class TextInserter(
     private async Task<bool?> RestoreIfUnchangedAsync(ClipboardSnapshot original, uint written) =>
         clipboard.SequenceNumber != written ? null : await clipboard.RestoreAsync(original);
 
-    private async Task<bool> WaitForModifiersReleasedAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Waits until no modifier is physically held, for at most <paramref name="timeout"/>. Returns
+    /// false if one still is, or if cancelled.
+    /// </summary>
+    public async Task<bool> WaitForModifiersReleasedAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        var deadline = DateTime.UtcNow + ModifierReleaseTimeout;
+        var deadline = DateTime.UtcNow + timeout;
         while (anyModifierDown())
         {
             if (DateTime.UtcNow >= deadline || cancellationToken.IsCancellationRequested)

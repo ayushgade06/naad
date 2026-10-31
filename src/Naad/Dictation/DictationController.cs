@@ -27,6 +27,10 @@ internal sealed class DictationController(
     Func<WindowTarget, InsertionDecision> checkTarget,
     TimeProvider time) : IDisposable
 {
+    // At the time limit the user learns from the stop tone or the icon that recording ended, then
+    // lets go of the shortcut. Held longer than this, the transcript is kept instead.
+    private static readonly TimeSpan TimeLimitReleaseTimeout = TimeSpan.FromSeconds(30);
+
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
     private ITranscriber? _transcriber = transcriber;
@@ -45,6 +49,12 @@ internal sealed class DictationController(
 
     /// <summary>The dictation state changed. Raised on the UI thread.</summary>
     public event Action<DictationState>? StateChanged;
+
+    /// <summary>The microphone is open and recording. Raised on the UI thread.</summary>
+    public event Action? MicrophoneOpened;
+
+    /// <summary>The microphone of a recording that opened is closed again. Raised on the UI thread.</summary>
+    public event Action? MicrophoneClosed;
 
     /// <summary>The microphone could not be opened for a dictation. Raised on the UI thread.</summary>
     public event Action<MicrophoneError>? MicrophoneFailed;
@@ -188,7 +198,7 @@ internal sealed class DictationController(
                 _ = DiscardAsync(e, step.Held);
                 break;
             case DictationAction.Transcribe:
-                _ = TranscribeAsync(step, time.GetTimestamp());
+                _ = TranscribeAsync(step, time.GetTimestamp(), atTimeLimit: e == DictationEvent.MaxDurationReached);
                 break;
         }
 
@@ -222,6 +232,7 @@ internal sealed class DictationController(
         }
 
         Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(time.GetElapsedTime(pressedAt))));
+        MicrophoneOpened?.Invoke();
         return true;
     }
 
@@ -233,8 +244,22 @@ internal sealed class DictationController(
         return stop;
     }
 
-    private async Task<byte[]?> StopAfterStartAsync(Task<bool> starting) =>
-        await starting ? await recorder.StopAsync() : null;
+    private async Task<byte[]?> StopAfterStartAsync(Task<bool> starting)
+    {
+        if (!await starting)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await recorder.StopAsync();
+        }
+        finally
+        {
+            MicrophoneClosed?.Invoke();
+        }
+    }
 
     // ponytail: every recording leaves a five-minute timer behind, ignored by job id once the
     // recording ends; cancel it per job if many short dictations ever show up in memory use.
@@ -271,7 +296,7 @@ internal sealed class DictationController(
         }
     }
 
-    private async Task TranscribeAsync(DictationStep step, long releasedAt)
+    private async Task TranscribeAsync(DictationStep step, long releasedAt, bool atTimeLimit)
     {
         // Read before the first await: Dispose may dispose the source later, and a transcriber
         // swapped in meanwhile is for the next dictation.
@@ -339,6 +364,13 @@ internal sealed class DictationController(
             if (Apply(DictationEvent.Transcribed, job).Action != DictationAction.Insert)
             {
                 return;
+            }
+
+            // At the time limit the shortcut is still held, and a modifier shortcut such as Right
+            // Ctrl would make the paste give up at once; so it waits for the user to let go.
+            if (atTimeLimit)
+            {
+                await inserter.WaitForModifiersReleasedAsync(TimeLimitReleaseTimeout, shutdown);
             }
 
             await InsertAsync(text, target, releasedAt, shutdown);
