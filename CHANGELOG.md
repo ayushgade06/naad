@@ -55,6 +55,11 @@ All notable changes to Naad are listed here. The format follows
   exiting. Pressing the shortcut without a key shows a notification and
   records nothing.
 
+### Fixed
+
+- **Cancel** and Esc in the settings window close it, which also stops a
+  model download in progress. They did nothing before.
+
 ## [0.1.0] - Unreleased
 
 The first milestone, the MVP: hold-to-talk dictation that works end to end
