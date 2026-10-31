@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
+using Naad.Cleanup;
 using Naad.Hotkey;
 using Naad.LanguageModel;
 using Naad.Transcription;
@@ -83,12 +84,43 @@ internal sealed record AppSettings
     /// <summary>The cloud provider's chat model.</summary>
     public string LanguageModelName { get; init; } = "openai/gpt-oss-20b";
 
+    /// <summary>A second cloud model, tried when the first is rate limited or answers badly; null for none.</summary>
+    public string? LanguageModelFallbackName { get; init; }
+
+    /// <summary>
+    /// How much a transcript is tidied before it is pasted. AI by default; until a language model
+    /// is set up, it tidies like Basic.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<CleanupLevel>))]
+    public CleanupLevel Cleanup { get; init; } = CleanupLevel.Ai;
+
+    /// <summary>The user's own cleanup instructions; null uses the default. User content: never logged.</summary>
+    public string? CleanupPrompt { get; init; }
+
+    /// <summary>
+    /// The default prompt's version (<see cref="Naad.Cleanup.CleanupPrompt.DefaultVersion"/>) when
+    /// <see cref="CleanupPrompt"/> was written, so a newer default can be offered.
+    /// </summary>
+    public string? CleanupPromptVersion { get; init; }
+
+    /// <summary>Paste the transcript as said when the model seems to answer it instead of tidying it.</summary>
+    public bool InstructionGuard { get; init; } = true;
+
+    /// <summary>A language to write dictations in, such as "German"; null keeps the speaker's.</summary>
+    public string? OutputLanguage { get; init; }
+
     // Model ids are short tokens such as "whisper-large-v3-turbo" or "openai/whisper-1".
     private const int MaxModelLength = 100;
 
     // Whisper reads only the last 224 tokens of a prompt; 500 characters of names and terms
     // stay well inside that.
     private const int MaxVocabularyLength = 500;
+
+    // Room for a long set of instructions, far below what a model's context holds.
+    private const int MaxPromptLength = 8000;
+
+    // Language names, in English or their own, are short: "Portuguese (Brazil)" is 19.
+    private const int MaxLanguageNameLength = 40;
 
     // WinMM device names are at most 31 characters (MAXPNAMELEN, 32 with the terminator); a
     // longer name could never match a device.
@@ -124,6 +156,20 @@ internal sealed record AppSettings
     /// <summary>1 to 500 characters on one line, without control characters.</summary>
     public static bool IsValidVocabulary(string? vocabulary) =>
         vocabulary is { Length: > 0 and <= MaxVocabularyLength } && !vocabulary.Any(char.IsControl);
+
+    /// <summary>1 to 8,000 characters; new lines and tabs are the only control characters allowed.</summary>
+    public static bool IsValidCleanupPrompt(string? prompt) =>
+        prompt is { Length: > 0 and <= MaxPromptLength } && !prompt.Any(c => char.IsControl(c) && c is not '\n' and not '\r' and not '\t');
+
+    /// <summary>A yyyy-MM-dd date, as <see cref="Naad.Cleanup.CleanupPrompt.DefaultVersion"/> is written.</summary>
+    public static bool IsValidPromptVersion(string? version) =>
+        DateOnly.TryParseExact(version, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out _);
+
+    /// <summary>A language name of letters, spaces, hyphens and brackets, up to 40 characters.</summary>
+    public static bool IsValidOutputLanguage(string? language) =>
+        language is { Length: > 0 and <= MaxLanguageNameLength }
+        && language.All(c => char.IsLetter(c) || c is ' ' or '-' or '(' or ')');
 
     /// <summary>A name WinMM could report: 1 to 31 characters, no control characters.</summary>
     public static bool IsValidMicrophone(string? name) =>

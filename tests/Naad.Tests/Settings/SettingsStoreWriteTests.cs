@@ -44,7 +44,13 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "languageModelProvider": "Local",
               "localLanguageModel": "Small",
               "languageModelBaseUrl": "https://api.groq.com/openai/v1",
-              "languageModelName": "openai/gpt-oss-20b"
+              "languageModelName": "openai/gpt-oss-20b",
+              "languageModelFallbackName": null,
+              "cleanup": "Ai",
+              "cleanupPrompt": null,
+              "cleanupPromptVersion": null,
+              "instructionGuard": true,
+              "outputLanguage": null
             }
             """.ReplaceLineEndings(), File.ReadAllText(SettingsPath).ReplaceLineEndings());
     }
@@ -199,10 +205,11 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
             [
-                "dictationShortcut", "fileLogging", "handsFree", "language", "languageModelBaseUrl",
+                "cleanup", "cleanupPrompt", "cleanupPromptVersion", "dictationShortcut", "fileLogging",
+                "handsFree", "instructionGuard", "language", "languageModelBaseUrl", "languageModelFallbackName",
                 "languageModelName", "languageModelProvider", "localLanguageModel", "localModel", "microphone",
-                "playSounds", "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "version",
-                "vocabulary",
+                "outputLanguage", "playSounds", "transcriptionBaseUrl", "transcriptionModel",
+                "transcriptionProvider", "version", "vocabulary",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

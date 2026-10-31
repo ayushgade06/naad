@@ -325,6 +325,14 @@ internal sealed class SettingsStore(string path)
             LocalLanguageModel = ReadName(root, "localLanguageModel", defaults.LocalLanguageModel, ref repaired),
             LanguageModelBaseUrl = ReadUrl(root, "languageModelBaseUrl", defaults.LanguageModelBaseUrl, ref repaired),
             LanguageModelName = ReadModel(root, "languageModelName", defaults.LanguageModelName, ref repaired),
+            LanguageModelFallbackName = ReadOptional(
+                root, "languageModelFallbackName", AppSettings.IsValidModel, ref repaired),
+            Cleanup = ReadName(root, "cleanup", defaults.Cleanup, ref repaired),
+            CleanupPrompt = ReadOptional(root, "cleanupPrompt", AppSettings.IsValidCleanupPrompt, ref repaired),
+            CleanupPromptVersion = ReadOptional(
+                root, "cleanupPromptVersion", AppSettings.IsValidPromptVersion, ref repaired),
+            InstructionGuard = ReadBool(root, "instructionGuard", defaults.InstructionGuard, ref repaired),
+            OutputLanguage = ReadOptional(root, "outputLanguage", AppSettings.IsValidOutputLanguage, ref repaired),
         };
         return (settings, repaired);
     }
