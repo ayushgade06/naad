@@ -31,6 +31,7 @@ internal static partial class User32
     public const int WsExTopmost = 0x0000_0008;
     public const int WsExTransparent = 0x0000_0020;
     public const int WsExToolWindow = 0x0000_0080;
+    public const int WsExLayered = 0x0008_0000;
     public const int WsExNoActivate = 0x0800_0000;
 
     public const ushort VkShift = 0x10;
@@ -45,6 +46,11 @@ internal static partial class User32
     public const uint InputKeyboard = 1;
     public const uint KeyEventFKeyUp = 0x0002;
     public const uint KeyEventFUnicode = 0x0004;
+
+    // UpdateLayeredWindow: blend the bitmap's own per-pixel alpha over the screen.
+    public const uint UlwAlpha = 0x02;
+    public const byte AcSrcOver = 0x00;
+    public const byte AcSrcAlpha = 0x01;
 
     public delegate nint HookProc(int code, nint wParam, nint lParam);
 
@@ -105,6 +111,27 @@ internal static partial class User32
     [LibraryImport("user32.dll", EntryPoint = "RegisterClipboardFormatW", SetLastError = true,
         StringMarshalling = StringMarshalling.Utf16)]
     public static partial uint RegisterClipboardFormat(string lpszFormat);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetDC(nint hWnd);
+
+    [LibraryImport("user32.dll")]
+    public static partial int ReleaseDC(nint hWnd, nint hDC);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UpdateLayeredWindow(
+        nint hWnd, nint hdcDst, in Point pptDst, in Size psize, nint hdcSrc, in Point pptSrc, uint crKey,
+        in BlendFunction pblend, uint dwFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public record struct Point(int X, int Y);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public record struct Size(int Width, int Height);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public record struct BlendFunction(byte BlendOp, byte BlendFlags, byte SourceConstantAlpha, byte AlphaFormat);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KbdLlHookStruct

@@ -14,9 +14,10 @@ All notable changes to Naad are listed here. The format follows
 - **Test key** asks the provider whether it accepts a key. The window never
   shows a stored key.
 - Shortcut capture: press the new shortcut instead of typing key names.
-- Recording overlay: a small bar near the bottom of the screen shows
-  **Listening** with a level meter, then **Transcribing**. It never takes
-  focus, lets clicks through and isn't in Alt+Tab.
+- Recording overlay: a small dark pill near the bottom of the screen shows
+  voice bars that rise with your voice and ripple out from the centre, then
+  **Transcribing**. It never takes focus, lets clicks through and isn't in
+  Alt+Tab.
 - `language` setting: the language you speak, sent with each recording.
 - `microphone` setting: record from a named device instead of the Windows
   default. A device that isn't connected falls back to the default.
@@ -70,6 +71,8 @@ All notable changes to Naad are listed here. The format follows
   at the press and release, they delayed opening and closing the microphone
   by over a second on some PCs, lost the first words, and made typing lag
   right after a dictation.
+- Transcribing on this PC no longer pastes Whisper's non-speech tags, such
+  as `[BLANK_AUDIO]` for a recording with noise but no words.
 
 ## [0.1.0] - Unreleased
 
