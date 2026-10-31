@@ -77,6 +77,8 @@ internal sealed class TrayIcon : IDisposable
     private readonly Func<Task<bool>> _copy;
     private readonly Action _openSettings;
     private Action? _notificationClicked;
+    private bool _wantVisible = true;
+    private Font? _boldFont;
 
     /// <param name="shortcut">Named in the tooltip.</param>
     /// <param name="handsFree">Whether the shortcut is pressed to start and stop, rather than held.</param>
@@ -105,7 +107,12 @@ internal sealed class TrayIcon : IDisposable
         _menu.Items.Add(_checkForUpdates);
         _menu.Items.Add("Exit", null, (_, _) => exit());
         _icon = new NotifyIcon { Icon = _image, Text = _idleTooltip, ContextMenuStrip = _menu, Visible = true };
-        _icon.BalloonTipClicked += (_, _) => _notificationClicked?.Invoke();
+        _icon.BalloonTipClicked += (_, _) =>
+        {
+            _icon.Visible = _wantVisible;
+            _notificationClicked?.Invoke();
+        };
+        _icon.BalloonTipClosed += (_, _) => _icon.Visible = _wantVisible;
     }
 
     /// <summary>
@@ -246,7 +253,7 @@ internal sealed class TrayIcon : IDisposable
         _menu.Items.Insert(at, devices);
         var settings = _menu.Items.Cast<ToolStripItem>().First(item => item.Text == SettingsText);
         var window = new ToolStripMenuItem("Open Naad", null, (_, _) => openWindow());
-        window.Font = new Font(window.Font, FontStyle.Bold);
+        window.Font = _boldFont = new Font(window.Font, FontStyle.Bold);
         _menu.Items.Insert(_menu.Items.IndexOf(settings), window);
         var setup = new ToolStripMenuItem("Re-run setup...", null, (_, _) => rerunSetup());
         _menu.Items.Insert(_menu.Items.IndexOf(settings), setup);
@@ -254,7 +261,11 @@ internal sealed class TrayIcon : IDisposable
     }
 
     /// <summary>Shows or hides the icon; hidden, Naad is reached by starting it again.</summary>
-    public void SetVisible(bool visible) => _icon.Visible = visible;
+    public void SetVisible(bool visible)
+    {
+        _wantVisible = visible;
+        _icon.Visible = visible;
+    }
 
     /// <summary>Shows Check for updates in the menu; only an installed copy can update.</summary>
     public void EnableUpdateChecks(Action check)
@@ -354,6 +365,9 @@ internal sealed class TrayIcon : IDisposable
     private void Notify(string title, string message, ToolTipIcon kind, Action? clicked)
     {
         _notificationClicked = clicked;
+
+        // Windows shows a notification only for a visible icon: a hidden one appears for it.
+        _icon.Visible = true;
         _icon.ShowBalloonTip(NotificationMilliseconds, title, message, kind);
     }
 
@@ -388,5 +402,6 @@ internal sealed class TrayIcon : IDisposable
         _image.Dispose();
         _recordingImage.Dispose();
         _transcribingImage.Dispose();
+        _boldFont?.Dispose();
     }
 }

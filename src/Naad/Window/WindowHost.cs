@@ -11,11 +11,13 @@ namespace Naad.Window;
 /// <param name="microphones">The connected recording devices.</param>
 /// <param name="startsAtLogin">Whether Naad starts at sign-in now.</param>
 /// <param name="actions">What the settings and the guide's buttons do.</param>
+/// <param name="exit">Quits Naad, for when its tray icon is hidden.</param>
 internal sealed class WindowHost(
     Func<AppSettings> settings,
     Func<IReadOnlyList<string>> microphones,
     Func<bool> startsAtLogin,
-    Func<SettingsWindowActions> actions)
+    Func<SettingsWindowActions> actions,
+    Action exit)
 {
     private MainWindow? _main;
     private SetupWizard? _wizard;
@@ -23,16 +25,18 @@ internal sealed class WindowHost(
     /// <summary>The settings page's form while it is shown, for the shortcut capture to reach.</summary>
     public SettingsWindow? SettingsForm { get; private set; }
 
-    /// <summary>Opens the main window at <paramref name="page"/>, or brings it forward.</summary>
-    public void Open(string page)
+    /// <summary>
+    /// Opens the main window at <paramref name="page"/>, or brings it forward; null keeps the page
+    /// shown, so unsaved settings stay.
+    /// </summary>
+    public void Open(string? page)
     {
         if (_main is null)
         {
             var (palette, dark) = Colours();
-            var s = settings();
             _main = new MainWindow(
                 [
-                    new(Pages.Home, () => Pages.HomePage(s.DictationShortcut, s.HandsFree, palette)),
+                    new(Pages.Home, () => Pages.HomePage(settings(), palette, exit)),
                     new(Pages.History, () => Pages.Placeholder(
                         "History",
                         "Your past dictations will be listed here, to find, copy and paste again.",
@@ -41,8 +45,7 @@ internal sealed class WindowHost(
                         "Dictionary", "The names and terms Naad should spell right will be listed here.", palette)),
                     new(Pages.Snippets, () => Pages.Placeholder(
                         "Snippets", "Short phrases that expand into saved text will be listed here.", palette)),
-                    new(Pages.Settings, () => Pages.SettingsPage(SettingsForm = new SettingsWindow(
-                        settings(), microphones(), startsAtLogin(), actions(), dark ? palette : null, embedded: true))),
+                    new(Pages.Settings, () => Pages.SettingsPage(SettingsForm = SettingsPage(dark ? palette : null))),
                 ],
                 palette,
                 dark);
@@ -57,8 +60,23 @@ internal sealed class WindowHost(
             _main.Show();
         }
 
-        _main.ShowPage(page);
+        _main.ShowPage(page ?? (_main.IsLoaded ? null : Pages.Home));
         _main.Activate();
+    }
+
+    // Forgotten once disposed, so the shortcut capture never reaches a page that is gone.
+    private SettingsWindow SettingsPage(Palette? palette)
+    {
+        var form = new SettingsWindow(
+            settings(), microphones(), startsAtLogin(), actions(), palette, embedded: true);
+        form.Disposed += (_, _) =>
+        {
+            if (SettingsForm == form)
+            {
+                SettingsForm = null;
+            }
+        };
+        return form;
     }
 
     /// <summary>Opens the setup guide, or brings it forward.</summary>
@@ -67,7 +85,7 @@ internal sealed class WindowHost(
         if (_wizard is null)
         {
             var (palette, dark) = Colours();
-            _wizard = new SetupWizard(settings(), microphones(), startsAtLogin(), actions(), palette, dark);
+            _wizard = new SetupWizard(settings, microphones(), startsAtLogin(), actions(), palette, dark);
             _wizard.Closed += (_, _) => _wizard = null;
             ElementHost.EnableModelessKeyboardInterop(_wizard);
             _wizard.Show();

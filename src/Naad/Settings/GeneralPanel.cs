@@ -42,6 +42,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
     };
 
     private readonly Button _preview = new() { Text = "Preview", AutoSize = true };
+    private SoundCues? _previewCues;
 
     /// <param name="current">The settings in use.</param>
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
@@ -73,11 +74,13 @@ internal sealed class GeneralPanel : TableLayoutPanel
             MaximumSize = new Size(420, 0),
         });
 
-        // A short-lived player at the chosen volume: the app's own cues keep theirs until saved.
+        // Its own player at the chosen volume: the app's cues keep theirs until saved. Played
+        // without waiting, since this thread also runs the keyboard hook.
         _preview.Click += (_, _) =>
         {
-            using var preview = new SoundCues(_volume.Value);
-            preview.PreviewStart();
+            _previewCues?.Dispose();
+            _previewCues = new SoundCues(_volume.Value);
+            _previewCues.PlayStart();
         };
     }
 
@@ -94,4 +97,14 @@ internal sealed class GeneralPanel : TableLayoutPanel
         ErrorSound = _errorSound.Checked,
         SoundVolume = _volume.Value,
     };
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _previewCues?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
 }

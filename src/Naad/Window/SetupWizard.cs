@@ -27,14 +27,12 @@ namespace Naad.Window;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Reliability",
     "CA1001:Types that own disposable fields should be disposable",
-    Justification = "A WPF window isn't disposable; the token source is disposed when the window closes.")]
+    Justification = "A WPF window isn't disposable, and a handler still running may read the token after " +
+        "the window closes, so the source is only cancelled.")]
 internal sealed class SetupWizard : System.Windows.Window
 {
     // A short check: long enough to say a sentence and watch the bar move.
     private static readonly TimeSpan MicrophoneTest = TimeSpan.FromSeconds(5);
-
-    // The step that dictates for real, so settings are saved on the way in.
-    private const int TryItStep = 7;
 
     private readonly SettingsWindowActions _actions;
     private readonly Palette _palette;
@@ -44,26 +42,28 @@ internal sealed class SetupWizard : System.Windows.Window
     private readonly Button _next = new() { Content = "Next", MinWidth = 90, IsDefault = true };
     private readonly CancellationTokenSource _closing = new();
     private readonly IReadOnlyList<string> _microphones;
+    private readonly Func<AppSettings> _latest;
     private AppSettings _settings;
     private bool _startAtLogin;
     private string? _newKey;
     private int _step;
 
-    /// <param name="current">The settings to start from.</param>
+    /// <param name="current">The settings in use, read again when saving.</param>
     /// <param name="microphones">The connected recording devices.</param>
     /// <param name="startsAtLogin">Whether Naad starts at sign-in now.</param>
     /// <param name="actions">Downloads and saving, as in Settings.</param>
     /// <param name="palette">The colours.</param>
     /// <param name="dark">Whether the title bar should be dark.</param>
     public SetupWizard(
-        AppSettings current,
+        Func<AppSettings> current,
         IReadOnlyList<string> microphones,
         bool startsAtLogin,
         SettingsWindowActions actions,
         Palette palette,
         bool dark)
     {
-        _settings = current;
+        _latest = current;
+        _settings = current();
         _microphones = microphones;
         _startAtLogin = startsAtLogin;
         _actions = actions;
@@ -104,11 +104,7 @@ internal sealed class SetupWizard : System.Windows.Window
                 Close();
             }
         };
-        Closed += (_, _) =>
-        {
-            _closing.Cancel();
-            _closing.Dispose();
-        };
+        Closed += (_, _) => _closing.Cancel();
         SourceInitialized += (_, _) => Dwmapi.SetDarkTitleBar(new WindowInteropHelper(this).Handle, dark);
         Go(0);
     }
@@ -122,7 +118,7 @@ internal sealed class SetupWizard : System.Windows.Window
         }
 
         // Saved before the test, so the dictation into the box uses the choices just made.
-        if (step == TryItStep && step > _step && Save() is { } problem)
+        if (step < _steps.Count && _steps[step] == (Func<UIElement>)TryIt && step > _step && Save() is { } problem)
         {
             System.Windows.MessageBox.Show(this, problem, "Naad");
             return;
@@ -142,7 +138,19 @@ internal sealed class SetupWizard : System.Windows.Window
             keys[_settings.TranscriptionService] = key;
         }
 
-        return _actions.Save(new(_settings, keys, _startAtLogin));
+        // Only the guide's own choices go on top of the settings in use now, so a change saved in
+        // Settings while the guide was open survives.
+        var s = _latest() with
+        {
+            Microphone = _settings.Microphone,
+            TranscriptionProvider = _settings.TranscriptionProvider,
+            LocalModel = _settings.LocalModel,
+            Cleanup = _settings.Cleanup,
+            LocalLanguageModel = _settings.LocalLanguageModel,
+            TranscriptionService = _settings.TranscriptionService,
+            Vocabulary = _settings.Vocabulary,
+        };
+        return _actions.Save(new(s, keys, _startAtLogin));
     }
 
     private StackPanel Welcome() => Page(
@@ -261,32 +269,42 @@ internal sealed class SetupWizard : System.Windows.Window
             Math.Max(0, IndexOf(services, _settings.TranscriptionService)),
             index => _settings = _settings with { TranscriptionService = services[index] });
         var key = new PasswordBox { Margin = new Thickness(0, 0, 0, 12) };
+        var note = Muted("");
         key.PasswordChanged += (_, _) =>
-            _newKey = SecretStore.IsValidKey(key.Password.Trim()) ? key.Password.Trim() : null;
+        {
+            var typed = key.Password.Trim();
+            _newKey = SecretStore.IsValidKey(typed) ? typed : null;
+            note.Text = typed.Length > 0 && _newKey is null ? SettingsInput.KeyError(typed) ?? "" : "";
+        };
         return Page(
             "A cloud service (optional)",
             "Skip this to stay offline. To transcribe in the cloud instead, choose a service and paste its key; " +
             "Settings has the rest, including keys for AI.",
             service,
-            key);
+            key,
+            note);
     }
 
     private StackPanel Vocabulary()
     {
         var box = new TextBox { Text = _settings.Vocabulary ?? "", Margin = new Thickness(0, 0, 0, 12) };
+        var note = Muted("");
         box.TextChanged += (_, _) =>
         {
             var terms = box.Text.Trim();
-            _settings = _settings with
+            var valid = terms.Length == 0 || AppSettings.IsValidVocabulary(terms);
+            note.Text = valid ? "" : "Keep it to one line of up to 500 characters; the last valid list is kept.";
+            if (valid)
             {
-                Vocabulary = terms.Length > 0 && AppSettings.IsValidVocabulary(terms) ? terms : null,
-            };
+                _settings = _settings with { Vocabulary = terms.Length > 0 ? terms : null };
+            }
         };
         return Page(
             "Your words",
             "Names and terms you use, separated by commas, such as people, products and places. They are " +
             "spelled right when you say them.",
-            box);
+            box,
+            note);
     }
 
     private StackPanel SignIn()
@@ -308,7 +326,7 @@ internal sealed class SetupWizard : System.Windows.Window
         };
         var result = Muted("");
         box.TextChanged += (_, _) => result.Text = box.Text.Length > 0 ? "It works. Your words arrived." : "";
-        Loaded += (_, _) => box.Focus();
+        box.Loaded += (_, _) => box.Focus();
         var how = _settings.HandsFree
             ? $"Click in the box, press {_settings.DictationShortcut.Describe()}, say a sentence, and press it again."
             : $"Click in the box, hold {_settings.DictationShortcut.Describe()}, say a sentence, and let go.";

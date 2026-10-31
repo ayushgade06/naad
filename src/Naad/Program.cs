@@ -63,7 +63,7 @@ internal static class Program
         try
         {
             // Without a usable key Naad still starts, and opens its settings window to ask for one.
-            Run(store, loaded, keys);
+            Run(store, loaded, keys, background: args.Contains(StartupEntry.BackgroundArgument));
             Log.Info(LogEvent.AppStopped);
             return 0;
         }
@@ -144,7 +144,7 @@ internal static class Program
 
     // Every local function below runs on this UI thread: the hook, the tray, the controller's
     // events and the settings window all live on it.
-    private static void Run(SettingsStore store, SettingsLoadResult loaded, ServiceKeys keys)
+    private static void Run(SettingsStore store, SettingsLoadResult loaded, ServiceKeys keys, bool background)
     {
         // The keyboard hook and the WinForms clipboard need this STA thread to pump messages.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
@@ -251,11 +251,12 @@ internal static class Program
             hook.TriggerReleased += controller.Release;
             hook.TriggerCancelled += controller.Cancel;
             hook.CaptureEnded += step => windows?.SettingsForm?.ShowCapture(step);
-            windows = new WindowHost(() => pending ?? settings, Microphones, startup.IsEnabled, WindowActions);
+            windows = new WindowHost(
+                () => pending ?? settings, Microphones, startup.IsEnabled, WindowActions, Application.ExitThread);
             tray.AddItems(
                 ToggleDictation,
                 Microphones,
-                () => settings.Microphone,
+                () => (pending ?? settings).Microphone,
                 microphone => Save(new(
                     (pending ?? settings) with { Microphone = microphone }, new Dictionary<CloudService, string>(),
                     startup.IsEnabled())),
@@ -264,7 +265,7 @@ internal static class Program
             tray.SetVisible(settings.ShowTrayIcon);
 
             // Raised on a thread-pool thread when Naad is started again.
-            using var showWindow = new ShowWindowSignal(() => ui.Post(_ => windows.Open(Pages.Home), null));
+            using var showWindow = new ShowWindowSignal(() => ui.Post(_ => windows.Open(null), null));
 
             // Only an installed copy updates, and only when the user clicks the offer.
             using var updates = new UpdatePrompt(
@@ -277,7 +278,7 @@ internal static class Program
             {
                 windows.OpenSetup();
             }
-            else if (transcriber is null || !settings.ShowTrayIcon)
+            else if (transcriber is null || (!settings.ShowTrayIcon && !background))
             {
                 windows.Open(transcriber is null ? Pages.Settings : Pages.Home);
             }

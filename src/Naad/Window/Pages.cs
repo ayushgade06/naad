@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms.Integration;
-using Naad.Hotkey;
 using Naad.Settings;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 
@@ -16,14 +15,26 @@ internal static class Pages
     public const string Snippets = "Snippets";
     public const string Settings = "Settings";
 
-    /// <summary>A greeting and how to dictate. Stats arrive with history.</summary>
-    public static UIElement HomePage(Chord shortcut, bool handsFree, Palette palette) => Stack(
-        palette,
-        Heading("Naad is ready"),
-        Text(handsFree
-            ? $"Press {shortcut.Describe()} to start dictating into any app, and again to stop."
-            : $"Hold {shortcut.Describe()} and speak; let go and your words appear where you are typing."),
-        Muted("Your words, pace and time saved will gather here as you dictate."));
+    /// <summary>A greeting and how to dictate, and Quit for when the tray icon is hidden.</summary>
+    public static UIElement HomePage(AppSettings s, Palette palette, Action exit)
+    {
+        var quit = new System.Windows.Controls.Button
+        {
+            Content = "Quit Naad",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(12, 4, 12, 4),
+        };
+        quit.Click += (_, _) => exit();
+        return Stack(
+            palette,
+            Heading("Naad is ready"),
+            Text(s.HandsFree
+                ? $"Press {s.DictationShortcut.Describe()} to start dictating into any app, and again to stop."
+                : $"Hold {s.DictationShortcut.Describe()} and speak; let go and your words appear where you are " +
+                    "typing."),
+            Muted("Your words, pace and time saved will gather here as you dictate."),
+            quit);
+    }
 
     /// <summary>A page whose content arrives in a later version.</summary>
     public static UIElement Placeholder(string title, string text, Palette palette) =>

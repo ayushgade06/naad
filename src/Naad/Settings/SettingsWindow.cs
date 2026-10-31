@@ -158,6 +158,14 @@ internal sealed class SettingsWindow : Form
     {
         if (disposing)
         {
+            // Embedded, the form is disposed without closing: a capture must not keep swallowing
+            // keys, and a running download or test must stop writing to it.
+            CancelCapture();
+            if (!_closing.IsCancellationRequested)
+            {
+                _closing.Cancel();
+            }
+
             _closing.Dispose();
             _icon.Dispose();
         }
@@ -208,7 +216,23 @@ internal sealed class SettingsWindow : Form
         cancel.Click += (_, _) => Close();
         cancel.Visible = !_embedded;
         AcceptButton = save;
-        CancelButton = cancel;
+
+        // Embedded, Esc belongs to the main window; Close would only hide this page.
+        if (!_embedded)
+        {
+            CancelButton = cancel;
+        }
+
+        // Ctrl+Enter saves from anywhere, even a field where Enter is text.
+        KeyPreview = true;
+        KeyDown += (_, e) =>
+        {
+            if (e.Control && e.KeyCode == Keys.Enter && _saveButton.Enabled)
+            {
+                e.SuppressKeyPress = true;
+                _ = SaveAsync();
+            }
+        };
 
         Row(dictation, "Transcribe with", _provider);
         Row(dictation, "Model on this PC", _localModel);

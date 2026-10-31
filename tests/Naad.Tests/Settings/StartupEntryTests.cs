@@ -15,9 +15,9 @@ public sealed class StartupEntryTests : IDisposable
     public void Dispose() => Registry.CurrentUser.DeleteSubKeyTree(_testKey, throwOnMissingSubKey: false);
 
     [Fact]
-    public void Command_PathWithSpaces_IsQuoted()
+    public void Command_PathWithSpaces_IsQuotedAndStartsInTheBackground()
     {
-        Assert.Equal("\"C:\\Program Files\\Naad Test\\Naad.exe\"", Entry().Command);
+        Assert.Equal("\"C:\\Program Files\\Naad Test\\Naad.exe\" --background", Entry().Command);
     }
 
     [Fact]

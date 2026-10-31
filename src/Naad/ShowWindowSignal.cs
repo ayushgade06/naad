@@ -35,7 +35,15 @@ internal sealed class ShowWindowSignal : IDisposable
 
     public void Dispose()
     {
-        _wait.Unregister(null);
+        // Waits briefly for a callback already running, so none runs after Naad has shut down. The
+        // callback only posts a message, so a second is ample; the limit means a callback that
+        // disposed this itself can't wait on itself forever.
+        using var done = new ManualResetEvent(false);
+        if (_wait.Unregister(done))
+        {
+            done.WaitOne(TimeSpan.FromSeconds(1));
+        }
+
         _event.Dispose();
     }
 }

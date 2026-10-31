@@ -77,11 +77,24 @@ internal sealed class MainWindow : System.Windows.Window
             }
         };
         SourceInitialized += (_, _) => Dwmapi.SetDarkTitleBar(new WindowInteropHelper(this).Handle, dark);
+
+        // A hosted settings form holds a capture and timers; it goes with the window.
+        Closed += (_, _) => (_content.Content as IDisposable)?.Dispose();
     }
 
     /// <summary>Shows the page called <paramref name="name"/>. Call on the UI thread.</summary>
-    public void ShowPage(string name)
+    public void ShowPage(string? name)
     {
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        if (name is null)
+        {
+            return;
+        }
+
         for (var i = 0; i < _pages.Count; i++)
         {
             if (_pages[i].Name == name)

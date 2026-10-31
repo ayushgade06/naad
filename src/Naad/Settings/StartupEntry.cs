@@ -19,8 +19,11 @@ internal sealed class StartupEntry(RegistryKey root, string runKeyPath, string e
 
     public const string ValueName = "Naad";
 
+    /// <summary>What a start at sign-in passes, so Naad doesn't open its window then.</summary>
+    public const string BackgroundArgument = "--background";
+
     /// <summary>The command Windows runs: the path in quotes, since it may contain spaces.</summary>
-    public string Command => $"\"{exePath}\"";
+    public string Command => $"\"{exePath}\" {BackgroundArgument}";
 
     public static StartupEntry ForThisApp() =>
         new(Registry.CurrentUser, DefaultRunKey, Environment.ProcessPath
@@ -35,7 +38,8 @@ internal sealed class StartupEntry(RegistryKey root, string runKeyPath, string e
         try
         {
             using var key = root.OpenSubKey(runKeyPath);
-            return key?.GetValue(ValueName) as string == Command;
+            // Naad 1.0 wrote the path alone; that entry still counts.
+            return key?.GetValue(ValueName) as string is { } value && (value == Command || value == $"\"{exePath}\"");
         }
         catch (Exception e) when (e is SecurityException or UnauthorizedAccessException or IOException)
         {

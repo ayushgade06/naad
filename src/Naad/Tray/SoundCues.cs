@@ -52,9 +52,6 @@ internal sealed class SoundCues : IDisposable
     /// <summary>Plays the stop tone. Call once the microphone is closed.</summary>
     public void PlayStop() => _stop.Play();
 
-    /// <summary>Plays the start tone and returns once it has played, for a preview.</summary>
-    public void PreviewStart() => _start.PlaySync();
-
     /// <summary>Plays the error tone.</summary>
     public void PlayError() => _error.Play();
 

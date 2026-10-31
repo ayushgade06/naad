@@ -6,7 +6,8 @@ public sealed class ShowWindowSignalTests
     public async Task Send_RunningInstanceListens_IsHeard()
     {
         var name = $@"Local\Naad.Test.{Guid.NewGuid():N}";
-        var heard = new TaskCompletionSource();
+        // Resumed elsewhere: resuming on the callback's thread would dispose the signal from its own callback.
+        var heard = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var signal = new ShowWindowSignal(() => heard.TrySetResult(), name);
 
         ShowWindowSignal.Send(name);

@@ -60,6 +60,17 @@ internal sealed class CleanupPromptDialog : Form
         ok.Click += (_, _) => Accept();
         CancelButton = cancel;
 
+        // Ctrl+Enter keeps the edit, as Enter is a new line in the prompt.
+        KeyPreview = true;
+        KeyDown += (_, e) =>
+        {
+            if (e.Control && e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                Accept();
+            }
+        };
+
         var layout = new FlowLayoutPanel
         {
             AutoSize = true,
