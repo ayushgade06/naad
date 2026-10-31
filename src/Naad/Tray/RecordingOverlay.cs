@@ -35,6 +35,9 @@ internal sealed class RecordingOverlay : Form
     private const int LogicalMaxBarHeight = 20;
     private const int BarCount = 15;
 
+    // Long enough to read two words at a glance, short enough not to linger over the text.
+    private const int FallbackNoticeMilliseconds = 2500;
+
     private static readonly Color Background = Color.FromArgb(0x14, 0x14, 0x16);
     private static readonly Color Border = Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF);
     private static readonly Color BarColor = Color.FromArgb(0xF5, 0xF5, 0xF7);
@@ -42,13 +45,23 @@ internal sealed class RecordingOverlay : Form
 
     private readonly LevelMeter _meter = new();
     private readonly VoiceBars _bars = new(BarCount);
+    private readonly System.Windows.Forms.Timer _notice = new() { Interval = FallbackNoticeMilliseconds };
     private DictationState _state;
+    private string _label = "Transcribing";
 
     public RecordingOverlay()
     {
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
+        _notice.Tick += (_, _) =>
+        {
+            _notice.Stop();
+            if (_state == DictationState.Idle)
+            {
+                Hide();
+            }
+        };
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -72,12 +85,19 @@ internal sealed class RecordingOverlay : Form
         _state = state;
         if (state == DictationState.Idle)
         {
-            Hide();
+            // A notice that cleanup fell back stays up for its time.
+            if (!_notice.Enabled)
+            {
+                Hide();
+            }
+
             return;
         }
 
         if (state == DictationState.Recording)
         {
+            _notice.Stop();
+            _label = "Transcribing";
             _meter.Reset();
             _bars.Reset();
             Place(target);
@@ -86,6 +106,19 @@ internal sealed class RecordingOverlay : Form
         // ShowWithoutActivation makes this SW_SHOWNOACTIVATE: focus stays where it is.
         Show();
         Render();
+    }
+
+    /// <summary>The language model is tidying the transcript.</summary>
+    public void ShowCleaningUp() => ShowLabel("Cleaning up");
+
+    /// <summary>
+    /// Cleanup failed, so the transcript is pasted as said: says so for a moment, even after the
+    /// dictation ends.
+    /// </summary>
+    public void ShowCleanupFellBack()
+    {
+        ShowLabel("Pasted as said");
+        _notice.Start();
     }
 
     /// <summary>Adds a microphone level from <see cref="AudioRecorder.LevelMeasured"/>, marshalled here.</summary>
@@ -154,7 +187,7 @@ internal sealed class RecordingOverlay : Form
                 Alignment = StringAlignment.Center,
                 LineAlignment = StringAlignment.Center,
             };
-            graphics.DrawString("Transcribing", Font, text, new RectangleF(0, 0, Width, Height), format);
+            graphics.DrawString(_label, Font, text, new RectangleF(0, 0, Width, Height), format);
             return;
         }
 
@@ -169,6 +202,25 @@ internal sealed class RecordingOverlay : Form
             using var bar = Capsule(new RectangleF(left + (i * step), (Height - height) / 2f, barWidth, height));
             graphics.FillPath(brush, bar);
         }
+    }
+
+    private void ShowLabel(string label)
+    {
+        _label = label;
+        if (Visible)
+        {
+            Render();
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _notice.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 
     // A rectangle with fully rounded ends: a pill when wide, a dot when square.
