@@ -14,7 +14,7 @@ HTTPS.
 |---|---|---|
 | You dictate with **Cloud** chosen under **Transcribe with** | The base URL in Settings, `https://api.groq.com/openai/v1` by default | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and your API key in the `Authorization` header |
 | You click **Test key** in Settings | The same base URL | The key you typed, to ask whether the provider accepts it. No audio |
-| You click **Download model** | `huggingface.co`, whisper.cpp's model files | An ordinary download request. No data about you |
+| You click **Download model** | `huggingface.co`: whisper.cpp's model files, or the language models on the **AI** tab | An ordinary download request. No data about you |
 | An installed copy, a minute after it starts, then daily, and when you choose **Check for updates** | `github.com/ayushgade06/naad` releases | An ordinary request for the release list. No data about you or how you use Naad |
 
 With **This PC** chosen, which is the default, dictation never touches the
@@ -31,7 +31,9 @@ model is missing, it asks you to download it rather than upload your audio.
 | Settings | `%APPDATA%\Naad\settings.json`, plus `.bak` copies made when the file is repaired or migrated | Plain JSON. It holds your vocabulary and the name of your chosen microphone, if you set them; nothing you said |
 | API key | `%LOCALAPPDATA%\Naad\api-key.dpapi` | Encrypted with Windows DPAPI for your Windows account. Only your account on this PC can read it. Naad never shows it again, even in Settings. The key never goes into settings.json |
 | Diagnostic log | `%LOCALAPPDATA%\Naad\logs\naad.log`, and `naad.1.log` after 1 MB | See below. Turn it off with **Write a diagnostic log** in Settings |
-| Whisper models | `%LOCALAPPDATA%\Naad\models` | Checked against a SHA-256 before use |
+| Language model API key | `%LOCALAPPDATA%\Naad\llm-api-key.dpapi` | Encrypted like the API key, and kept apart from it |
+| Whisper and language models | `%LOCALAPPDATA%\Naad\models` | Checked against a SHA-256 before use |
+| Models that refuse a temperature | `%LOCALAPPDATA%\Naad\temperature-refused.json` | The cloud base URL and model id, and a date a week ahead. Nothing you said |
 | Start at sign-in | A `Naad` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Only if you tick **Start Naad when I sign in** |
 | The installed app | `%LOCALAPPDATA%\Naad.App` | Removed when you uninstall |
 

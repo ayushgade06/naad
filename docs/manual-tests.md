@@ -878,3 +878,39 @@ reason.
   line.
 - **A misleading log name.** With the local model missing, the shortcut
   logs `DictationNeedsApiKey`, though what is missing is the model.
+
+## Language model on this PC (P26): M-AI1 to M-AI4
+
+Nothing uses the language model yet (cleanup arrives in P27), so these
+checks exercise it through Settings and the explicit test in
+`tests/Naad.Tests/LanguageModel/LocalLanguageModelTests.cs`.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-AI1 | Download | In Settings, open the **AI** tab. Choose **Small**, click **Download model** and wait; then the same for **Large**. Close Settings during a third download. | The status asks for 1.1 GB and then 2.5 GB; the model list is disabled while downloading. Afterwards `qwen2.5-1.5b-instruct-q4_k_m.gguf` (1,117,320,736 bytes) and `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` (2,497,281,120 bytes) are in `%LOCALAPPDATA%\Naad\models`. Closing Settings stops a download and leaves no `.download` file. The log shows `LocalModelDownloaded mb=1117` and `mb=2497`. | Partly: both files were downloaded on 2026-10-31 and their SHA-256 matched the published ones. The Settings buttons: NOT RUN. |
+| M-AI2 | Graphics card | Run the explicit test (see its file header) for each model. | Each reply is the cleaned sentence. The log shows `LocalLanguageModelLoaded on_gpu=1 discrete_gpu=1`, and after the idle unload `LocalLanguageModelUnloaded`. | **Yes**, 2026-10-31, RTX 3050: see the table below. |
+| M-AI3 | Processor | Run the same test with `GGML_VK_VISIBLE_DEVICES=99`, which hides every Vulkan device, or on a PC without a Vulkan driver. | The reply is the same; the log shows `on_gpu=0`. | **Yes**, 2026-10-31, with the variable set. A PC without Vulkan: NOT RUN. |
+| M-AI4 | Cloud | Choose **Cloud** on the **AI** tab, with Groq's base URL, `openai/gpt-oss-20b` and a key; click **Test key**, then **Save**. | **Test key** says the key was accepted. The key is saved to `%LOCALAPPDATA%\Naad\llm-api-key.dpapi`, apart from the transcription key. | Partly: `OpenAiChatLanguageModel` answered through Groq on 2026-10-31 in 0.16 to 0.64 s. The Settings tab: NOT RUN. |
+
+**Measured, 2026-10-31,** with LLamaSharp 0.30.0 on the maintainer's PC
+(i5-13420H, RTX 3050 6 GB Laptop), cleaning one 20-word sentence (17 to 21
+reply tokens). "Processor" ran with no Vulkan device visible.
+
+| Model | Load | First token, warm | Total, warm | Private memory loaded | After unload |
+|---|---|---|---|---|---|
+| Qwen2.5-1.5B, RTX 3050 | 4 to 6 s | 0.3 to 0.5 s | 0.5 to 0.8 s | 1.4 to 1.5 GB | 0.4 GB |
+| Qwen2.5-1.5B, processor | 2.7 to 3.6 s | 0.7 to 1.8 s | 1.4 to 2.6 s | 1.3 GB | 0.2 GB |
+| Qwen3-4B-2507, RTX 3050 | 7 to 9 s | 0.7 s | 1.2 to 1.7 s | 3.0 GB | 0.2 GB |
+| Qwen3-4B-2507, processor | 4.5 to 5 s | 1.3 to 2.3 s | 3.4 to 4.6 s | 2.6 GB | 0.1 GB |
+| Phi-3.5-mini (rejected), RTX 3050 | 5.5 s | 1.1 s | 1.6 s | 2.6 GB | |
+| Phi-3.5-mini (rejected), processor | 2.8 to 4.6 s | 1.2 to 1.9 s | 3.0 to 4.1 s | 2.7 GB | |
+
+The first run of each model in a new program on the RTX 3050 took 20 to 40 s
+more while the driver compiled shaders, as for Whisper. Phi-3.5-mini kept
+"three or four pm" where the speaker corrected themselves, so it isn't
+offered. The same process also ran Whisper before and after the language
+model, in both orders, with no clash. With the model idle (not yet loaded,
+or unloaded), dictation is unchanged: nothing of it is in memory.
+
+**Status after P26:** M-AI1 and M-AI4 have **not been run** through
+Settings by a person.

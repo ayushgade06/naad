@@ -22,7 +22,11 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "language": null,
   "microphone": null,
   "vocabulary": null,
-  "handsFree": false
+  "handsFree": false,
+  "languageModelProvider": "Local",
+  "localLanguageModel": "Small",
+  "languageModelBaseUrl": "https://api.groq.com/openai/v1",
+  "languageModelName": "openai/gpt-oss-20b"
 }
 ```
 
@@ -40,6 +44,10 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `vocabulary` | text or `null` | `null` | Names and terms you use, such as `"Naad, Groq, Priya"`, sent with each recording as Whisper's prompt so they are spelled right. One line, up to 500 characters. It goes to the transcription provider but never into the log. `null` (or `""`) sends none. |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
+| `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
+| `localLanguageModel` | `"Small"` or `"Large"` | `"Small"` | The language model on this PC: `"Small"` (Qwen2.5-1.5B-Instruct, 1.1 GB, fast on any PC) or `"Large"` (Qwen3-4B-Instruct-2507, 2.5 GB, more accurate, for PCs with a graphics card). |
+| `languageModelBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible chat API; Naad posts to `<root>/chat/completions`. The same rules as `transcriptionBaseUrl`: `https://`, or `http://` only for a server on this PC such as Ollama (`http://localhost:11434/v1`) or LM Studio. |
+| `languageModelName` | text | `"openai/gpt-oss-20b"` | The cloud provider's chat model id. Up to 100 visible ASCII characters, no spaces. |
 
 Hand edits are forgiving. Property names may use any casing, and `//`
 comments and trailing commas are accepted. Naad keeps the file as you wrote
@@ -176,6 +184,27 @@ card, `discrete_gpu=1` when a discrete card was found.
 To free the space, choose **Cloud** and delete the `models` folder, or
 delete just the model you no longer use.
 
+## The language model
+
+Naad can run a small language model for AI steps such as cleaning up a
+transcript. Settings has an **AI** tab for it.
+
+- **On this PC** (the default): choose **Small** or **Large** under
+  **Model on this PC** and click **Download model**. The download is
+  checked against its SHA-256 and kept in `%LOCALAPPDATA%\Naad\models`.
+  The model runs on the graphics card through Vulkan when there is one,
+  and on the processor otherwise. It loads the first time it is needed,
+  which takes a few seconds, and unloads after 10 minutes without use. The
+  first run on a graphics card can take up to a minute while the driver
+  prepares; after that, the small model answers in under a second.
+- **In the cloud**: choose **Cloud**, set the base URL and model, and paste
+  a key under **New key**. The key is stored encrypted in
+  `%LOCALAPPDATA%\Naad\llm-api-key.dpapi`, apart from the transcription
+  key, and `NAAD_LLM_API_KEY` overrides it for development. A server on
+  this PC, such as Ollama, needs no key. When a model refuses a
+  `temperature`, Naad sends the request again without it and remembers
+  that for a week in `%LOCALAPPDATA%\Naad\temperature-refused.json`.
+
 ## Starting Naad when you sign in
 
 **Start Naad when I sign in** in Settings adds a `Naad` value to
@@ -189,8 +218,8 @@ Settings and save with the box ticked to point the entry at the new place.
 
 | Value | Why it is not in settings.json |
 |---|---|
-| API key | It is a secret, and settings.json is plain text. It is stored encrypted on its own; see [The API key](#the-api-key). It must never be added to this file. |
-| Timeouts (20 s per transcription request), the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
+| API keys | They are secrets, and settings.json is plain text. It is stored encrypted on its own; see [The API key](#the-api-key). It must never be added to this file. |
+| Timeouts (20 s per transcription or chat request), the 10-minute idle unload of the language model, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
 
 A setting is added only when the app actually reads it.
 

@@ -6,6 +6,21 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A language model on this PC**, for the AI steps that follow. Settings
+  has a new **AI** tab: download Small (Qwen2.5-1.5B, 1.1 GB) or Large
+  (Qwen3-4B, 2.5 GB), checked against its SHA-256. It runs on the graphics
+  card through Vulkan or on the processor, loads on first use and unloads
+  after 10 idle minutes.
+- **Or a cloud chat API**: any OpenAI-compatible `/chat/completions`
+  endpoint, such as Groq, OpenAI, OpenRouter, Ollama or LM Studio, with its
+  own encrypted key.
+
+### Changed
+
+- Settings is split into **Dictation** and **AI** tabs.
+
 ## [1.0.0] - 2026-10-31
 
 The first release. Hold a shortcut, speak, let go: your words are typed into
