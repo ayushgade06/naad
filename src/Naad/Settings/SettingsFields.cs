@@ -50,16 +50,20 @@ internal static class SettingsFields
     }
 
     // Absent means the default; a whole number outside IsValidTimeout falls back to it.
-    public static int ReadTimeout(JsonObject root, string name, int fallback, ref bool repaired)
+    public static int ReadTimeout(JsonObject root, string name, int fallback, ref bool repaired) =>
+        ReadInt(root, name, fallback, AppSettings.IsValidTimeout, ref repaired);
+
+    // Absent means the default; a whole number that isValid refuses falls back to it.
+    public static int ReadInt(JsonObject root, string name, int fallback, Func<int, bool> isValid, ref bool repaired)
     {
         if (!root.TryGetPropertyValue(name, out var node))
         {
             return fallback;
         }
 
-        if (node is JsonValue value && value.TryGetValue(out int seconds) && AppSettings.IsValidTimeout(seconds))
+        if (node is JsonValue value && value.TryGetValue(out int number) && isValid(number))
         {
-            return seconds;
+            return number;
         }
 
         repaired = true;

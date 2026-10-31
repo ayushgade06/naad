@@ -356,6 +356,10 @@ internal sealed class SettingsStore(string path)
                 root, "cleanupPromptVersion", AppSettings.IsValidPromptVersion, ref repaired),
             InstructionGuard = ReadBool(root, "instructionGuard", defaults.InstructionGuard, ref repaired),
             OutputLanguage = ReadOptional(root, "outputLanguage", AppSettings.IsValidOutputLanguage, ref repaired),
+            ErrorSound = ReadBool(root, "errorSound", defaults.ErrorSound, ref repaired),
+            SoundVolume = ReadInt(root, "soundVolume", defaults.SoundVolume, AppSettings.IsValidVolume, ref repaired),
+            Theme = ReadName(root, "theme", defaults.Theme, ref repaired),
+            ShowTrayIcon = ReadBool(root, "showTrayIcon", defaults.ShowTrayIcon, ref repaired),
         };
         return (settings, repaired);
     }

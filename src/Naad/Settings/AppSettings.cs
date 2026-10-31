@@ -5,6 +5,7 @@ using Naad.Hotkey;
 using Naad.LanguageModel;
 using Naad.Providers;
 using Naad.Transcription;
+using Naad.Window;
 
 namespace Naad.Settings;
 
@@ -32,6 +33,21 @@ internal sealed record AppSettings
     /// sleep, waking them costs a second or more at the start of each dictation (see SoundCues).
     /// </summary>
     public bool PlaySounds { get; init; }
+
+    /// <summary>Also play a low tone when a dictation fails. Follows <see cref="PlaySounds"/>'s reasoning.</summary>
+    public bool ErrorSound { get; init; }
+
+    /// <summary>How loud Naad's tones are, 0 to 100.</summary>
+    public int SoundVolume { get; init; } = 80;
+
+    /// <summary>Light or dark windows; System follows Windows.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<ThemeChoice>))]
+    public ThemeChoice Theme { get; init; } = ThemeChoice.System;
+
+    /// <summary>
+    /// Show Naad in the notification area. When hidden, starting Naad again opens its window.
+    /// </summary>
+    public bool ShowTrayIcon { get; init; } = true;
 
     /// <summary>The keys to hold while dictating, written like "RightCtrl" (see Chord).</summary>
     public Chord DictationShortcut { get; init; } = Chord.RightCtrl;
@@ -185,6 +201,9 @@ internal sealed record AppSettings
     /// <summary>1 to 500 characters on one line, without control characters.</summary>
     public static bool IsValidVocabulary(string? vocabulary) =>
         vocabulary is { Length: > 0 and <= MaxVocabularyLength } && !vocabulary.Any(char.IsControl);
+
+    /// <summary>A volume from 0 to 100.</summary>
+    public static bool IsValidVolume(int volume) => volume is >= 0 and <= 100;
 
     /// <summary>A timeout from 2 to 300 seconds.</summary>
     public static bool IsValidTimeout(int seconds) => seconds is >= MinTimeoutSeconds and <= MaxTimeoutSeconds;

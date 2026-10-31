@@ -9,6 +9,7 @@ using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
 using Naad.Updates;
+using Naad.Window;
 using NAudio;
 using Velopack;
 
@@ -40,7 +41,7 @@ internal static class Program
         // it again only when its settings window saves.
         if (args is [SetApiKeyArgument])
         {
-            return StoreApiKey();
+            return SetApiKeyCommand.Run(SetApiKeyArgument);
         }
 
         // First, before any hook or microphone work: a second instance must leave without
@@ -48,14 +49,16 @@ internal static class Program
         using var instance = SingleInstanceGuard.TryAcquire();
         if (instance is null)
         {
-            // Console only: the running instance owns the settings and the log file.
+            // Console only: the running instance owns the settings and the log file. Starting
+            // Naad again opens the running one's window, the way back when its icon is hidden.
             Log.Info(LogEvent.SecondInstanceRejected);
+            ShowWindowSignal.Send();
             return 0;
         }
 
         var store = new SettingsStore(SettingsStore.DefaultPath);
         var loaded = LoadSettings(store);
-        var keys = KeyStore(loaded.Settings.TranscriptionService);
+        var keys = ServiceKeys.ForThisPc(loaded.Settings.TranscriptionService);
 
         try
         {
@@ -78,50 +81,6 @@ internal static class Program
         }
     }
 
-    // Console only: no settings are loaded, so no log file is written.
-    private static int StoreApiKey()
-    {
-        // Typing the key as an argument would leave it in the shell's history; only a pipe is read.
-        var key = Console.IsInputRedirected ? SecretStore.ReadKey(Console.OpenStandardInput()) : "";
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            StartupError.Show($"Pipe the API key into Naad.exe {SetApiKeyArgument}, as docs/settings.md describes.");
-            return 1;
-        }
-
-        if (!SecretStore.IsValidKey(key))
-        {
-            Log.Error(LogEvent.ApiKeyInvalid);
-            StartupError.Show("That isn't a valid API key: it contains spaces or characters outside plain ASCII. " +
-                "Nothing was saved.");
-            return 1;
-        }
-
-        // The key is for the transcription service settings.json names, read without writing it.
-        var service = AppSettings.Defaults.TranscriptionService;
-        try
-        {
-            if (File.Exists(SettingsStore.DefaultPath))
-            {
-                var text = File.ReadAllText(SettingsStore.DefaultPath);
-                service = SettingsStore.Parse(text).Settings.TranscriptionService;
-            }
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // A locked or unreadable file: the key goes to the default service, as for a new install.
-        }
-        if (KeyStore(service).Save(service, key) is { } error)
-        {
-            Log.Error(LogEvent.ApiKeyStoreFailed, error);
-            StartupError.Show("The API key could not be saved. The previously stored key, if any, is unchanged.");
-            return 1;
-        }
-
-        Log.Info(LogEvent.ApiKeyStored);
-        return 0;
-    }
-
     // Settings are loaded after the single-instance check, so only one instance ever
     // migrates or rewrites the file. The log file starts only if settings allow it; until
     // then, lines go to the console only.
@@ -136,10 +95,6 @@ internal static class Program
         SettingsStore.LogOutcome(result);
         return result;
     }
-
-    // Naad 1.0's single key belonged to the transcription service its settings named.
-    private static ServiceKeys KeyStore(CloudService legacyService) => new(
-        ServiceKeys.DefaultFolder, SecretStore.DefaultPath, legacyService, Environment.GetEnvironmentVariable);
 
     // Logs where the transcription key comes from, and keeps it to redact from error dialogs.
     private static void ResolveTranscriptionKey(ServiceKeys keys, AppSettings s)
@@ -213,13 +168,12 @@ internal static class Program
         // Settings saved during a dictation, applied once it ends.
         AppSettings? pending = null;
         var replaceLanguageModel = false;
-        SettingsWindow? window = null;
-        Action? openSettings = null;
+        WindowHost? windows = null;
 
         // Not disposed at exit: a local transcription may still be running native code, and the
         // process ending frees the model anyway. A replaced one is disposed while idle.
         ITranscriber? transcriber = null;
-        var sounds = settings.PlaySounds ? new SoundCues() : null;
+        var sounds = Sounds(settings);
         try
         {
             // Exit ends the message loop; the usings below then dispose in reverse order:
@@ -232,7 +186,7 @@ internal static class Program
                 settings.DictationShortcut,
                 settings.HandsFree,
                 copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
-                openSettings: () => openSettings?.Invoke(),
+                openSettings: () => windows?.Open(Pages.Settings),
                 exit: Application.ExitThread);
             using var overlay = new RecordingOverlay();
             using var http = new HttpClient();
@@ -274,8 +228,10 @@ internal static class Program
             controller.StateChanged += state => overlay.ShowState(state, FocusGuard.Foreground().Handle);
             controller.CleaningUp += overlay.ShowCleaningUp;
             controller.CleanupFellBack += overlay.ShowCleanupFellBack;
-            controller.MicrophoneOpened += () => sounds?.PlayStart();
-            controller.MicrophoneClosed += () => sounds?.PlayStop();
+            controller.MicrophoneOpened += () => PlayIf(settings.PlaySounds, s => s.PlayStart());
+            controller.MicrophoneClosed += () => PlayIf(settings.PlaySounds, s => s.PlayStop());
+            controller.MicrophoneFailed += _ => PlayIf(settings.ErrorSound, s => s.PlayError());
+            controller.TranscriptionFailed += _ => PlayIf(settings.ErrorSound, s => s.PlayError());
             controller.StateChanged += state =>
             {
                 if (state == DictationState.Idle && pending is { } next)
@@ -294,24 +250,64 @@ internal static class Program
             hook.TriggerPressed += controller.Press;
             hook.TriggerReleased += controller.Release;
             hook.TriggerCancelled += controller.Cancel;
-            hook.CaptureEnded += step => window?.ShowCapture(step);
+            hook.CaptureEnded += step => windows?.SettingsForm?.ShowCapture(step);
+            windows = new WindowHost(() => pending ?? settings, Microphones, startup.IsEnabled, WindowActions);
+            tray.AddItems(
+                ToggleDictation,
+                Microphones,
+                () => settings.Microphone,
+                microphone => Save(new(
+                    (pending ?? settings) with { Microphone = microphone }, new Dictionary<CloudService, string>(),
+                    startup.IsEnabled())),
+                () => windows.Open(Pages.Home),
+                windows.OpenSetup);
+            tray.SetVisible(settings.ShowTrayIcon);
 
-            openSettings = OpenSettings;
+            // Raised on a thread-pool thread when Naad is started again.
+            using var showWindow = new ShowWindowSignal(() => ui.Post(_ => windows.Open(Pages.Home), null));
 
             // Only an installed copy updates, and only when the user clicks the offer.
             using var updates = new UpdatePrompt(
                 new AppUpdater(), tray, () => controller.State == DictationState.Idle, Application.ExitThread);
 
             Log.Info(LogEvent.AppStarted);
-            if (transcriber is null)
+
+            // A fresh install gets the setup guide; one that can't dictate yet gets Settings.
+            if (loaded.Status == SettingsStatus.Missing)
             {
-                OpenSettings();
+                windows.OpenSetup();
+            }
+            else if (transcriber is null || !settings.ShowTrayIcon)
+            {
+                windows.Open(transcriber is null ? Pages.Settings : Pages.Home);
             }
 
             Application.Run();
 
             // Closed before the hook is unhooked, so a capture in progress ends cleanly.
-            window?.Close();
+            windows.CloseAll();
+
+            // From the tray: a menu click is neither a press nor a hold, so hands-free's press-twice
+            // rule stops it, and a held dictation ends with a release.
+            void ToggleDictation()
+            {
+                if (controller.State == DictationState.Recording && !settings.HandsFree)
+                {
+                    controller.Release();
+                }
+                else
+                {
+                    controller.Press();
+                }
+            }
+
+            void PlayIf(bool wanted, Action<SoundCues> play)
+            {
+                if (wanted && sounds is { } cues)
+                {
+                    play(cues);
+                }
+            }
 
             // A new model only when its settings or key changed, or none could run before (a model
             // downloaded since): replacing a model on this PC unloads it.
@@ -334,44 +330,32 @@ internal static class Program
 
             void Offline() => offline?.Invoke();
 
-            void OpenSettings()
-            {
-                if (window is not null)
+            SettingsWindowActions WindowActions() => new(
+                keys.Resolve,
+                actions.DownloadModelAsync,
+                actions.TestKeyAsync,
+                async (onScreen, typedKey, token) =>
                 {
-                    window.Activate();
-                    return;
-                }
-
-                window = new SettingsWindow(pending ?? settings, Microphones(), startup.IsEnabled(), new(
-                    keys.Resolve,
-                    actions.DownloadModelAsync,
-                    actions.TestKeyAsync,
-                    async (onScreen, typedKey, token) =>
+                    var key = typedKey ?? KeyFor(onScreen.TranscriptionService);
+                    using var tested = TranscriberSetup.CreateForTest(http, key, onScreen) as IDisposable;
+                    return await SettingsActions.TestTranscriptionAsync(tested as ITranscriber, token);
+                },
+                (instructions, sample, token) =>
+                    CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
+                cooldowns.For,
+                Save,
+                BeginCapture: () =>
+                {
+                    // A capture swallows every key, so it never starts during a dictation.
+                    if (controller.State != DictationState.Idle)
                     {
-                        var key = typedKey ?? KeyFor(onScreen.TranscriptionService);
-                        using var tested = TranscriberSetup.CreateForTest(http, key, onScreen) as IDisposable;
-                        return await SettingsActions.TestTranscriptionAsync(tested as ITranscriber, token);
-                    },
-                    (instructions, sample, token) =>
-                        CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
-                    cooldowns.For,
-                    Save,
-                    BeginCapture: () =>
-                    {
-                        // A capture swallows every key, so it never starts during a dictation.
-                        if (controller.State != DictationState.Idle)
-                        {
-                            return false;
-                        }
+                        return false;
+                    }
 
-                        hook.BeginCapture();
-                        return true;
-                    },
-                    hook.CancelCapture));
-                window.FormClosed += (_, _) => window = null;
-                window.Show();
-                Log.Info(LogEvent.SettingsWindowOpened);
-            }
+                    hook.BeginCapture();
+                    return true;
+                },
+                hook.CancelCapture);
 
             // Keys first, so a key that can't be stored changes nothing else.
             string? Save(SettingsChange change)
@@ -415,11 +399,14 @@ internal static class Program
                     }
                 }
 
-                if (next.PlaySounds != settings.PlaySounds)
+                if ((next.PlaySounds || next.ErrorSound, next.SoundVolume)
+                    != (settings.PlaySounds || settings.ErrorSound, settings.SoundVolume))
                 {
                     sounds?.Dispose();
-                    sounds = next.PlaySounds ? new SoundCues() : null;
+                    sounds = Sounds(next);
                 }
+
+                tray.SetVisible(next.ShowTrayIcon);
 
                 hook.SetShortcut(next.DictationShortcut);
                 tray.SetShortcut(next.DictationShortcut, next.HandsFree);
@@ -463,6 +450,10 @@ internal static class Program
         || before.LanguageModelBaseUrl != after.LanguageModelBaseUrl
         || before.LanguageModelName != after.LanguageModelName
         || before.LanguageModelTimeoutSeconds != after.LanguageModelTimeoutSeconds;
+
+    // Only built when some tone is on: each holds its tones in memory.
+    private static SoundCues? Sounds(AppSettings s) =>
+        s.PlaySounds || s.ErrorSound ? new SoundCues(s.SoundVolume) : null;
 
     private static IReadOnlyList<string> Microphones()
     {

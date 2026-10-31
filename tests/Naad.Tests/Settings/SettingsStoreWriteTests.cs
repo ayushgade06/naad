@@ -32,6 +32,10 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "version": 3,
               "fileLogging": true,
               "playSounds": false,
+              "errorSound": false,
+              "soundVolume": 80,
+              "theme": "System",
+              "showTrayIcon": true,
               "dictationShortcut": "RightCtrl",
               "transcriptionProvider": "Local",
               "localModel": "Base",
@@ -209,10 +213,11 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
             [
-                "cleanup", "cleanupPrompt", "cleanupPromptVersion", "dictationShortcut", "fileLogging",
+                "cleanup", "cleanupPrompt", "cleanupPromptVersion", "dictationShortcut", "errorSound", "fileLogging",
                 "handsFree", "instructionGuard", "language", "languageModelBaseUrl", "languageModelFallbackName",
                 "languageModelName", "languageModelProvider", "languageModelService", "languageModelTimeoutSeconds",
-                "localLanguageModel", "localModel", "microphone", "outputLanguage", "playSounds",
+                "localLanguageModel", "localModel", "microphone", "outputLanguage", "playSounds", "showTrayIcon",
+                "soundVolume", "theme",
                 "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "transcriptionService",
                 "transcriptionTimeoutSeconds", "version", "vocabulary",
             ],

@@ -17,6 +17,13 @@ internal sealed class ServiceKeys(
     public static string DefaultFolder { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Naad", "keys");
 
+    /// <summary>
+    /// This Windows user's keys. Naad 1.0's single key belonged to <paramref name="legacyService"/>,
+    /// the transcription service its settings named.
+    /// </summary>
+    public static ServiceKeys ForThisPc(CloudService legacyService) =>
+        new(DefaultFolder, SecretStore.DefaultPath, legacyService, Environment.GetEnvironmentVariable);
+
     /// <summary>The key for <paramref name="service"/>: its override variable, else the stored one.</summary>
     public ApiKeyResult Resolve(CloudService service)
     {

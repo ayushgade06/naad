@@ -3,6 +3,8 @@ using Naad.LanguageModel;
 using Naad.Providers;
 using Naad.Transcription;
 
+using static Naad.Settings.FormLayout;
+
 namespace Naad.Settings;
 
 /// <summary>
@@ -12,7 +14,6 @@ namespace Naad.Settings;
 /// </summary>
 internal sealed class LanguageModelPanel : TableLayoutPanel
 {
-    private const int FieldWidth = 300;
 
     private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _download;
     private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _testPrompt;
@@ -90,24 +91,24 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         _timeout.Value = current.LanguageModelTimeoutSeconds;
         ShowModelStatus();
 
-        Row("Cleanup", _cleanup);
-        Row("", Note("AI removes filler words and fixes grammar. Until a model is set up below, it uses the " +
+        Row(this, "Cleanup", _cleanup);
+        Row(this, "", Note("AI removes filler words and fixes grammar. Until a model is set up below, it uses the " +
             "instant rules. A slow or failed AI step pastes the text as said."));
-        Row("Prompt", Flow(_promptButton, _testModelButton));
-        Row("", _testModelResult);
-        Row("Write in", Flow(_outputLanguage, Note("A language such as German; blank keeps yours.")));
-        Row("", _guard);
-        Row("Wait up to", Flow(_timeout, Note("seconds for the AI, then paste as said")));
-        Row("AI runs on", _provider);
-        Row("Model on this PC", _localModel);
-        Row("", Flow(_modelStatus, _downloadButton));
-        _cloud.AddRows(Row);
-        Row("", Note("Offline, a cloud choice uses the model on this PC if it is downloaded."));
+        Row(this, "Prompt", Flow(_promptButton, _testModelButton));
+        Row(this, "", _testModelResult);
+        Row(this, "Write in", Flow(_outputLanguage, Note("A language such as German; blank keeps yours.")));
+        Row(this, "", _guard);
+        Row(this, "Wait up to", Flow(_timeout, Note("seconds for the AI, then paste as said")));
+        Row(this, "AI runs on", _provider);
+        Row(this, "Model on this PC", _localModel);
+        Row(this, "", Flow(_modelStatus, _downloadButton));
+        _cloud.AddRows((label, control) => Row(this, label, control));
+        Row(this, "", Note("Offline, a cloud choice uses the model on this PC if it is downloaded."));
         foreach (var name in new[] { current.LanguageModelName, current.LanguageModelFallbackName })
         {
             if (name is not null && SettingsInput.CooldownMessage(name, cooldownFor(name)) is { } cooling)
             {
-                Row("", Note(cooling));
+                Row(this, "", Note(cooling));
             }
         }
 
@@ -154,22 +155,6 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             InstructionGuard = _guard.Checked,
         };
         return true;
-    }
-
-    private static Label Note(string text) =>
-        new() { Text = text, AutoSize = true, MaximumSize = new Size(FieldWidth + 120, 0) };
-
-    private static FlowLayoutPanel Flow(params Control[] controls)
-    {
-        var flow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        flow.Controls.AddRange(controls);
-        return flow;
-    }
-
-    private void Row(string label, Control control)
-    {
-        Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left });
-        Controls.Add(control);
     }
 
     private void EditPrompt()

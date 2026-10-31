@@ -1,6 +1,8 @@
 using Naad.Providers;
 using Naad.Transcription;
 
+using static Naad.Settings.FormLayout;
+
 namespace Naad.Settings;
 
 /// <summary>
@@ -19,7 +21,6 @@ namespace Naad.Settings;
     Justification = "AddRows puts every control on the page's table, which disposes them.")]
 internal sealed class CloudServiceFields
 {
-    private const int FieldWidth = 300;
 
     private readonly IReadOnlyList<CloudService> _services;
     private readonly bool _transcription;
@@ -147,16 +148,6 @@ internal sealed class CloudServiceFields
         }
 
         return -1;
-    }
-
-    private static Label Note(string text) =>
-        new() { Text = text, AutoSize = true, MaximumSize = new Size(FieldWidth + 120, 0) };
-
-    private static FlowLayoutPanel Flow(params Control[] controls)
-    {
-        var flow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        flow.Controls.AddRange(controls);
-        return flow;
     }
 
     private IReadOnlyList<string> Suggestions()

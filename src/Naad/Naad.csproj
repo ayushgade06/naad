@@ -6,6 +6,8 @@
     <RootNamespace>Naad</RootNamespace>
     <!-- WinForms provides the message loop the keyboard hook needs and the STA clipboard. -->
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- The main window is WPF (P29); the tray, overlay and hook stay WinForms. -->
+    <UseWPF>true</UseWPF>
     <!-- LibraryImport generates unsafe marshalling code. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Original artwork (teal square, white sound-wave bars), MIT like the rest of Naad. -->
@@ -13,6 +15,13 @@
     <!-- For builds from source; a release takes its version from the tag. See CHANGELOG.md. -->
     <Version>1.0.0</Version>
   </PropertyGroup>
+
+  <!-- With WPF on, the SDK leaves these out of the implicit usings to avoid name clashes in XAML
+       projects; Naad's code uses them everywhere. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Types are internal by default (docs/STYLE.md); tests still need to reach them. -->

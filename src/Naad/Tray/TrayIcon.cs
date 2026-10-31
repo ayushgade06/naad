@@ -72,6 +72,8 @@ internal sealed class TrayIcon : IDisposable
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _copyLastTranscript;
     private readonly ToolStripMenuItem _checkForUpdates = new(CheckForUpdatesText) { Visible = false };
+    private readonly ToolStripMenuItem _status = new() { Enabled = false };
+    private readonly ToolStripMenuItem _toggleDictation = new("Start dictating") { Visible = false };
     private readonly Func<Task<bool>> _copy;
     private readonly Action _openSettings;
     private Action? _notificationClicked;
@@ -94,6 +96,10 @@ internal sealed class TrayIcon : IDisposable
         {
             Enabled = false,
         };
+        _status.Text = _idleTooltip;
+        _menu.Items.Add(_status);
+        _menu.Items.Add(_toggleDictation);
+        _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(SettingsText, null, (_, _) => openSettings());
         _menu.Items.Add(_copyLastTranscript);
         _menu.Items.Add(_checkForUpdates);
@@ -198,7 +204,57 @@ internal sealed class TrayIcon : IDisposable
         _idleTooltip = Tooltip(shortcut, handsFree);
         _recordingTooltip = RecordingTooltip(shortcut, handsFree);
         _icon.Text = _idleTooltip;
+        _status.Text = _idleTooltip;
     }
+
+    /// <summary>
+    /// Adds the items that need the running app, above Settings: start and stop dictating, the
+    /// microphone, the main window and setup. Call once, on the UI thread.
+    /// </summary>
+    /// <param name="toggleDictation">Starts a dictation, or stops the one running.</param>
+    /// <param name="microphones">The connected recording devices, read when the submenu opens.</param>
+    /// <param name="microphone">The chosen device, or null for the Windows default.</param>
+    /// <param name="chooseMicrophone">Saves a new choice (null for the Windows default).</param>
+    /// <param name="openWindow">Opens Naad's main window.</param>
+    /// <param name="rerunSetup">Opens the setup guide again.</param>
+    public void AddItems(
+        Action toggleDictation,
+        Func<IReadOnlyList<string>> microphones,
+        Func<string?> microphone,
+        Action<string?> chooseMicrophone,
+        Action openWindow,
+        Action rerunSetup)
+    {
+        _toggleDictation.Click += (_, _) => toggleDictation();
+        _toggleDictation.Visible = true;
+        var devices = new ToolStripMenuItem("Microphone");
+
+        // A placeholder, so the submenu shows its arrow before it is first filled.
+        devices.DropDownItems.Add(new ToolStripMenuItem("Windows default"));
+        devices.DropDownOpening += (_, _) =>
+        {
+            devices.DropDownItems.Clear();
+            var chosen = microphone();
+            foreach (var name in new string?[] { null }.Concat(microphones()))
+            {
+                var item = new ToolStripMenuItem(name ?? "Windows default") { Checked = name == chosen };
+                item.Click += (_, _) => chooseMicrophone(name);
+                devices.DropDownItems.Add(item);
+            }
+        };
+        var at = _menu.Items.IndexOf(_toggleDictation) + 1;
+        _menu.Items.Insert(at, devices);
+        var settings = _menu.Items.Cast<ToolStripItem>().First(item => item.Text == SettingsText);
+        var window = new ToolStripMenuItem("Open Naad", null, (_, _) => openWindow());
+        window.Font = new Font(window.Font, FontStyle.Bold);
+        _menu.Items.Insert(_menu.Items.IndexOf(settings), window);
+        var setup = new ToolStripMenuItem("Re-run setup...", null, (_, _) => rerunSetup());
+        _menu.Items.Insert(_menu.Items.IndexOf(settings), setup);
+        _icon.DoubleClick += (_, _) => openWindow();
+    }
+
+    /// <summary>Shows or hides the icon; hidden, Naad is reached by starting it again.</summary>
+    public void SetVisible(bool visible) => _icon.Visible = visible;
 
     /// <summary>Shows Check for updates in the menu; only an installed copy can update.</summary>
     public void EnableUpdateChecks(Action check)
@@ -228,6 +284,8 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>Shows the dictation state in the icon and its tooltip.</summary>
     public void ShowState(DictationState state)
     {
+        _toggleDictation.Text = state == DictationState.Recording ? "Stop dictating" : "Start dictating";
+        _toggleDictation.Enabled = state is DictationState.Idle or DictationState.Recording;
         _icon.Icon = state switch
         {
             DictationState.Recording => _recordingImage,

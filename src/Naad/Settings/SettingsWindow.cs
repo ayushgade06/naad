@@ -2,6 +2,9 @@ using Naad.Hotkey;
 using Naad.Providers;
 using Naad.Transcription;
 using Naad.Tray;
+using Naad.Window;
+
+using static Naad.Settings.FormLayout;
 
 namespace Naad.Settings;
 
@@ -14,11 +17,12 @@ internal sealed class SettingsWindow : Form
 {
     private const string WindowsDefaultMicrophone = "Windows default";
     private const string CapturePrompt = "Press the new shortcut, then release it. Esc cancels.";
-    private const int FieldWidth = 300;
 
     private readonly AppSettings _current;
     private readonly SettingsWindowActions _actions;
     private readonly LanguageModelPanel _languageModel;
+    private readonly GeneralPanel _general;
+    private readonly bool _embedded;
     private readonly CloudServiceFields _cloud;
     private readonly CancellationTokenSource _closing = new();
     private readonly Icon _icon = TrayIcon.LoadIcon();
@@ -46,25 +50,11 @@ internal sealed class SettingsWindow : Form
     private readonly ComboBox _microphone = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly TextBox _language = new() { Width = 60 };
     private readonly TextBox _vocabulary = new() { Width = FieldWidth };
-    private readonly CheckBox _playSounds = new()
-    {
-        Text = "Play a tone when listening starts and stops",
-        AutoSize = true,
-    };
-
-    private readonly CheckBox _fileLogging = new()
-    {
-        Text = "Write a diagnostic log (never what you say)",
-        AutoSize = true,
-    };
-
     private readonly CheckBox _handsFree = new()
     {
         Text = "Hands-free: press the shortcut to start, and again to stop",
         AutoSize = true,
     };
-
-    private readonly CheckBox _startAtLogin = new() { Text = "Start Naad when I sign in", AutoSize = true };
 
     private readonly Label _error = Note();
     private Chord _shortcut;
@@ -74,9 +64,17 @@ internal sealed class SettingsWindow : Form
     /// <param name="microphones">The connected recording devices' names.</param>
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
     /// <param name="actions">What the buttons do.</param>
+    /// <param name="palette">The colours, for the dark theme; null keeps Windows' own.</param>
+    /// <param name="embedded">Shown inside the main window: no frame, and Save keeps it open.</param>
     public SettingsWindow(
-        AppSettings current, IReadOnlyList<string> microphones, bool startsAtLogin, SettingsWindowActions actions)
+        AppSettings current,
+        IReadOnlyList<string> microphones,
+        bool startsAtLogin,
+        SettingsWindowActions actions,
+        Palette? palette = null,
+        bool embedded = false)
     {
+        _embedded = embedded;
         _current = current;
         _actions = actions;
         _shortcut = current.DictationShortcut;
@@ -101,7 +99,7 @@ internal sealed class SettingsWindow : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
         FillFields(microphones);
-        _startAtLogin.Checked = startsAtLogin;
+        _general = new(current, startsAtLogin);
         _languageModel = new(
             current,
             actions.KeyFor,
@@ -111,6 +109,19 @@ internal sealed class SettingsWindow : Form
             actions.CooldownFor,
             _closing.Token);
         Controls.Add(BuildLayout());
+        if (embedded)
+        {
+            TopLevel = false;
+            FormBorderStyle = FormBorderStyle.None;
+            Dock = DockStyle.Fill;
+            AutoSize = false;
+            AutoScroll = true;
+        }
+
+        if (palette is not null)
+        {
+            FormLayout.ApplyPalette(this, palette);
+        }
 
         _testTranscriptionButton.Click += (_, _) => _ = TestTranscriptionAsync();
         _downloadModelButton.Click += (_, _) => _ = DownloadModelAsync();
@@ -154,8 +165,6 @@ internal sealed class SettingsWindow : Form
         base.Dispose(disposing);
     }
 
-    private static Label Note() => new() { AutoSize = true, MaximumSize = new Size(FieldWidth + 120, 0) };
-
     private void FillFields(IReadOnlyList<string> microphones)
     {
         _microphone.Items.Add(WindowsDefaultMicrophone);
@@ -183,8 +192,6 @@ internal sealed class SettingsWindow : Form
         _vocabulary.Text = _current.Vocabulary ?? "";
         _handsFree.Checked = _current.HandsFree;
         _timeout.Value = _current.TranscriptionTimeoutSeconds;
-        _playSounds.Checked = _current.PlaySounds;
-        _fileLogging.Checked = _current.FileLogging;
     }
 
     // Two pages, so the window fits a laptop screen; Save and Cancel apply to both.
@@ -197,7 +204,9 @@ internal sealed class SettingsWindow : Form
         save.Click += (_, _) => _ = SaveAsync();
 
         // The window is modeless (Show, not ShowDialog), so a DialogResult wouldn't close it.
+        // Inside the main window there is nothing to cancel to: leaving the page drops changes.
         cancel.Click += (_, _) => Close();
+        cancel.Visible = !_embedded;
         AcceptButton = save;
         CancelButton = cancel;
 
@@ -213,15 +222,13 @@ internal sealed class SettingsWindow : Form
         _cloud.AddRows((label, control) => Row(dictation, label, control));
         Row(dictation, "Wait up to", Flow(_timeout, Note("seconds for the cloud service")));
         Row(dictation, "Transcription", Flow(_testTranscriptionButton, _testTranscriptionResult));
-        Row(dictation, "", _playSounds);
-        Row(dictation, "", _fileLogging);
-        Row(dictation, "", _startAtLogin);
         var tabs = new TabControl();
         tabs.TabPages.Add(Page("Dictation", dictation));
         tabs.TabPages.Add(Page("AI", _languageModel));
+        tabs.TabPages.Add(Page("General", _general));
+        Control[] pages = [dictation, _languageModel, _general];
         var largest = new Size(
-            Math.Max(dictation.PreferredSize.Width, _languageModel.PreferredSize.Width),
-            Math.Max(dictation.PreferredSize.Height, _languageModel.PreferredSize.Height));
+            pages.Max(page => page.PreferredSize.Width), pages.Max(page => page.PreferredSize.Height));
         // The tab strip and border around the page, and a little room so nothing touches them.
         tabs.Size = largest + (tabs.Size - tabs.DisplayRectangle.Size) + new Size(8, 8);
         table.Controls.Add(tabs);
@@ -232,29 +239,10 @@ internal sealed class SettingsWindow : Form
 
     private static TabPage Page(string title, Control content)
     {
-        var page = new TabPage(title) { UseVisualStyleBackColor = true };
+        // Scrolls when embedded in a main window shorter than the page.
+        var page = new TabPage(title) { UseVisualStyleBackColor = true, AutoScroll = true };
         page.Controls.Add(content);
         return page;
-    }
-
-    private static Label Note(string text)
-    {
-        var label = Note();
-        label.Text = text;
-        return label;
-    }
-
-    private static FlowLayoutPanel Flow(params Control[] controls)
-    {
-        var flow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        flow.Controls.AddRange(controls);
-        return flow;
-    }
-
-    private static void Row(TableLayoutPanel table, string label, Control control)
-    {
-        table.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left });
-        table.Controls.Add(control);
     }
 
     private WhisperModel ChosenModel => (WhisperModel)_localModel.SelectedIndex;
@@ -304,8 +292,6 @@ internal sealed class SettingsWindow : Form
         {
             DictationShortcut = _shortcut,
             Microphone = _microphones[_microphone.SelectedIndex],
-            PlaySounds = _playSounds.Checked,
-            FileLogging = _fileLogging.Checked,
             HandsFree = _handsFree.Checked,
             TranscriptionProvider = (TranscriptionProvider)_provider.SelectedIndex,
             LocalModel = ChosenModel,
@@ -370,9 +356,16 @@ internal sealed class SettingsWindow : Form
             }
         }
 
-        if (!IsDisposed && _actions.Save(new(settings, newKeys, _startAtLogin.Checked)) is { } problem)
+        settings = _general.Apply(settings);
+        if (!IsDisposed && _actions.Save(new(settings, newKeys, _general.StartAtLogin)) is { } problem)
         {
             _error.Text = problem;
+            return;
+        }
+
+        if (_embedded)
+        {
+            _error.Text = "Saved.";
             return;
         }
 
