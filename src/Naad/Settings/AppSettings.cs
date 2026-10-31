@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Naad.Hotkey;
+using Naad.LanguageModel;
 using Naad.Transcription;
 
 namespace Naad.Settings;
@@ -64,6 +65,23 @@ internal sealed record AppSettings
 
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
+
+    /// <summary>
+    /// Whether AI steps run on a language model on this PC or a cloud chat API. On this PC by
+    /// default, like transcription: free, offline, and the text never leaves the PC.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<LanguageModelProvider>))]
+    public LanguageModelProvider LanguageModelProvider { get; init; } = LanguageModelProvider.Local;
+
+    /// <summary>The language model that runs on this PC.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<LocalLanguageModelChoice>))]
+    public LocalLanguageModelChoice LocalLanguageModel { get; init; } = LocalLanguageModelChoice.Small;
+
+    /// <summary>The OpenAI-compatible API root; "/chat/completions" is appended to it.</summary>
+    public Uri LanguageModelBaseUrl { get; init; } = new("https://api.groq.com/openai/v1");
+
+    /// <summary>The cloud provider's chat model.</summary>
+    public string LanguageModelName { get; init; } = "openai/gpt-oss-20b";
 
     // Model ids are short tokens such as "whisper-large-v3-turbo" or "openai/whisper-1".
     private const int MaxModelLength = 100;

@@ -306,45 +306,25 @@ internal sealed class SettingsStore(string path)
         var provider = ReadName(
             root, "transcriptionProvider", AppSettings.Defaults.TranscriptionProvider, ref repaired);
         var localModel = ReadName(root, "localModel", AppSettings.Defaults.LocalModel, ref repaired);
-        var baseUrl = AppSettings.Defaults.TranscriptionBaseUrl;
-        if (TryReadString(root, "transcriptionBaseUrl", ref repaired) is { } urlText)
-        {
-            if (AppSettings.TryParseBaseUrl(urlText, out var url))
-            {
-                baseUrl = url;
-            }
-            else
-            {
-                repaired = true;
-            }
-        }
-
-        var model = AppSettings.Defaults.TranscriptionModel;
-        if (TryReadString(root, "transcriptionModel", ref repaired) is { } modelText)
-        {
-            if (AppSettings.IsValidModel(modelText))
-            {
-                model = modelText;
-            }
-            else
-            {
-                repaired = true;
-            }
-        }
-
-        var settings = AppSettings.Defaults with
+        var defaults = AppSettings.Defaults;
+        var settings = defaults with
         {
             FileLogging = fileLogging,
             PlaySounds = playSounds,
             DictationShortcut = shortcut,
             TranscriptionProvider = provider,
             LocalModel = localModel,
-            TranscriptionBaseUrl = baseUrl,
-            TranscriptionModel = model,
+            TranscriptionBaseUrl = ReadUrl(root, "transcriptionBaseUrl", defaults.TranscriptionBaseUrl, ref repaired),
+            TranscriptionModel = ReadModel(root, "transcriptionModel", defaults.TranscriptionModel, ref repaired),
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
             Microphone = ReadOptional(root, "microphone", AppSettings.IsValidMicrophone, ref repaired),
             Vocabulary = ReadOptional(root, "vocabulary", AppSettings.IsValidVocabulary, ref repaired),
             HandsFree = handsFree,
+            LanguageModelProvider = ReadName(
+                root, "languageModelProvider", defaults.LanguageModelProvider, ref repaired),
+            LocalLanguageModel = ReadName(root, "localLanguageModel", defaults.LocalLanguageModel, ref repaired),
+            LanguageModelBaseUrl = ReadUrl(root, "languageModelBaseUrl", defaults.LanguageModelBaseUrl, ref repaired),
+            LanguageModelName = ReadModel(root, "languageModelName", defaults.LanguageModelName, ref repaired),
         };
         return (settings, repaired);
     }
@@ -364,6 +344,41 @@ internal sealed class SettingsStore(string path)
                 string.Equals(member, text, StringComparison.OrdinalIgnoreCase)) is { } match)
         {
             return Enum.Parse<TEnum>(match);
+        }
+
+        repaired = true;
+        return fallback;
+    }
+
+    // Absent means the default; a URL that TryParseBaseUrl refuses falls back to it and marks
+    // the settings repaired.
+    private static Uri ReadUrl(JsonObject root, string name, Uri fallback, ref bool repaired)
+    {
+        if (TryReadString(root, name, ref repaired) is not { } text)
+        {
+            return fallback;
+        }
+
+        if (AppSettings.TryParseBaseUrl(text, out var url))
+        {
+            return url;
+        }
+
+        repaired = true;
+        return fallback;
+    }
+
+    // Absent means the default; an id that IsValidModel refuses falls back to it.
+    private static string ReadModel(JsonObject root, string name, string fallback, ref bool repaired)
+    {
+        if (TryReadString(root, name, ref repaired) is not { } text)
+        {
+            return fallback;
+        }
+
+        if (AppSettings.IsValidModel(text))
+        {
+            return text;
         }
 
         repaired = true;

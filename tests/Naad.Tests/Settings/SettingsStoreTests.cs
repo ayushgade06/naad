@@ -1,4 +1,5 @@
 using Naad.Hotkey;
+using Naad.LanguageModel;
 using Naad.Settings;
 using Naad.Transcription;
 
@@ -255,6 +256,33 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults.TranscriptionModel, result.Settings.TranscriptionModel);
+    }
+
+    [Fact]
+    public void Load_LanguageModelSettings_ReturnsThem()
+    {
+        var result = LoadFrom("""
+            { "version": 2, "languageModelProvider": "cloud", "localLanguageModel": "Large",
+              "languageModelBaseUrl": "http://localhost:11434/v1", "languageModelName": "qwen2.5:1.5b" }
+            """);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(LanguageModelProvider.Cloud, result.Settings.LanguageModelProvider);
+        Assert.Equal(LocalLanguageModelChoice.Large, result.Settings.LocalLanguageModel);
+        Assert.Equal(new Uri("http://localhost:11434/v1"), result.Settings.LanguageModelBaseUrl);
+        Assert.Equal("qwen2.5:1.5b", result.Settings.LanguageModelName);
+    }
+
+    [Fact]
+    public void Load_InvalidLanguageModelSettings_FallBackToDefaultsAsRepaired()
+    {
+        var result = LoadFrom("""
+            { "version": 2, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
+              "languageModelBaseUrl": "http://llm.example.test/v1", "languageModelName": "two words" }
+            """);
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(AppSettings.Defaults, result.Settings);
     }
 
     [Fact]
