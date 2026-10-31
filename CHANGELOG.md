@@ -54,6 +54,9 @@ All notable changes to Naad are listed here. The format follows
 - Without a usable API key, Naad starts and opens Settings instead of
   exiting. Pressing the shortcut without a key shows a notification and
   records nothing.
+- The start and stop tones (`playSounds`) are off by default. On a PC whose
+  speakers go idle, waking them costs a second or more at the start of each
+  dictation. A settings file that already turned them on keeps them.
 
 ### Fixed
 

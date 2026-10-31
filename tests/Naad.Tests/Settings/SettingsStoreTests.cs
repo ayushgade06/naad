@@ -182,12 +182,20 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("\"no\"")]
     [InlineData("0")]
     [InlineData("null")]
-    public void Load_InvalidPlaySounds_FallsBackToOnAsRepaired(string value)
+    public void Load_InvalidPlaySounds_FallsBackToOffAsRepaired(string value)
     {
         var result = LoadFrom($$"""{ "version": 2, "playSounds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
-        Assert.True(result.Settings.PlaySounds);
+        Assert.False(result.Settings.PlaySounds);
+    }
+
+    // Tones cost a second or more per dictation on PCs whose speakers sleep, so they are opt-in;
+    // a file that already chose them keeps them (Load_PlaySounds_ReturnsIt).
+    [Fact]
+    public void Defaults_PlaySounds_IsOff()
+    {
+        Assert.False(AppSettings.Defaults.PlaySounds);
     }
 
     [Fact]

@@ -14,7 +14,7 @@ namespace Naad.Tray;
 /// both by that much, blocked the keyboard hook and lost the first words. So the start tone plays
 /// once the microphone is open, and the stop tone once it is closed.
 /// ponytail: the start tone still glitches about 1.3 s of capture on such PCs, before it is
-/// heard; keeping the speakers awake would prevent idle sleep.
+/// heard; keeping the speakers awake would prevent idle sleep, so the tones are off by default.
 /// </remarks>
 internal sealed class SoundCues : IDisposable
 {
