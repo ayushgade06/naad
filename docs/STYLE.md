@@ -188,7 +188,7 @@ treat warnings as errors.
 
 - **Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`,
   `chore`, `perf`.
-- **Areas:** `audio`, `hotkey`, `stt`, `insert`, `dictation`, `tray`,
+- **Areas:** `audio`, `hotkey`, `stt`, `ai`, `insert`, `dictation`, `tray`,
   `settings`, `secrets`, `log`, `build`, `ci`, `repo`, `docs`.
 - Keep the subject line at 72 characters or fewer.
 - Each commit is one logical change that builds and passes the tests on its
