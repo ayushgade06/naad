@@ -56,6 +56,8 @@ public sealed class SettingsWindowTests
         startsAtLogin: false,
         downloadModel: (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
         testKey: (_, _, _) => throw new InvalidOperationException("Not used."),
+        testPrompt: (_, _, _) => throw new InvalidOperationException("Not used."),
+        cooldownFor: _ => null,
         save: save,
         beginCapture: () => false,
         cancelCapture: () => { });

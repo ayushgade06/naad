@@ -202,4 +202,32 @@ public sealed class SettingsInputTests
 
         Assert.Contains("NAAD_LLM_API_KEY", text, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void PromptTestMessage_EveryCase_HasItsOwnTextWithoutTheReply()
+    {
+        var sent = new Naad.LanguageModel.ChatPrompt("i", "t");
+        Naad.Cleanup.PromptTest[] tests =
+        [
+            new("", null, 0, sent, null),
+            new("", null, 5, sent, new(Naad.LanguageModel.CompletionError.Timeout)),
+            new("secret reply", Naad.Cleanup.ReplyVerdict.Accepted, 5, sent, null),
+            new("EMPTY", Naad.Cleanup.ReplyVerdict.Empty, 5, sent, null),
+            new("Sure!", Naad.Cleanup.ReplyVerdict.Preamble, 5, sent, null),
+        ];
+
+        var texts = tests.Select(SettingsInput.PromptTestMessage).ToList();
+
+        Assert.Equal(texts.Count, texts.Distinct().Count());
+        Assert.DoesNotContain(texts, t => t.Contains("secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CooldownMessage_Daily_SaysWhenItResets()
+    {
+        var text = SettingsInput.CooldownMessage("m", new(DateTimeOffset.UtcNow.AddHours(3), Daily: true));
+
+        Assert.StartsWith("Daily limit reached for m; it resets at", text, StringComparison.Ordinal);
+        Assert.Null(SettingsInput.CooldownMessage("m", null));
+    }
 }

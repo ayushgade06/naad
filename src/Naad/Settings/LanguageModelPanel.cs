@@ -1,3 +1,4 @@
+using Naad.Cleanup;
 using Naad.LanguageModel;
 using Naad.Transcription;
 
@@ -15,7 +16,23 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     private readonly ApiKeyResult _key;
     private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _download;
     private readonly Func<string, Uri, CancellationToken, Task<KeyTestResult>> _testKey;
+    private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _testPrompt;
     private readonly CancellationToken _closing;
+
+    private readonly ComboBox _cleanup = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
+    private readonly TextBox _fallback = new() { Width = FieldWidth };
+    private readonly TextBox _outputLanguage = new() { Width = 160 };
+    private readonly CheckBox _guard = new()
+    {
+        Text = "Paste the text as said when the AI seems to answer it instead of tidying it",
+        AutoSize = true,
+    };
+
+    private readonly Button _promptButton = new() { Text = "Edit prompt...", AutoSize = true };
+    private readonly Button _testModelButton = new() { Text = "Test model", AutoSize = true };
+    private readonly Label _testModelResult = Note("");
+    private string? _customPrompt;
+    private string? _promptVersion;
 
     private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly ComboBox _localModel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
@@ -31,14 +48,21 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     /// <param name="key">Where the language model key comes from.</param>
     /// <param name="download">Downloads a model file, reporting progress.</param>
     /// <param name="testKey">Checks a key against a base URL.</param>
+    /// <param name="testPrompt">Sends instructions (null for the default) and a sample to the saved model.</param>
+    /// <param name="cooldownFor">A cloud model's running rate limit, if any.</param>
     /// <param name="closing">Cancelled when the window closes.</param>
     public LanguageModelPanel(
         AppSettings current,
         ApiKeyResult key,
         Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> download,
         Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
+        Func<string?, string, CancellationToken, Task<PromptTest>> testPrompt,
+        Func<string, Cooldown?> cooldownFor,
         CancellationToken closing)
     {
+        _testPrompt = testPrompt;
+        _customPrompt = current.CleanupPrompt;
+        _promptVersion = current.CleanupPromptVersion;
         _key = key;
         _download = download;
         _testKey = testKey;
@@ -53,17 +77,40 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         _localModel.SelectedIndex = (int)current.LocalLanguageModel;
         _baseUrl.Text = current.LanguageModelBaseUrl.AbsoluteUri;
         _model.Text = current.LanguageModelName;
+        _cleanup.Items.AddRange(["Off: paste as said", "Basic: instant rules", "AI: the language model"]);
+        _cleanup.SelectedIndex = (int)current.Cleanup;
+        _fallback.Text = current.LanguageModelFallbackName ?? "";
+        _outputLanguage.Text = current.OutputLanguage ?? "";
+        _guard.Checked = current.InstructionGuard;
         ShowModelStatus();
 
+        Row("Cleanup", _cleanup);
+        Row("", Note("AI removes filler words and fixes grammar. Until a model is set up below, it uses the " +
+            "instant rules. A slow or failed AI step pastes the text as said."));
+        Row("Prompt", Flow(_promptButton, _testModelButton));
+        Row("", _testModelResult);
+        Row("Write in", Flow(_outputLanguage, Note("A language such as German; blank keeps yours.")));
+        Row("", _guard);
         Row("AI runs on", _provider);
         Row("Model on this PC", _localModel);
         Row("", Flow(_modelStatus, _downloadButton));
         Row("Base URL", _baseUrl);
         Row("Model", _model);
+        Row("Fallback model", _fallback);
         Row("API key", Note(SettingsInput.KeyStatus(key, SecretStore.LanguageModelOverrideVariable)));
         Row("New key", Flow(_newKey, _testKeyButton));
         Row("", _testResult);
         Row("", Note("A server on this PC, such as Ollama (http://localhost:11434/v1), needs no key."));
+        foreach (var name in new[] { current.LanguageModelName, current.LanguageModelFallbackName })
+        {
+            if (name is not null && SettingsInput.CooldownMessage(name, cooldownFor(name)) is { } cooling)
+            {
+                Row("", Note(cooling));
+            }
+        }
+
+        _promptButton.Click += (_, _) => EditPrompt();
+        _testModelButton.Click += (_, _) => _ = TestModelAsync();
 
         _localModel.SelectedIndexChanged += (_, _) => ShowModelStatus();
         _downloadButton.Click += (_, _) => _ = DownloadAsync();
@@ -86,7 +133,8 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             return false;
         }
 
-        if (!SettingsInput.TryBuildLanguageModel(chosen, _baseUrl.Text, _model.Text, out var built, out error))
+        if (!SettingsInput.TryBuildLanguageModel(
+            chosen, _baseUrl.Text, _model.Text, _fallback.Text, _outputLanguage.Text, out var built, out error))
         {
             return false;
         }
@@ -95,6 +143,10 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         {
             LanguageModelProvider = (LanguageModelProvider)_provider.SelectedIndex,
             LocalLanguageModel = (LocalLanguageModelChoice)_localModel.SelectedIndex,
+            Cleanup = (CleanupLevel)_cleanup.SelectedIndex,
+            CleanupPrompt = _customPrompt,
+            CleanupPromptVersion = _promptVersion,
+            InstructionGuard = _guard.Checked,
         };
         return true;
     }
@@ -113,6 +165,44 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     {
         Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left });
         Controls.Add(control);
+    }
+
+    private void EditPrompt()
+    {
+        using var dialog = new CleanupPromptDialog(_customPrompt, _promptVersion, _testPrompt);
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _customPrompt = dialog.Custom;
+            _promptVersion = dialog.Version;
+        }
+    }
+
+    // Fire-and-forget from a click: anything not caught here would vanish silently.
+    private async Task TestModelAsync()
+    {
+        _testModelButton.Enabled = false;
+        _testModelResult.Text = "Waiting for the model (uses the saved AI settings)...";
+        try
+        {
+            var result = await _testPrompt(_customPrompt, CleanupPromptDialog.Sample, _closing);
+            _testModelResult.Text = SettingsInput.PromptTestMessage(result);
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            // The window closed while the test ran.
+        }
+        catch (Exception e)
+        {
+            Log.Error(LogEvent.CleanupPromptTested, e);
+            _testModelResult.Text = "The test couldn't run.";
+        }
+        finally
+        {
+            if (!IsDisposed)
+            {
+                _testModelButton.Enabled = true;
+            }
+        }
     }
 
     // Reads the disk, so a model downloaded since the window opened counts.

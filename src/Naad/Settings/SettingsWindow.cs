@@ -1,3 +1,4 @@
+using Naad.Cleanup;
 using Naad.Hotkey;
 using Naad.Transcription;
 using Naad.Tray;
@@ -74,6 +75,8 @@ internal sealed class SettingsWindow : Form
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
     /// <param name="downloadModel">Downloads a model file to run on this PC, reporting progress.</param>
     /// <param name="testKey">Checks a key against a base URL.</param>
+    /// <param name="testPrompt">Sends cleanup instructions and a sample to the saved language model.</param>
+    /// <param name="cooldownFor">A cloud model's running rate limit, if any.</param>
     /// <param name="save">Saves and applies the change. Returns what went wrong, or null.</param>
     /// <param name="beginCapture">Starts capturing a shortcut; false if a dictation is running.</param>
     /// <param name="cancelCapture">Stops a capture early.</param>
@@ -85,6 +88,8 @@ internal sealed class SettingsWindow : Form
         bool startsAtLogin,
         Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> downloadModel,
         Func<string, Uri, CancellationToken, Task<KeyTestResult>> testKey,
+        Func<string?, string, CancellationToken, Task<PromptTest>> testPrompt,
+        Func<string, Cooldown?> cooldownFor,
         Func<SettingsChange, string?> save,
         Func<bool> beginCapture,
         Action cancelCapture)
@@ -109,7 +114,8 @@ internal sealed class SettingsWindow : Form
 
         FillFields(microphones);
         _startAtLogin.Checked = startsAtLogin;
-        _languageModel = new(current, languageModelKey, downloadModel, testKey, _closing.Token);
+        _languageModel = new(
+            current, languageModelKey, downloadModel, testKey, testPrompt, cooldownFor, _closing.Token);
         Controls.Add(BuildLayout());
 
         _testKeyButton.Click += (_, _) => _ = TestKeyAsync();

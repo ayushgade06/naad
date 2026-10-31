@@ -103,6 +103,7 @@ internal enum LogEvent
     CleanupFellBack,
     CleanupFallbackModelUsed,
     CleanupSkippedCoolingDown,
+    CleanupPromptTested,
 
     UpdateNotAvailable,
     UpdateAvailable,

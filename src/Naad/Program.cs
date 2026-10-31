@@ -1,7 +1,9 @@
 using Naad.Audio;
+using Naad.Cleanup;
 using Naad.Dictation;
 using Naad.Hotkey;
 using Naad.Insertion;
+using Naad.LanguageModel;
 using Naad.Settings;
 using Naad.Transcription;
 using Naad.Tray;
@@ -196,12 +198,19 @@ internal static class Program
 
         var settings = loaded.Settings;
         var apiKey = key.Key;
+        var languageModelKey = ResolveLanguageModelKey(languageModelKeys).Key;
+        var temperature = new TemperatureSupport(TemperatureSupport.DefaultPath, TimeProvider.System);
+        var cooldowns = new RateLimitCooldowns(RateLimitCooldowns.DefaultPath, TimeProvider.System);
+
+        // Not disposed at exit, like the transcriber: a local model may still be running native code.
+        ILanguageModel? languageModel = null;
 
         // A newer Naad wrote settings.json; this build never replaces it (docs/settings.md).
         var canSave = loaded.Status != SettingsStatus.FutureVersion;
 
         // Settings saved during a dictation, applied once it ends.
         AppSettings? pending = null;
+        var replaceLanguageModel = false;
         SettingsWindow? window = null;
         Action? openSettings = null;
 
@@ -244,6 +253,7 @@ internal static class Program
                 TimeProvider.System);
             dictation = controller;
             controller.UseHandsFree(settings.HandsFree);
+            UseLanguageModel(settings, replace: true);
             var startup = StartupEntry.ForThisApp();
             var actions = new SettingsActions(store, keys, languageModelKeys, startup, canSave, http);
             controller.StateChanged += tray.ShowState;
@@ -251,6 +261,8 @@ internal static class Program
             // Recording starts with focus on the window being dictated into, so the overlay
             // appears on that window's monitor.
             controller.StateChanged += state => overlay.ShowState(state, FocusGuard.Foreground().Handle);
+            controller.CleaningUp += overlay.ShowCleaningUp;
+            controller.CleanupFellBack += overlay.ShowCleanupFellBack;
             controller.MicrophoneOpened += () => sounds?.PlayStart();
             controller.MicrophoneClosed += () => sounds?.PlayStop();
             controller.StateChanged += state =>
@@ -290,6 +302,25 @@ internal static class Program
             // Closed before the hook is unhooked, so a capture in progress ends cleanly.
             window?.Close();
 
+            // A new model only when its settings or key changed, or none could run before (a model
+            // downloaded since): replacing a model on this PC unloads it.
+            void UseLanguageModel(AppSettings s, bool replace)
+            {
+                if (replace || languageModel is null)
+                {
+                    // Disposing waits for a model still loading, so it runs off this thread.
+                    if (languageModel is IDisposable old)
+                    {
+                        _ = Task.Run(old.Dispose);
+                    }
+
+                    languageModel = CleanupSetup.CreateModel(http, languageModelKey, s, temperature);
+                }
+
+                controller.UseCleanup(
+                    CleanupSetup.Create(languageModel, http, languageModelKey, s, temperature, cooldowns));
+            }
+
             void OpenSettings()
             {
                 if (window is not null)
@@ -306,6 +337,9 @@ internal static class Program
                     startup.IsEnabled(),
                     actions.DownloadModelAsync,
                     actions.TestKeyAsync,
+                    (instructions, sample, token) =>
+                        CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
+                    cooldowns.For,
                     Save,
                     beginCapture: () =>
                     {
@@ -335,22 +369,29 @@ internal static class Program
                     apiKey = ResolveKey(keys, log: true).Key;
                 }
 
+                var languageModelKeyChanged = change.NewLanguageModelKey is not null;
+                if (languageModelKeyChanged)
+                {
+                    languageModelKey = ResolveLanguageModelKey(languageModelKeys).Key;
+                }
+
                 if (keyError is not null)
                 {
                     return keyError;
                 }
 
                 var problem = actions.SaveSettings(change);
-                Apply(change.Settings);
+                Apply(change.Settings, languageModelKeyChanged);
                 return problem;
             }
 
             // A dictation keeps the settings it started with: during one, the change waits for Idle.
-            void Apply(AppSettings next)
+            void Apply(AppSettings next, bool languageModelKeyChanged = false)
             {
                 if (controller.State != DictationState.Idle)
                 {
                     pending = next;
+                    replaceLanguageModel |= languageModelKeyChanged;
                     Log.Info(LogEvent.SettingsApplyDeferred);
                     return;
                 }
@@ -381,6 +422,8 @@ internal static class Program
                 var replaced = transcriber;
                 transcriber = CreateTranscriber(http, apiKey, next);
                 controller.UseTranscriber(transcriber);
+                UseLanguageModel(next, replaceLanguageModel || languageModelKeyChanged || ModelChanged(settings, next));
+                replaceLanguageModel = false;
 
                 // Idle, so nothing is using it: frees a loaded local model's memory at once.
                 (replaced as IDisposable)?.Dispose();
@@ -393,6 +436,12 @@ internal static class Program
             sounds?.Dispose();
         }
     }
+
+    private static bool ModelChanged(AppSettings before, AppSettings after) =>
+        before.LanguageModelProvider != after.LanguageModelProvider
+        || before.LocalLanguageModel != after.LocalLanguageModel
+        || before.LanguageModelBaseUrl != after.LanguageModelBaseUrl
+        || before.LanguageModelName != after.LanguageModelName;
 
     private static IReadOnlyList<string> Microphones()
     {
