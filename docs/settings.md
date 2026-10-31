@@ -11,13 +11,15 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "fileLogging": true,
   "playSounds": false,
   "dictationShortcut": "RightCtrl",
   "transcriptionProvider": "Local",
   "localModel": "Base",
+  "transcriptionService": "Groq",
   "transcriptionBaseUrl": "https://api.groq.com/openai/v1",
+  "transcriptionTimeoutSeconds": 20,
   "transcriptionModel": "whisper-large-v3-turbo",
   "language": null,
   "microphone": null,
@@ -25,7 +27,9 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
+  "languageModelService": "Groq",
   "languageModelBaseUrl": "https://api.groq.com/openai/v1",
+  "languageModelTimeoutSeconds": 8,
   "languageModelName": "openai/gpt-oss-20b",
   "languageModelFallbackName": null,
   "cleanup": "Ai",
@@ -38,21 +42,25 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 | Setting | Type | Default | Meaning |
 |---|---|---|---|
-| `version` | integer | `2` | The file's schema version. Naad manages it; don't change it. |
+| `version` | integer | `3` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `playSounds` | `true` or `false` | `false` | Play a short, soft tone once Naad is listening and once it has stopped. Off by default: on a PC whose speakers go idle, waking them takes a second or more, so the start tone comes that long after the press; speak after it. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 | `transcriptionProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where speech becomes text: `"Local"` transcribes on this PC with Whisper, offline and free, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)); `"Cloud"` uploads it to the service below. Naad never switches between them by itself. A version-1 file without this setting was using the cloud, so its migration keeps `"Cloud"`. |
 | `localModel` | `"Base"` or `"Turbo"` | `"Base"` | The Whisper model used on this PC: `"Base"` (148 MB, fast on any PC) or `"Turbo"` (large-v3-turbo, 574 MB, more accurate, for PCs with a graphics card). Each needs its own download; see [Transcribing on this PC](#transcribing-on-this-pc). |
-| `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string isn't allowed. |
-| `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The provider's model id, such as `whisper-1` for OpenAI. Up to 100 visible ASCII characters, no spaces. |
+| `transcriptionService` | `"Groq"`, `"OpenAI"`, `"Gemini"`, `"XAI"`, `"Deepgram"` or `"Custom"` | `"Groq"` | The cloud service that transcribes with **Cloud** chosen. See [Cloud services](#cloud-services). |
+| `transcriptionBaseUrl` | text | `"https://api.groq.com/openai/v1"` | Used only with `"Custom"`: the root of any OpenAI-compatible API; Naad posts to `<root>/audio/transcriptions`. It must be `https://`, or `http://` only for a server on this PC (`localhost`, `127.0.0.1`), because the API key is sent with every request. A query string or a user name and password aren't allowed. |
+| `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The service's model id, such as `whisper-1` for OpenAI or `nova-3` for Deepgram. Up to 100 visible ASCII characters, no spaces. |
+| `transcriptionTimeoutSeconds` | 2 to 300 | `20` | How long one cloud transcription may take before Naad gives up and says the request timed out. Raise it for a slow server on this PC. |
 | `language` | text or `null` | `null` | The language you speak, as a lowercase [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code such as `"en"` or `"hi"`; a few providers also take three-letter codes. Naad sends it with each recording, which makes transcripts faster and more accurate. `null` (or `""`) lets the provider detect the language. |
 | `vocabulary` | text or `null` | `null` | Names and terms you use, such as `"Naad, Groq, Priya"`, sent with each recording as Whisper's prompt so they are spelled right. One line, up to 500 characters. It goes to the transcription provider but never into the log. `null` (or `""`) sends none. |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
 | `localLanguageModel` | `"Small"` or `"Large"` | `"Small"` | The language model on this PC: `"Small"` (Qwen2.5-1.5B-Instruct, 1.1 GB, fast on any PC) or `"Large"` (Qwen3-4B-Instruct-2507, 2.5 GB, more accurate, for PCs with a graphics card). |
-| `languageModelBaseUrl` | text | `"https://api.groq.com/openai/v1"` | The root of any OpenAI-compatible chat API; Naad posts to `<root>/chat/completions`. The same rules as `transcriptionBaseUrl`: `https://`, or `http://` only for a server on this PC such as Ollama (`http://localhost:11434/v1`) or LM Studio. |
+| `languageModelService` | `"Groq"`, `"OpenAI"`, `"Gemini"`, `"XAI"`, `"Anthropic"`, `"Cerebras"` or `"Custom"` | `"Groq"` | The cloud service for AI steps with **Cloud** chosen. |
+| `languageModelTimeoutSeconds` | 2 to 300 | `8` | How long cleanup waits for the language model before pasting the text as said. Raise it for a slow server on this PC. |
+| `languageModelBaseUrl` | text | `"https://api.groq.com/openai/v1"` | Used only with `"Custom"`: the root of any OpenAI-compatible chat API; Naad posts to `<root>/chat/completions`. The same rules as `transcriptionBaseUrl`: `https://`, or `http://` only for a server on this PC such as Ollama (`http://localhost:11434/v1`) or LM Studio. |
 | `languageModelName` | text | `"openai/gpt-oss-20b"` | The cloud provider's chat model id. Up to 100 visible ASCII characters, no spaces. |
 | `languageModelFallbackName` | text or `null` | `null` | A second cloud model on the same endpoint, tried when the first is rate limited, gives a blank reply or answers the dictation instead of tidying it. |
 | `cleanup` | `"Off"`, `"Basic"` or `"Ai"` | `"Ai"` | How a transcript is tidied before it is pasted. See [Cleanup](#cleanup). |
@@ -106,20 +114,54 @@ letter while Naad runs.
 Clicking a mouse button or turning the wheel while holding the shortcut
 cancels the dictation, so Ctrl+click and Ctrl+scroll keep working.
 
-## The API key
+## Cloud services
 
-Naad needs an API key only to transcribe in the cloud (Groq by default; get
-one at https://console.groq.com/keys). It is stored encrypted, apart from
-settings.json, in `%LOCALAPPDATA%\Naad\api-key.dpapi`.
+Transcription (on the **Dictation** tab) and AI (on the **AI** tab) each
+pick a **Cloud service** for when **Cloud** is chosen:
 
-To store or replace the key, paste it into **New key** in Settings and click
-**Save**. **Test key** first asks the provider whether it accepts the key
-(Naad sends `GET <transcriptionBaseUrl>/models`); a provider that can't
+| Service | Transcription | AI | Keys |
+|---|---|---|---|
+| Groq | `whisper-large-v3-turbo`, `whisper-large-v3` | `openai/gpt-oss-20b` and others | console.groq.com/keys |
+| OpenAI | `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, `whisper-1` | `gpt-4.1-mini` and others | platform.openai.com/api-keys |
+| Gemini | `gemini-2.5-flash` (through Gemini's own API) | `gemini-2.5-flash-lite` and others | aistudio.google.com/apikey |
+| xAI | `grok-stt` | `grok-3-mini` and others | console.x.ai |
+| Deepgram | `nova-3`, `nova-2` (through Deepgram's own API) | — | console.deepgram.com |
+| Anthropic | — | `claude-haiku-4-5` and others | console.anthropic.com |
+| Cerebras | — | `gpt-oss-120b` and others | cloud.cerebras.ai |
+| Custom | any OpenAI-compatible endpoint | any OpenAI-compatible endpoint | optional on this PC |
+
+The model lists are suggestions: type any model id the service offers, or
+click **Reset** for the suggested one. **Custom** takes a **Base URL**, such
+as `http://localhost:11434/v1` for Ollama; a server on this PC needs no
+key.
+
+**Test** under **Transcription** sends one second of silence with the
+saved settings and says whether the service answered.
+
+When the PC is offline, or the service can't be reached, Naad transcribes
+and cleans up on this PC instead, if those models are downloaded, using the
+same recording; it says so once each time Naad runs. Without them, the
+notification says there is no internet connection, that the request timed
+out, or that the connection was lost.
+
+## The API keys
+
+Each cloud service has one API key, used by both tabs: a Groq key typed on
+the **AI** tab also transcribes with Groq. Keys are stored encrypted, apart
+from settings.json, in `%LOCALAPPDATA%\Naad\keys\<service>.dpapi`. Naad
+1.0's single key, `%LOCALAPPDATA%\Naad\api-key.dpapi`, moves there the
+first time it is needed, as the key of the service its base URL named.
+
+To store or replace a key, choose the service, paste the key into **New
+key** and click **Save**. Naad asks the service first, by listing its
+models (Deepgram: its projects), and doesn't store a key the service
+rejects. **Test key** asks the same without saving. A service that can't
 list models can't check keys, and Naad says so. Settings never shows a
 stored key, only where the key in use comes from.
 
-You can also pipe the key into Naad from PowerShell. The key is
-read without being shown, and never lands in the shell's history:
+You can also pipe the transcription service's key into Naad from
+PowerShell. The key is read without being shown, and never lands in the
+shell's history:
 
 ```powershell
 [Net.NetworkCredential]::new('', (Read-Host -AsSecureString 'API key')).Password |
@@ -130,29 +172,32 @@ From a source checkout, use `dotnet run --project src/Naad -- --set-api-key`
 in place of the `& ... Naad.exe` part. `| Out-Null` makes PowerShell wait
 for Naad to finish; `$LASTEXITCODE` is then `0` once the key is stored.
 Naad accepts the key only from a pipe: `--set-api-key` without one shows how
-to use it and changes nothing. A key stored this way takes effect the next
-time Naad starts.
+to use it and changes nothing. The key is stored for the
+`transcriptionService` in settings.json, and takes effect the next time
+Naad starts.
 
-How it is protected and found:
+How keys are protected and found:
 
 - **Encryption:** Windows DPAPI with the CurrentUser scope. Only your
   Windows account, on this PC, can decrypt the file. Another user, another
   PC, or a copy of the file on a backup can't. Resetting your Windows
   password from outside your account (for example by an administrator) can
   make the file unreadable; store the key again if that happens.
-- **Development override:** if the `NAAD_GROQ_API_KEY` environment variable
-  is set and not blank, Naad uses it and doesn't read the stored key. The
-  log says which one was used (`ApiKeyFromEnvironment` or `ApiKeyLoaded`),
-  never the key itself.
+- **Development override:** if `NAAD_<SERVICE>_API_KEY` (for example
+  `NAAD_GROQ_API_KEY` or `NAAD_OPENAI_API_KEY`) is set and not blank, Naad
+  uses it for that service and doesn't read the stored key. The log says
+  which one was used (`ApiKeyFromEnvironment` or `ApiKeyLoaded`), never the
+  key itself.
 - **No key:** Naad logs `ApiKeyMissing` and starts anyway. With **Cloud**
-  chosen, it opens Settings so you can add one, and pressing the shortcut
-  shows a notification instead of recording (`DictationNeedsApiKey`).
+  chosen for transcription, it opens Settings so you can add one, and
+  pressing the shortcut shows a notification instead of recording
+  (`DictationNeedsApiKey`).
 - **Unreadable key** (damaged, or saved by another Windows user): the same,
   with `ApiKeyUnreadable` and the exception type logged. Naad doesn't delete
   the file; saving a new key replaces it.
 
-The key never appears in settings.json, the log, error dialogs or test
-files. To remove it, delete `api-key.dpapi` while Naad is closed.
+Keys never appear in settings.json, the log, error dialogs or test files.
+To remove one, delete its file while Naad is closed.
 
 ## Transcribing on this PC
 
@@ -263,8 +308,8 @@ Settings and save with the box ticked to point the entry at the new place.
 
 | Value | Why it is not in settings.json |
 |---|---|
-| API keys | They are secrets, and settings.json is plain text. It is stored encrypted on its own; see [The API key](#the-api-key). It must never be added to this file. |
-| Timeouts (20 s per transcription or chat request, 8 s for cleanup), the 10-minute idle unload of the language model, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
+| API keys | They are secrets, and settings.json is plain text. It is stored encrypted on its own; see [The API keys](#the-api-keys). It must never be added to this file. |
+| The 10-minute idle unload of the language model, the 10-second key check, the 300 ms tap threshold, the 5-minute recording limit, log size | Internal tuning values, not user preferences. |
 
 A setting is added only when the app actually reads it.
 
@@ -278,6 +323,9 @@ A setting is added only when the app actually reads it.
   the current version.
 - A file without `version` comes from before versioning and is treated as
   version 0.
+- Version 3 (Naad 1.1) chose cloud services by name. Migrating a version-2
+  file sets `transcriptionService` and `languageModelService` from the
+  service each base URL belongs to, or `"Custom"`.
 - Before Naad migrates or repairs a file, it copies the original next to it
   (see below), so nothing is lost.
 - A file with a **newer** version than this build supports was written by a
