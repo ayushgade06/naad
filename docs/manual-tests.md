@@ -236,7 +236,7 @@ transcript can never be inserted twice. What still needs a person:
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
-| M-D1 | Five-minute limit | In Notepad, hold Right Ctrl for just over 5 minutes, speaking now and then, then release. | At 5 minutes the log shows `RecordingMaxDurationReached`, then `RecordingStopped held_ms=300000` (about), and the text is pasted without waiting for the release. The release does nothing. | **No.** It needs physical keys and a microphone. |
+| M-D1 | Five-minute limit | In Notepad, hold Right Ctrl for just over 5 minutes, speaking now and then, then release. | At 5 minutes the log shows `RecordingMaxDurationReached`, then `RecordingStopped held_ms=300000` (about), and the icon turns amber. The text is pasted as soon as you release Right Ctrl: a held modifier would change the paste, so Naad waits for it, for up to 30 s. Held longer, the transcript is kept instead (`PasteSkippedModifiersHeld` and the notification). The release starts nothing new. | **No.** It needs physical keys and a microphone. |
 | M-D2 | Press again right after a cancel | Press Right Ctrl+C, then within a second hold Right Ctrl and dictate a sentence. | The log shows `DictationCancelledByKey`, then a new `RecordingStarted`, and the sentence is pasted. No `DictationFailed` or `MicrophoneUnavailable` appears. | **No.** It needs physical keys and a microphone. |
 
 **Status after P9:** M-D1 and M-D2 have **not been run**. A smoke run of
@@ -508,14 +508,14 @@ exit during transcription (cancelled, nothing inserted).
 
 The tray icon shows the state: a red dot while listening, an amber dot
 while transcribing, and the plain icon when idle; the tooltip says the
-same. A soft tone plays when listening starts and when it stops
-(`playSounds`, on by default). Notifications explain microphone errors,
+same. A soft tone plays once the microphone is open and once it is closed
+again (`playSounds`, off by default). Notifications explain microphone errors,
 transcription failures, silent recordings and kept transcripts.
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
 | M-M1 | Tray state | Hold Right Ctrl for 3 s while watching the icon, speak, release. | Red dot while holding, amber dot after release, plain icon once the text is pasted. The tooltip changes with it. | **No.** It needs physical keys and a microphone. |
-| M-M2 | Sounds | Dictate once with `"playSounds": true`, then once with `false` (restart Naad in between). | With `true`, a short high tone on press and a lower one on release; neither appears in the pasted text. With `false`, no tones. | **No.** |
+| M-M2 | Sounds | Dictate once with `"playSounds": true`, then once with `false` (restart Naad in between). Each time, release Right Ctrl and at once type a few letters in Notepad. | With `true`, a short high tone once Naad is listening, a moment after the press (up to about 1.5 s on a laptop whose speakers have gone idle), and a lower one after the release; neither appears in the pasted text. `mic_open_ms` stays well under a second, and the letters typed after the release appear at once. With `false` (the default), no tones. | **No.** |
 | M-M3 | Transcription error notification | Repeat M-G2 (wrong key). | A notification titled **Naad couldn't transcribe** says the key was rejected and how to store one. It shows no key and no server text. | **No.** |
 | M-M4 | Nothing heard | Mute the microphone, hold Right Ctrl for 2 s, release. | A notification says Naad didn't hear anything. Nothing is uploaded or pasted (M-W1's log). | **No.** |
 | M-M5 | Exit while recording | Hold Right Ctrl, and while holding, right-click the tray icon and choose Exit with the mouse. Then release. | Naad exits. Nothing is pasted, the microphone indicator disappears, and the log ends with `AppStopped`. (The click may cancel the dictation first; that is fine.) | **No.** |

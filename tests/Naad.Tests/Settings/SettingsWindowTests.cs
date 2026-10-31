@@ -1,0 +1,63 @@
+using System.Runtime.ExceptionServices;
+using System.Windows.Forms;
+using Naad.Settings;
+using Naad.Transcription;
+
+namespace Naad.Tests.Settings;
+
+public sealed class SettingsWindowTests
+{
+    // The window is modeless, where a button's DialogResult doesn't close it: Cancel and Esc
+    // used to leave it open, so a model download kept running after "closing" it.
+    [Fact]
+    public void Cancel_Clicked_ClosesTheWindow()
+    {
+        var closed = false;
+        OnStaThread(() =>
+        {
+            using var window = new SettingsWindow(
+                AppSettings.Defaults,
+                new ApiKeyResult(null, ApiKeySource.None, SecretStatus.Missing),
+                microphones: [],
+                startsAtLogin: false,
+                downloadModel: (_, _, _) => Task.FromResult(new ModelDownloadResult(ModelDownloadOutcome.Downloaded)),
+                testKey: (_, _, _) => throw new InvalidOperationException("Not used."),
+                save: (_, _, _) => null,
+                beginCapture: () => false,
+                cancelCapture: () => { });
+            window.FormClosed += (_, _) => closed = true;
+            _ = window.Handle;
+
+            // PerformClick ignores a button that was never shown; showing the window would take focus.
+            using var clicker = new Clicker();
+            clicker.ClickOn((Control)window.CancelButton!);
+        });
+
+        Assert.True(closed);
+    }
+
+    private sealed class Clicker : Control
+    {
+        public void ClickOn(Control control) => InvokeOnClick(control, EventArgs.Empty);
+    }
+
+    private static void OnStaThread(Action action)
+    {
+        ExceptionDispatchInfo? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception e)
+            {
+                failure = ExceptionDispatchInfo.Capture(e);
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        failure?.Throw();
+    }
+}

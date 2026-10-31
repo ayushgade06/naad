@@ -166,6 +166,36 @@ public sealed class TextInserterTests
         Assert.Equal(4, polls);
     }
 
+    // At the time limit the dictation shortcut, often a modifier, is still held well past the
+    // paste's own one-second wait; the controller waits longer first.
+    [Fact]
+    public async Task WaitForModifiersReleased_HeldPastThePasteWait_ReturnsOnceReleased()
+    {
+        var started = DateTime.UtcNow;
+        var inserter = new TextInserter(
+            new FakeClipboard(Original),
+            anyModifierDown: () => DateTime.UtcNow - started < TimeSpan.FromSeconds(1.5),
+            () => true,
+            NoTyping,
+            TimeSpan.Zero);
+
+        var released = await inserter.WaitForModifiersReleasedAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
+
+        Assert.True(released);
+        Assert.True(DateTime.UtcNow - started >= TimeSpan.FromSeconds(1.5));
+    }
+
+    [Fact]
+    public async Task WaitForModifiersReleased_HeldPastTheTimeout_ReturnsFalse()
+    {
+        var inserter = new TextInserter(new FakeClipboard(Original), () => true, () => true, NoTyping, TimeSpan.Zero);
+
+        var released = await inserter.WaitForModifiersReleasedAsync(
+            TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        Assert.False(released);
+    }
+
     [Fact]
     public async Task Paste_AlreadyCancelled_TouchesNothing()
     {

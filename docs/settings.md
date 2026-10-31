@@ -13,7 +13,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 {
   "version": 2,
   "fileLogging": true,
-  "playSounds": true,
+  "playSounds": false,
   "dictationShortcut": "RightCtrl",
   "transcriptionProvider": "Local",
   "localModel": "Base",
@@ -30,7 +30,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 |---|---|---|---|
 | `version` | integer | `2` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
-| `playSounds` | `true` or `false` | `true` | Play a short, soft tone when Naad starts listening and when it stops. |
+| `playSounds` | `true` or `false` | `false` | Play a short, soft tone once Naad is listening and once it has stopped. Off by default: on a PC whose speakers go idle, waking them takes a second or more, so the start tone comes that long after the press; speak after it. |
 | `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
 | `transcriptionProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where speech becomes text: `"Local"` transcribes on this PC with Whisper, offline and free, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)); `"Cloud"` uploads it to the service below. Naad never switches between them by itself. A version-1 file without this setting was using the cloud, so its migration keeps `"Cloud"`. |
 | `localModel` | `"Base"` or `"Turbo"` | `"Base"` | The Whisper model used on this PC: `"Base"` (148 MB, fast on any PC) or `"Turbo"` (large-v3-turbo, 574 MB, more accurate, for PCs with a graphics card). Each needs its own download; see [Transcribing on this PC](#transcribing-on-this-pc). |

@@ -194,8 +194,11 @@ internal sealed class SettingsWindow : Form
             Padding = new Padding(12),
         };
         var save = new Button { Text = "Save", AutoSize = true };
-        var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
+        var cancel = new Button { Text = "Cancel", AutoSize = true };
         save.Click += (_, _) => Save();
+
+        // The window is modeless (Show, not ShowDialog), so a DialogResult wouldn't close it.
+        cancel.Click += (_, _) => Close();
         AcceptButton = save;
         CancelButton = cancel;
 

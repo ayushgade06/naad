@@ -11,7 +11,7 @@ public sealed class SettingsInputTests
     [Fact]
     public void TryBuild_ValidFields_AppliesThemTrimmed()
     {
-        var chosen = AppSettings.Defaults with { PlaySounds = false };
+        var chosen = AppSettings.Defaults with { PlaySounds = true };
 
         var ok = SettingsInput.TryBuild(
             chosen, " https://stt.example.test/v1 ", " whisper-1 ", " HI ", "", out var settings, out var error);
