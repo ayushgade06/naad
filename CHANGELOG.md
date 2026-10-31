@@ -6,117 +6,100 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
-### Added
+## [1.0.0] - 2026-10-31
 
-- Settings window (tray menu > **Settings...**) for the API key, the
-  shortcut, the microphone, the language, the transcription base URL and
-  model, sounds and the log file. Changes apply at once, without a restart.
-- **Test key** asks the provider whether it accepts a key. The window never
-  shows a stored key.
-- Shortcut capture: press the new shortcut instead of typing key names.
-- Recording overlay: a small dark pill near the bottom of the screen shows
-  voice bars that rise with your voice and ripple out from the centre, then
-  **Transcribing**. It never takes focus, lets clicks through and isn't in
-  Alt+Tab.
-- `language` setting: the language you speak, sent with each recording.
-- `microphone` setting: record from a named device instead of the Windows
-  default. A device that isn't connected falls back to the default.
-
-- Transcribe on this PC, offline, with Whisper (`transcriptionProvider`).
-  Settings downloads the 148 MB model once and checks its SHA-256; audio
-  then never leaves the PC.
-- Transcribing on this PC uses the graphics card through Vulkan when there
-  is one, preferring a discrete card over an integrated one, and the
-  processor otherwise.
-- A choice of model for transcribing on this PC (`localModel`): base
-  (148 MB, fast on any PC) or large-v3-turbo (574 MB), which is about as
-  accurate as the cloud on a PC with a graphics card.
-- `vocabulary` setting: names and terms sent as Whisper's prompt so they
-  are spelled right.
-- Hands-free mode (`handsFree`): press the shortcut to start and again to
-  stop.
-- Start Naad when you sign in, from Settings.
-- Installer: a per-user Velopack setup, built and published by a release
-  workflow when a version tag is pushed. Uninstalling stops Naad starting
-  at sign-in and keeps your settings and key.
-- Updates: an installed Naad checks GitHub Releases daily and offers new
-  versions; it installs one only when you click the notification, and
-  keeps your settings.
-- Robustness: a microphone unplugged mid-dictation keeps what was heard;
-  the shortcut keeps working after sleep, unlock and Ctrl+Alt+Del; a
-  transcription request that never reached the server is retried once.
-
-### Changed
-
-- Naad transcribes on this PC by default, so dictation costs nothing and
-  needs no account. On first start, Settings opens to download the model.
-  A settings file from an earlier build that never chose a provider keeps
-  the cloud (settings version 2).
-- Without a usable API key, Naad starts and opens Settings instead of
-  exiting. Pressing the shortcut without a key shows a notification and
-  records nothing.
-- The start and stop tones (`playSounds`) are off by default. On a PC whose
-  speakers go idle, waking them costs a second or more at the start of each
-  dictation. A settings file that already turned them on keeps them.
-
-### Fixed
-
-- **Cancel** and Esc in the settings window close it, which also stops a
-  model download in progress. They did nothing before.
-- At the five-minute limit the text is pasted as soon as you let go of the
-  shortcut. With a modifier shortcut such as Right Ctrl, it used to be kept
-  instead of pasted.
-- The tones no longer hold up the microphone: the start tone plays once
-  Naad is listening and the stop tone once the microphone is closed. Played
-  at the press and release, they delayed opening and closing the microphone
-  by over a second on some PCs, lost the first words, and made typing lag
-  right after a dictation.
-- Transcribing on this PC no longer pastes Whisper's non-speech tags, such
-  as `[BLANK_AUDIO]` for a recording with noise but no words.
-
-## [0.1.0] - Unreleased
-
-The first milestone, the MVP: hold-to-talk dictation that works end to end
-and fails safely. It has not been tagged or published yet; its manual
-checks in `docs/manual-tests.md` are still being run.
+The first release. Hold a shortcut, speak, let go: your words are typed into
+the app you're using, transcribed by Whisper on your PC, free and offline.
+The 0.1.0 milestone was never released on its own; its work is part of this
+release.
 
 ### Added
 
-- Tray app with a single instance and an orderly exit. The icon shows a red
-  dot while listening and an amber one while transcribing.
-- Hold a shortcut to dictate: Right Ctrl by default, or any chord of up to
-  four keys (`dictationShortcut`). Another key or a mouse click while
-  holding cancels, so shortcuts such as Right Ctrl+C keep working.
-  Recording stops by itself after 5 minutes.
-- Speech-to-text through any OpenAI-compatible API, Groq by default
-  (`transcriptionBaseUrl`, `transcriptionModel`), with a 20-second timeout.
-  Failures show a notification that says what went wrong.
-- Silence and clips under 300 ms are never uploaded. A transcript that is
-  only a known Whisper invention, such as "Thanks for watching!", is
-  dropped.
-- Pasting restores your clipboard afterwards, unless you copied something
-  new meanwhile, and keeps transcripts out of clipboard history. If the
-  clipboard can't be used, the text is typed as Unicode keys instead.
-- Focus guard: text only goes into the window you dictated into, never into
-  another one or an app running as administrator. Otherwise Naad keeps the
-  transcript and offers **Copy last transcript**.
-- Soft start and stop tones (`playSounds`), synthesized, with no sound files.
-- The API key is stored encrypted with Windows DPAPI
-  (`Naad.exe --set-api-key`); `NAAD_GROQ_API_KEY` overrides it for
-  development.
-- A diagnostic log that holds event names and numbers only: never audio,
+- **Dictation.**
+  - Hold a shortcut to dictate: Right Ctrl by default, or any chord of up
+    to four keys, captured in Settings.
+  - Another key or a mouse click while holding cancels, so shortcuts such
+    as Right Ctrl+C keep working.
+  - Hands-free mode presses once to start and once to stop.
+  - Recording stops by itself after five minutes, and the text is pasted
+    once you let go.
+- **Transcription on this PC**, the default.
+  - Whisper runs on the graphics card through Vulkan when there is one,
+    preferring a discrete card, and on the processor otherwise.
+  - Settings downloads the model once and checks its SHA-256. There are two
+    models: Base (148 MB, fast on any PC) and Large v3 Turbo (574 MB, more
+    accurate, needs a graphics card).
+  - No account and no API key are needed, and your audio never leaves the
+    PC.
+- **Transcription in the cloud**, if you choose it.
+  - Any OpenAI-compatible API, Groq by default, with a 20-second timeout and
+    one retry for a request that never reached the server.
+  - The key is encrypted with Windows DPAPI and never shown again.
+- **A vocabulary** of names and terms, sent to Whisper as a hint, and an
+  optional language.
+- **Safe pasting.**
+  - Text goes only into the window you dictated into, never into another
+    one or an app running as administrator. Otherwise Naad keeps it and
+    offers **Copy last transcript**.
+  - Your clipboard is put back afterwards, unless you copied something new
+    meanwhile, and transcripts stay out of clipboard history.
+  - If the clipboard can't be used, the text is typed as Unicode keys
+    instead.
+- **Fewer inventions.** Silence and clips under 300 ms are never
+  transcribed, and a transcript that is only a known Whisper invention
+  ("Thanks for watching!") or a non-speech tag (`[BLANK_AUDIO]`) is dropped.
+- **Tray app.**
+  - Single instance with an orderly exit.
+  - The icon shows a red dot while listening and an amber one while
+    transcribing.
+  - A small pill near the bottom of the screen shows voice bars that rise
+    with your voice, then **Transcribing**. It never takes focus and lets
+    clicks through.
+  - Notifications say what went wrong: the microphone, the transcription,
+    nothing heard, or a kept transcript.
+  - Optional start and stop tones, off by default.
+- **Settings window** for every setting and the key.
+  - Changes apply without a restart.
+  - **Test key** checks a key with the provider.
+  - Start Naad when you sign in.
+- **Settings file.** `settings.json` has versioning, backups, repair of
+  invalid values and atomic writes. A file from a development build that
+  never chose a provider keeps the cloud.
+- **Robustness.**
+  - A microphone unplugged mid-dictation keeps what was heard, and one
+    plugged in is used at once.
+  - The shortcut keeps working after sleep, unlock and Ctrl+Alt+Del.
+- **Diagnostic log.** It holds event names and numbers only: never audio,
   transcripts, clipboard contents, window titles or keys.
-- `settings.json` with versioning, backups, repair of invalid values and
-  atomic writes.
+- **Installer and updates.**
+  - A per-user installer that needs no administrator rights.
+  - Updates from GitHub Releases, installed only when you click the offer
+    and never during a dictation.
+  - Uninstalling keeps your settings, key and models.
+- **Documentation.** [Privacy](docs/privacy.md),
+  [troubleshooting](docs/troubleshooting.md) and
+  [architecture](docs/architecture.md) pages.
 
 ### Known limitations
 
-- No installer, settings window or recording overlay yet (P17, P18, P22).
-- A kept transcript is copied, not pasted, by the tray menu: opening the
-  menu moves focus away from your window.
-- Clipboard formats that are GDI handles or private to an app (for
-  example enhanced metafiles) aren't restored; their number is logged.
-- The clipboard is restored after a fixed 500 ms. An app that reads the
-  clipboard later than that would paste your previous clipboard instead.
-- No retries for transient network errors (P19), and no local, offline
-  transcription yet (P20).
+- **Not code-signed.** Windows SmartScreen warns on the first run; the
+  README says what to do.
+- **Tested on Windows 11 only,** with an automated manual pass. The checks
+  it couldn't run, and why, are listed in `docs/manual-tests.md`.
+- **The start tone and sleeping speakers.** With the tones on, the start
+  tone can cost about a second of audio on a PC whose speakers have gone
+  idle. Wait for it before speaking.
+- **The tray menu copies, it doesn't paste.** A kept transcript is copied by
+  the tray menu, because opening the menu moves focus away from your
+  window.
+- **Clipboard formats that aren't restored.** Formats that are GDI handles
+  or private to an app, such as enhanced metafiles, aren't put back.
+- **A fixed restore delay.** The clipboard is put back after a fixed
+  500 ms. An app that reads it later than that would paste your previous
+  clipboard instead.
+- **The typing fallback in Notepad.** When the clipboard can't be opened,
+  the typed fallback is mangled by Windows 11 Notepad.
+- **A press right after a paste.** A press of the shortcut within about
+  half a second after a paste is ignored.
+- **Full updates only.** Each update downloads the whole package; there are
+  no delta updates yet.

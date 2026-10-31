@@ -15,6 +15,9 @@ Record each run in the phase's pull request:
 Never paste transcripts, API keys or screenshots containing them into the
 results.
 
+The results of the pass that 1.0.0 was released on are in the last
+section, [v1.0.0: the automated pass](#v100-the-automated-pass-2026-10-31).
+
 ## Run every check on this PC unless it tests the cloud
 
 Naad's aim is free dictation on your own PC, so the manual pass is done
@@ -772,29 +775,106 @@ base wrote "Kubernetes" as "Cabernet's", turbo got it right.
 
 **Status after P24:** M-LF1 to M-LF5 have **not been run** by a person.
 
-## v0.1.0 checklist
+## v1.0.0: the automated pass, 2026-10-31
 
-`v0.1.0` is tagged only after every check below has passed on Windows 11
-in Notepad, Chrome and VS Code, and the maintainer approves. Dictation
-checks run with transcription on this PC; only the cloud checks listed at
-the top use **Cloud**. Status as of
-2026-10-28. "Partly" means an automated harness covered part of it and the
-rest still needs a person.
+`v1.0.0` was released on this pass, at the maintainer's choice (P25). It
+replaces the never-tagged v0.1.0 checklist. The **Status after** lines in
+each section above record that phase's state when it was merged; this
+section supersedes them.
 
-| Area | Checks | Status |
+### How it was run
+
+| | |
+|---|---|
+| Windows | 11, 26H2, build 26300.9818, not elevated |
+| Microphone | The built-in Intel Smart Sound microphone array, the only active input |
+| Voice | Windows text-to-speech through the laptop speakers, picked up by that microphone: a real microphone hearing a real sound |
+| Keys and mouse | `SendInput` from a normal-integrity process. Since P8 the hook skips only Naad's own input and input from lower-integrity processes, so these count as physical keys |
+| Reading results | `naad.log`, UI Automation (document text, the tray tooltip and menu, the settings window, notifications), the clipboard and the registry |
+| Transcription | This PC, **Base**, on the RTX 3050 (`LocalModelLoaded vulkan=1 discrete_gpu=1 gpu_device=1`), except the cloud checks |
+| Apps | Notepad 11 and VS Code. Chrome isn't installed |
+
+The pass found four bugs, all fixed before the release:
+
+- the tones stalled the microphone and the hook;
+- the five-minute limit never pasted with a modifier shortcut;
+- **Cancel** in Settings did nothing;
+- `[BLANK_AUDIO]` was pasted.
+
+The results below are for the fixed build, or for checks the fixes don't
+affect.
+
+### Results
+
+PASS: every expectation of the check was met. PARTIAL: what could be
+automated passed, and the rest is named. BLOCKED: needs hardware, rights or
+a person the pass didn't have. NOT RUN: left out on purpose, with the
+reason.
+
+| Check | Result | Notes |
 |---|---|---|
-| Vertical slice | M-S1 to M-S5 | M-S1 passed (P3). M-S2 to M-S5: reported passing in P3 without numbers; rerun with the current build. |
-| Tray and lifecycle | M-T1 to M-T6 | M-T1 to M-T4 passed (P4 harness). M-T5, M-T6: NOT RUN. |
-| Log | M-L1 | Partly (P5 harness). Dictation part: NOT RUN. |
-| Settings | M-C1 to M-C4 | Passed (P6 harness). |
-| Shortcut | M-SC1, M-SC2 | M-SC1 partly (P7 harness). M-SC2: NOT RUN. |
-| Keyboard hook | M-H1 to M-H5 | M-H4 partly (P8 harness). Others: NOT RUN. |
-| Dictation state | M-D1, M-D2 | NOT RUN. |
-| Microphone | M-A1 to M-A3 | NOT RUN. |
-| Recording gates | M-W1 to M-W3 | NOT RUN. |
-| API key | M-K1 | Partly: the harness stored and used a real key (see the P12 section). Notepad steps: NOT RUN. |
-| Provider | M-G1 to M-G3 | Partly: the live harness passed (see the P13 section). Dictation by voice: NOT RUN. |
-| Clipboard | M-I1 to M-I6 | NOT RUN. Real-clipboard harness passed (P14). |
-| Focus guard | M-F1 to M-F5 | NOT RUN. Real-desktop focus check passed (P15). |
-| MVP | M-M1 to M-M8 | NOT RUN. |
-| Transcription on this PC | M-LW1 to M-LW4, M-LF1 to M-LF5 | M-LW1 and M-LF3 partly (explicit tests). Others: NOT RUN. |
+| M-S1, M-T4 | Superseded | Since P17 a missing key opens Settings: M-U1 |
+| M-S2 | PASS | `release_to_text_ms` 0.85 to 2.5 s; warm `request_ms` 0.7 to 1.1 s |
+| M-S3 | PASS | All three steps. Five taps: 5 `RecordingStarted`, 5 `DictationIgnoredShortHold` |
+| M-S4, M-S5 | Superseded | M-F1 and M-A2 |
+| M-T1, M-T2, M-T3 | PASS | M-T3's `SecondInstanceRejected` goes to the console only, by design |
+| M-T5, M-T6 | PASS | As M-S2, M-S3 and M-M6 |
+| M-L1 | PASS | No spoken word, vocabulary or key in the log |
+| M-C1 to M-C4 | Not rerun | Passed in P6; M-LF1 covered `SettingsCreated` |
+| M-SC1 | PASS | Tooltip, paste, and no space typed |
+| M-SC2 | PASS | Tones off, the default: `DictationCancelledByKey` 138 ms after C |
+| M-H1 | PARTIAL | Notepad and VS Code; Chrome not available |
+| M-H2, M-H3, M-H4 | PASS | M-H2 in Notepad; the link part needs Chrome |
+| M-H5 | Inconclusive | The F9 dictation ran, but the VS Code editor couldn't be read reliably |
+| M-D1 | PASS | Transcribed at 5 minutes while still held, then pasted 35 ms after the release |
+| M-D2 | PASS | |
+| M-A1, M-A2 | PASS | M-A2 with both per-user switches; the device-wide switch needs admin |
+| M-A3 | BLOCKED | Disabling the device needs admin |
+| M-W1, M-W2, M-W3 | PASS | M-W1 muted by input volume 0 (`peak=1`). Muting the endpoint didn't silence this microphone array. M-W2 quiet speech: `peak=418 rms=156` |
+| M-K1 | NOT RUN | Needs the maintainer's key typed in again |
+| M-G1, M-G2 | PASS | Groq `request_ms=545`; a wrong key gives `http_status=401` and nothing pasted |
+| M-G3, M-R6 | NOT RUN | Turning the network off unattended risked losing the session |
+| M-I1, M-I3, M-I4, M-I6 | PASS | M-I3 in VS Code; M-I6 with an image and a file list |
+| M-I2 | Inconclusive | No Chrome; the Edge stand-in couldn't be targeted |
+| M-I5 | BLOCKED | Clipboard history is off on the PC, and was left off |
+| M-F1, M-F2, M-F5 | PASS | |
+| M-F3 | BLOCKED | Needs an administrator window |
+| M-F4 | PARTIAL | The paste keeps accents. The typing fallback garbles text in Notepad 11; see below |
+| M-M1, M-M3, M-M5, M-M6, M-M7 | PASS | M-M7: ten pasted, once each, with a natural pause |
+| M-M2 | PARTIAL | The tones' timing was measured, not listened to |
+| M-M4 | PARTIAL | The log part (M-W1); the notification wasn't read |
+| M-M8 | PARTIAL | Notepad and VS Code |
+| M-U1, M-U4, M-U6 | PASS | |
+| M-U2 | PARTIAL | A wrong key is rejected; the real-key half needs the key typed in |
+| M-U3 | PASS | Steps 1, 2, 3 and 5; step 4 not run |
+| M-U5 | NOT RUN | |
+| M-O1 | PASS | Notepad and VS Code kept the foreground throughout; rerun in Notepad on the voice-bar overlay, with the same result |
+| M-O2 | NOT RUN | The meter is visual |
+| M-O3 | BLOCKED | One monitor |
+| M-R1 to M-R5 | BLOCKED | A removable microphone, a sleep, a lock and sign-in, and Ctrl+Alt+Del can't be automated |
+| M-Q1 | PARTIAL | The log never holds the vocabulary; the hint didn't fix one made-up word with a synthetic voice |
+| M-Q2, M-Q3 | PASS | M-Q3 steps 1, 2 and 4; step 3 is M-D1's limit |
+| M-Q4, M-Q5 | PARTIAL | The Run value is written and removed, and other entries are kept; the sign-in itself wasn't run |
+| M-LW1, M-LW3 | PASS | M-LW1 downloaded 147,951,465 bytes through Settings in 12.9 s |
+| M-LW2 | PARTIAL | Instead of going offline, Naad's sockets were sampled through a local dictation: there were none |
+| M-LW4 | PASS (step 1) | Closing Settings mid-download leaves no file and offers it again; step 2 not run |
+| M-LF1, M-LF2, M-LF3 | PASS | |
+| M-LF4 | BLOCKED | The PC has Vulkan |
+| M-LF5 | PARTIAL | Turbo chosen in Settings ran on the GPU, 2.3 s once warm, but misspelled one term with the synthetic voice |
+| M-P1 to M-P4 | PASS on the maintainer's PC | Not a clean VM. A 1.0.0 installer built with the release workflow's commands installed and started Naad; its Apps entry showed version 1.0.0 and it dictated. Uninstalling removed the app, the shortcut and the Run value, and kept the user data |
+| M-P5, M-P6 | BLOCKED | Need two published releases |
+
+### Known findings left open
+
+- **Tones.** With **Play a tone** on, the start tone still costs about 1.3 s
+  of audio on a PC whose speakers have gone idle. That is why tones are off
+  by default.
+- **Typing fallback.** When the clipboard can't be opened at all, the text
+  is typed key by key, and Notepad 11 mangles input that fast. The same
+  burst from another process does the same, but Naad still logs
+  `InsertedByTyping` as a success.
+- **A press right after a paste.** A press within about 0.5 s of a paste,
+  while the clipboard is being restored, is dropped without a tone or a log
+  line.
+- **A misleading log name.** With the local model missing, the shortcut
+  logs `DictationNeedsApiKey`, though what is missing is the model.

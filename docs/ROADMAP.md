@@ -43,7 +43,7 @@ manual checks to it.
 |---|---|---|
 | M0: Foundation | P2 | The repository, its rules and CI are in place |
 | **M1: Vertical slice** | **P3** | Hold Right Ctrl → speak → text appears in Notepad. This is a go/no-go check of the stack. |
-| M2: MVP `v0.1.0` | P16 | Hardened end-to-end dictation in Notepad, Chrome and VS Code |
+| M2: MVP `v0.1.0` | P16 | Hardened end-to-end dictation in Notepad, Chrome and VS Code. Never tagged: it was folded into `v1.0.0`. |
 | M3: Usable app | P19 | Settings window, overlay, robustness work |
 | M4: `v1.0.0` | P25 | Local Whisper by default, installer, auto-update, documentation |
 
@@ -654,15 +654,42 @@ production-quality code, and keeps the slice working at every commit.
   - An older settings file keeps the provider it was using.
   - Latency is measured on the CPU and on a graphics card, per model.
 - **Verify:** `dotnet test`; manual checks M-LF1 to M-LF5.
+- **Status:** done. The automated pass of 2026-10-31 passed M-LF1 to M-LF3.
+  M-LF5 worked, but misspelled one term with a synthetic voice. M-LF4 needs
+  a PC without Vulkan. See `docs/manual-tests.md`.
 
 ### P25: 1.0 hardening and documentation
 
 - **Goal:** ship `v1.0.0`.
 - **In:**
   - Privacy document, troubleshooting guide, architecture page.
-  - A full manual pass on Windows 11 and Windows 10 22H2, transcribing on
-    this PC; only the checks that test the cloud use it.
+  - A manual pass on Windows 11, transcribing on this PC. Only the checks
+    that test the cloud use it.
+  - **As built:**
+    - The documents are `docs/privacy.md`, `docs/troubleshooting.md` and
+      `docs/architecture.md`.
+    - On 2026-10-31 the maintainer chose an automated pass as the release
+      gate. It sends synthetic keys at normal integrity, which the hook has
+      treated as physical since P8. Windows text-to-speech plays through the
+      speakers into the built-in microphone, and UI Automation reads the
+      results.
+    - The pass found four bugs, all fixed before the release:
+      - the tones stalled the microphone and the hook;
+      - the five-minute limit never pasted with a modifier shortcut;
+      - Settings' **Cancel** did nothing;
+      - `[BLANK_AUDIO]` was pasted.
+    - The tones have been off by default since. The smaller findings are
+      listed in `docs/manual-tests.md`.
+    - The installer was installed and uninstalled on the maintainer's PC,
+      not on a clean VM.
+- **Out:**
+  - Windows 10 22H2: there is no machine to test on, and the decision above
+    says "where practical".
+  - The checks that need a person, admin rights or hardware the pass didn't
+    have. `docs/manual-tests.md` lists each one.
 - **Needs:** P17–P24.
-- **Done when:** every manual check passes and the documentation matches
-  the app's behaviour.
-- **Verify:** the full manual checklist; CI green.
+- **Done when:**
+  - The automated pass on Windows 11 has no open failures.
+  - The checks it couldn't run are listed, each with the reason.
+  - The documentation matches the app's behaviour.
+- **Verify:** the automated pass; CI green.
