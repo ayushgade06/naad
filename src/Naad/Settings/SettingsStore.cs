@@ -390,6 +390,8 @@ internal sealed class SettingsStore(string path)
             LiveService = ReadName(root, "liveService", defaults.LiveService, ref repaired),
             LiveModel = ReadOptional(root, "liveModel", AppSettings.IsValidModel, ref repaired),
             KeepMeetingAudio = ReadBool(root, "keepMeetingAudio", defaults.KeepMeetingAudio, ref repaired),
+            MeetingDetection = ReadName(root, "meetingDetection", defaults.MeetingDetection, ref repaired),
+            MeetingIgnoredApps = ReadList(root, "meetingIgnoredApps", AppSettings.IsValidWord, ref repaired),
         };
         return (settings, repaired);
     }

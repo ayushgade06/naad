@@ -21,7 +21,7 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
     private const int BufferMilliseconds = 50;
 
     // Windows' per-capability privacy switches, under HKLM (device-wide) and HKCU (this user).
-    private const string ConsentKey =
+    public const string ConsentKey =
         @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
 
     // With 50 ms buffers the last one arrives within milliseconds. A driver that never confirms

@@ -45,6 +45,8 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "liveService": "Local",
   "liveModel": null,
   "keepMeetingAudio": false,
+  "meetingDetection": "Notify",
+  "meetingIgnoredApps": [],
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
@@ -94,6 +96,8 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `liveService` | `"Local"`, `"OpenAI"` or `"Deepgram"` | `"Local"` | Where live preview and typing transcribe. `"Local"` is Whisper on this PC, phrase by phrase, with a graphics card (see `livePreview`). `"OpenAI"` and `"Deepgram"` stream your voice to that service's realtime API as you speak, using its key (set on the Dictation or AI tab); they need nothing on this PC. If the connection fails, or the service hasn't answered for every word within 8 seconds of the end (13 if it was still connecting), the recording is transcribed by `transcriptionProvider` as usual. |
 | `liveModel` | text or `null` | `null` | The streaming model; `null` uses `gpt-4o-mini-transcribe` (OpenAI) or `nova-3` (Deepgram). It must suit `liveService`; choosing another service on the Live tab clears it. A model the service refuses makes every dictation fall back to the regular upload. |
 | `keepMeetingAudio` | `true` or `false` | `false` | Keep each meeting's recording, encrypted, with its notes. With `false`, each piece of a meeting's audio is dropped as soon as it is transcribed. See [Meeting notes](#meeting-notes). |
+| `meetingDetection` | `"Notify"` or `"Off"` | `"Notify"` | When a call app (Teams, Zoom, Slack, Discord, Webex, WhatsApp, Skype, Signal, Telegram) or a browser has used the microphone for 3 seconds, offer meeting notes in a notification. Nothing records unless you click it; one offer per call. |
+| `meetingIgnoredApps` | list of text | `[]` | Apps that never get the offer, by the program's file name without `.exe` (such as `"chrome"`) or a Store app's package name without its publisher (such as `"msteams"`); case and `.exe` don't matter. |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
@@ -481,6 +485,14 @@ transcribed, the meeting is saved encrypted, and the transcript is copied to the
 line per turn (`You: ...`, `Others: ...`). Dictation is off while meeting notes record, and
 meeting notes can't start during a dictation. Quitting Naad saves meeting notes that are still
 recording first.
+
+If another app silences the microphone (some call apps do) or it is unplugged, Naad says
+**Microphone blocked**, keeps recording the PC's sound, and reopens the Windows default
+microphone after 2 seconds of exact silence, then every 4 seconds until it works.
+
+With `meetingDetection` on, Naad checks every 2 seconds which apps Windows lists as using the
+microphone (the same records as **Settings > Privacy > Microphone**) and offers notes when a
+call starts. It reads only app names and whether they are in use; nothing is logged or sent.
 
 Tell the people on the call that you are taking notes; recording others may need their consent
 where you live.

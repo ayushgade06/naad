@@ -42,13 +42,38 @@ internal sealed partial class TrayIcon
         }
     }
 
-    /// <summary>The microphone stopped mid-meeting, as when it is unplugged.</summary>
-    public void ShowMeetingMicrophoneLost() => Notify(
+    /// <summary>The microphone went silent or away mid-meeting, or works again.</summary>
+    public void ShowMeetingMicrophoneBlocked(bool blocked) => Notify(
         MeetingTitle,
-        "Naad lost the microphone. The meeting goes on with the PC's sound only; stop and start again to use " +
-            "another microphone.",
-        ToolTipIcon.Warning,
+        blocked
+            ? "Microphone blocked: it is muted, silenced by another app, or unplugged. Naad keeps recording " +
+                "the PC's sound and tries the microphone again every few seconds."
+            : "The microphone works again; your words are in the notes from here on.",
+        blocked ? ToolTipIcon.Warning : ToolTipIcon.Info,
         clicked: null);
+
+    /// <summary>
+    /// Offers meeting notes for a call in <paramref name="app"/>. The notification fades by itself
+    /// (Maybe later); a click calls <paramref name="takeNotes"/>, the only way recording starts.
+    /// </summary>
+    public void ShowMeetingOffer(string app, Action takeNotes) => Notify(
+        "Want notes for this meeting?",
+        $"{App(app)} is using the microphone. Click here and Naad transcribes the call, then copies the notes " +
+            "when you stop.",
+        ToolTipIcon.Info,
+        clicked: takeNotes);
+
+    // "msteams" reads better as "Teams"; other names are shown with a capital.
+    private static string App(string app) => app switch
+    {
+        "ms-teams" or "msteams" or "teams" => "Teams",
+        "msedge" => "Edge",
+        "whatsapp" or "whatsappdesktop" => "WhatsApp",
+        "webex" or "ciscowebexstart" or "ciscocollabhost" => "Webex",
+        "skypeapp" => "Skype",
+        "telegramdesktop" => "Telegram",
+        _ => char.ToUpperInvariant(app[0]) + app[1..],
+    };
 
     /// <summary>A press of the dictation shortcut was refused while a meeting records.</summary>
     public void ShowDictationRefusedDuringMeeting() => Notify(

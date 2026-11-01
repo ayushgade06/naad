@@ -151,6 +151,12 @@ internal enum LogEvent
     MeetingRefusedDuringDictation,
     DictationRefusedDuringMeeting,
     MeetingsCleared,
+    MeetingMicrophoneBlocked,
+    MeetingMicrophoneRecovered,
+    MeetingMicrophoneReopened,
+    MeetingMicrophoneReopenFailed,
+    MeetingDetectionUnreadable,
+    MeetingOffered,
 
     UpdateNotAvailable,
     UpdateAvailable,

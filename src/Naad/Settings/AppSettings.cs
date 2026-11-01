@@ -173,6 +173,13 @@ internal sealed record AppSettings
     /// </summary>
     public bool KeepMeetingAudio { get; init; }
 
+    /// <summary>Offer meeting notes when a call app or browser starts using the microphone.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<Meetings.MeetingDetection>))]
+    public Meetings.MeetingDetection MeetingDetection { get; init; } = Meetings.MeetingDetection.Notify;
+
+    /// <summary>Apps, such as "chrome", that never get a meeting notes offer.</summary>
+    public IReadOnlyList<string> MeetingIgnoredApps { get; init; } = [];
+
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
 

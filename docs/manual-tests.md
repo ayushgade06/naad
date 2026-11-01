@@ -1070,3 +1070,15 @@ Deepgram key is needed.
 | M-MR5 | Naad's sounds and storage | With tones on, record a meeting and press the dictation shortcut (its refusal plays no tone into the track); then look in `%LOCALAPPDATA%\Naad\meetings`. | Naad's tones aren't in the Others track; the `.meeting` file is unreadable ciphertext; no `.audio` files unless **Keep meeting recordings** is ticked. **Delete all meetings** empties the folder. | **No.** |
 
 **Status after P37:** M-MR1 to M-MR6 have **not been run** by a person.
+
+## Meeting detection (P38): M-MD1 to M-MD5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-MD1 | Teams | Join a Teams test call (or start a call with yourself). | About 3 to 5 seconds in, a notification asks "Want notes for this meeting?"; nothing records until you click it; clicking starts meeting notes. No second offer during the same call. | **No.** The detector is unit tested with synthetic consent-store snapshots. |
+| M-MD2 | Zoom | Repeat with Zoom's test meeting. | The same; leaving the call and joining another offers again. | **No.** |
+| M-MD3 | Browser call | Join a Google Meet or Teams web call in Chrome or Edge. | The offer names the browser. | **No.** |
+| M-MD4 | Ignored app | Add `"chrome"` to `meetingIgnoredApps`, then join a call in Chrome. | No offer. | **No.** Unit tested. |
+| M-MD5 | Watchdog | During meeting notes, mute the microphone in another app that blanks it, or unplug a USB microphone. | A **Microphone blocked** notification; the PC's sound keeps recording; after unmuting or plugging back in, "The microphone works again" and your words return to the notes. | **No.** Unit tested (pure watchdog). |
+
+**Status after P38:** M-MD1 to M-MD5 have **not been run** by a person.

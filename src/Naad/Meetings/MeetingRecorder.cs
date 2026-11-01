@@ -24,7 +24,7 @@ internal sealed class MeetingRecorder(
     Func<int> microphone,
     Func<bool> keepAudio,
     Func<string, Task<bool>> copy,
-    Func<int, Action<Speaker, byte[]>, Action, Task<IMeetingCapture>>? capture = null)
+    Func<int, Action<Speaker, byte[]>, Action<bool>, Task<IMeetingCapture>>? capture = null)
 {
     private IMeetingCapture? _capture;
     private MeetingTranscriber? _transcriber;
@@ -36,8 +36,11 @@ internal sealed class MeetingRecorder(
     /// <summary>A meeting is being recorded. Raised on the UI thread.</summary>
     public event Action<bool>? RecordingChanged;
 
-    /// <summary>The microphone stopped by itself mid-meeting. Raised on a capture thread.</summary>
-    public event Action? MicrophoneLost;
+    /// <summary>
+    /// The microphone went silent or away mid-meeting (true), or works again (false). Raised on a
+    /// capture or thread-pool thread.
+    /// </summary>
+    public event Action<bool>? MicrophoneBlocked;
 
     public bool IsRecording => _capture is not null;
 
@@ -78,7 +81,7 @@ internal sealed class MeetingRecorder(
             tracks = await (capture ?? MeetingCapture.CreateAsync)(
                 microphone(),
                 (speaker, pcm) => pieces.Add(speaker, pcm, Stopwatch.GetElapsedTime(startedAt)),
-                () => MicrophoneLost?.Invoke());
+                blocked => MicrophoneBlocked?.Invoke(blocked));
             if (tracks.Start() is { } failure)
             {
                 tracks.Dispose();
