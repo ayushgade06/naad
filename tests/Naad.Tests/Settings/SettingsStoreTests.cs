@@ -1,3 +1,4 @@
+using Naad.Context;
 using Naad.Hotkey;
 using Naad.Settings;
 using Naad.Transcription;
@@ -42,7 +43,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_ValidCurrentFile_ReturnsItsValues()
     {
-        var result = LoadFrom("""{ "version": 4, "fileLogging": false }""");
+        var result = LoadFrom("""{ "version": 5, "fileLogging": false }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.False(result.Settings.FileLogging);
@@ -51,7 +52,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_MissingField_UsesItsDefault()
     {
-        var result = LoadFrom("""{ "version": 4 }""");
+        var result = LoadFrom("""{ "version": 5 }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(AppSettings.Defaults.FileLogging, result.Settings.FileLogging);
@@ -60,7 +61,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_UnknownFields_AreIgnored()
     {
-        var result = LoadFrom("""{ "version": 4, "fileLogging": false, "someFutureOption": { "x": [1, 2] } }""");
+        var result = LoadFrom("""{ "version": 5, "fileLogging": false, "someFutureOption": { "x": [1, 2] } }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.False(result.Settings.FileLogging);
@@ -72,7 +73,7 @@ public sealed class SettingsStoreTests : IDisposable
         var result = LoadFrom("""
             {
               // turned off on purpose
-              "Version": 4,
+              "Version": 5,
               "FileLogging": false,
             }
             """);
@@ -117,9 +118,9 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{ "version": 4, "fileLogging": "no" }""")]
-    [InlineData("""{ "version": 4, "fileLogging": 0 }""")]
-    [InlineData("""{ "version": 4, "fileLogging": null }""")]
+    [InlineData("""{ "version": 5, "fileLogging": "no" }""")]
+    [InlineData("""{ "version": 5, "fileLogging": 0 }""")]
+    [InlineData("""{ "version": 5, "fileLogging": null }""")]
     public void Load_WrongTypedValue_FallsBackToDefaultAsRepaired(string json)
     {
         var result = LoadFrom(json);
@@ -134,20 +135,20 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("LeftAlt+LeftShift+F9")]
     public void Load_ValidShortcut_ReturnsIt(string text)
     {
-        var result = LoadFrom($$"""{ "version": 4, "dictationShortcut": "{{text}}" }""");
+        var result = LoadFrom($$"""{ "version": 5, "holdShortcut": "{{text}}" }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.True(Chord.TryParse(text, out var expected));
-        Assert.Equal(expected, result.Settings.DictationShortcut);
+        Assert.Equal(expected, result.Settings.HoldShortcut);
     }
 
     [Fact]
     public void Load_NoShortcut_UsesRightCtrl()
     {
-        var result = LoadFrom("""{ "version": 4, "fileLogging": true }""");
+        var result = LoadFrom("""{ "version": 5, "fileLogging": true }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
-        Assert.Equal(Chord.RightCtrl, result.Settings.DictationShortcut);
+        Assert.Equal(Chord.RightCtrl, result.Settings.HoldShortcut);
     }
 
     [Theory]
@@ -160,10 +161,10 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidShortcut_FallsBackToRightCtrlAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "fileLogging": false, "dictationShortcut": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "fileLogging": false, "holdShortcut": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
-        Assert.Equal(Chord.RightCtrl, result.Settings.DictationShortcut);
+        Assert.Equal(Chord.RightCtrl, result.Settings.HoldShortcut);
         Assert.False(result.Settings.FileLogging);
     }
 
@@ -172,7 +173,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("false", false)]
     public void Load_PlaySounds_ReturnsIt(string value, bool expected)
     {
-        var result = LoadFrom($$"""{ "version": 4, "playSounds": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "playSounds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(expected, result.Settings.PlaySounds);
@@ -184,7 +185,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidPlaySounds_FallsBackToOffAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "playSounds": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "playSounds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.False(result.Settings.PlaySounds);
@@ -201,7 +202,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_NoTranscriptionSettings_UsesGroqDefaults()
     {
-        var result = LoadFrom("""{ "version": 4 }""");
+        var result = LoadFrom("""{ "version": 5 }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal("https://api.groq.com/openai/v1", result.Settings.TranscriptionBaseUrl.AbsoluteUri);
@@ -216,7 +217,7 @@ public sealed class SettingsStoreTests : IDisposable
     public void Load_ValidTranscriptionSettings_ReturnsThem(string baseUrl, string model)
     {
         var result = LoadFrom(
-            $$"""{ "version": 4, "transcriptionBaseUrl": "{{baseUrl}}", "transcriptionModel": "{{model}}" }""");
+            $$"""{ "version": 5, "transcriptionBaseUrl": "{{baseUrl}}", "transcriptionModel": "{{model}}" }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(new Uri(baseUrl), result.Settings.TranscriptionBaseUrl);
@@ -236,7 +237,7 @@ public sealed class SettingsStoreTests : IDisposable
     public void Load_InvalidBaseUrl_FallsBackToGroqAsRepaired(string value)
     {
         var result = LoadFrom(
-            $$"""{ "version": 4, "transcriptionModel": "whisper-1", "transcriptionBaseUrl": {{value}} }""");
+            $$"""{ "version": 5, "transcriptionModel": "whisper-1", "transcriptionBaseUrl": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults.TranscriptionBaseUrl, result.Settings.TranscriptionBaseUrl);
@@ -252,7 +253,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidModel_FallsBackToDefaultAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "transcriptionModel": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "transcriptionModel": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(AppSettings.Defaults.TranscriptionModel, result.Settings.TranscriptionModel);
@@ -261,15 +262,15 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_ModelOver100Characters_FallsBackAsRepaired()
     {
-        var result = LoadFrom($$"""{ "version": 4, "transcriptionModel": "{{new string('m', 101)}}" }""");
+        var result = LoadFrom($$"""{ "version": 5, "transcriptionModel": "{{new string('m', 101)}}" }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
     }
 
     [Theory]
-    [InlineData("""{ "version": 4 }""")]
-    [InlineData("""{ "version": 4, "language": null, "microphone": null }""")]
-    [InlineData("""{ "version": 4, "language": "", "microphone": "" }""")]
+    [InlineData("""{ "version": 5 }""")]
+    [InlineData("""{ "version": 5, "language": null, "microphone": null }""")]
+    [InlineData("""{ "version": 5, "language": "", "microphone": "" }""")]
     public void Load_LanguageAndMicrophoneUnset_LeavesThemNull(string json)
     {
         var result = LoadFrom(json);
@@ -286,7 +287,7 @@ public sealed class SettingsStoreTests : IDisposable
     public void Load_ValidLanguageAndMicrophone_ReturnsThem(string language, string microphone)
     {
         var result = LoadFrom(
-            $$"""{ "version": 4, "language": "{{language}}", "microphone": "{{microphone}}" }""");
+            $$"""{ "version": 5, "language": "{{language}}", "microphone": "{{microphone}}" }""");
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(language, result.Settings.Language);
@@ -301,7 +302,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("5")]
     public void Load_InvalidLanguage_FallsBackToUnsetAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "language": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "language": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Null(result.Settings.Language);
@@ -313,52 +314,136 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("true")]
     public void Load_InvalidMicrophone_FallsBackToDefaultDeviceAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "microphone": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "microphone": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Null(result.Settings.Microphone);
     }
 
     [Theory]
-    [InlineData("""{ "version": 4 }""", null, false)]
-    [InlineData("""{ "version": 4, "vocabulary": ["Naad", "Groq"], "handsFree": true }""", "Naad, Groq", true)]
-    [InlineData("""{ "version": 4, "vocabulary": [], "handsFree": false }""", null, false)]
-    public void Load_VocabularyAndHandsFree_ReturnsThem(string json, string? vocabulary, bool handsFree)
+    [InlineData("""{ "version": 5 }""", null)]
+    [InlineData("""{ "version": 5, "vocabulary": ["Naad", "Groq"] }""", "Naad, Groq")]
+    [InlineData("""{ "version": 5, "vocabulary": [] }""", null)]
+    public void Load_Vocabulary_ReturnsIt(string json, string? vocabulary)
     {
         var result = LoadFrom(json);
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.Equal(vocabulary, result.Settings.Vocabulary);
-        Assert.Equal(handsFree, result.Settings.HandsFree);
     }
 
     [Theory]
-    [InlineData("""{ "version": 4, "vocabulary": "not a list" }""")]
-    [InlineData("""{ "version": 4, "vocabulary": 5 }""")]
-    [InlineData("""{ "version": 4, "handsFree": "yes" }""")]
-    [InlineData("""{ "version": 4, "handsFree": null }""")]
-    public void Load_InvalidVocabularyOrHandsFree_FallsBackAsRepaired(string json)
+    [InlineData("RightCtrl", false, "RightCtrl", null)]
+    [InlineData("LeftCtrl+Space", true, null, "LeftCtrl+Space")]
+    public void Load_Version4Shortcut_KeepsItsRole(string old, bool handsFree, string? hold, string? toggle)
+    {
+        var result = LoadFrom($$"""
+            { "version": 4, "dictationShortcut": "{{old}}", "handsFree": {{(handsFree ? "true" : "false")}},
+              "pasteAgainShortcut": "RightAlt+V" }
+            """);
+
+        Assert.Equal(SettingsStatus.Migrated, result.Status);
+        Assert.Equal(hold, result.Settings.HoldShortcut?.ToString());
+        Assert.Equal(toggle, result.Settings.ToggleShortcut?.ToString());
+        Assert.Equal("RightAlt+V", result.Settings.PasteAgainShortcut?.ToString());
+        Assert.DoesNotContain("dictationShortcut", File.ReadAllText(SettingsPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Load_Version4WithoutShortcut_HoldsRightCtrl() =>
+        Assert.Equal(Chord.RightCtrl, LoadFrom("""{ "version": 4 }""").Settings.HoldShortcut);
+
+    [Fact]
+    public void Load_Version4HandsFreeOnly_TogglesRightCtrl()
+    {
+        var result = LoadFrom("""{ "version": 4, "handsFree": true, "fileLogging": false }""");
+
+        Assert.Null(result.Settings.HoldShortcut);
+        Assert.Equal(Chord.RightCtrl, result.Settings.ToggleShortcut);
+        Assert.False(result.Settings.FileLogging);
+    }
+
+    [Fact]
+    public void Load_Version4ManualWithShiftInTheShortcut_KeepsPasteAgainAndTheShortcut()
+    {
+        var result = LoadFrom("""
+            { "version": 4, "dictationShortcut": "RightCtrl+RightShift", "editMode": "Manual",
+              "pasteAgainShortcut": "RightAlt+V" }
+            """);
+
+        Assert.Equal("RightCtrl+RightShift", result.Settings.HoldShortcut?.ToString());
+        Assert.Equal("RightAlt+V", result.Settings.PasteAgainShortcut?.ToString());
+        Assert.Equal(EditMode.Automatic, result.Settings.EditMode);
+    }
+
+    [Fact]
+    public void Load_Version4ShortcutSameAsPasteAgain_DropsOnlyPasteAgain()
+    {
+        var result = LoadFrom("""{ "version": 4, "dictationShortcut": "F9", "pasteAgainShortcut": "F9" }""");
+
+        Assert.Equal("F9", result.Settings.HoldShortcut?.ToString());
+        Assert.Null(result.Settings.PasteAgainShortcut);
+    }
+
+    [Fact]
+    public void Load_InvalidHoldWithAToggle_KeepsHoldOnRightCtrl()
+    {
+        var result = LoadFrom("""{ "version": 5, "holdShortcut": "NoSuchKey", "toggleShortcut": "F9" }""");
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(Chord.RightCtrl, result.Settings.HoldShortcut);
+        Assert.Equal("F9", result.Settings.ToggleShortcut?.ToString());
+    }
+
+    [Fact]
+    public void Load_ToggleOnly_KeepsHoldOff()
+    {
+        var result = LoadFrom("""{ "version": 5, "holdShortcut": null, "toggleShortcut": "F9" }""");
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Null(result.Settings.HoldShortcut);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 5, "holdShortcut": "F9", "toggleShortcut": "F9" }""")]
+    [InlineData("""{ "version": 5, "holdShortcut": "F9", "pasteAgainShortcut": "F9" }""")]
+    [InlineData("""{ "version": 5, "holdShortcut": "A" }""")]
+    [InlineData("""{ "version": 5, "holdShortcut": "RightShift", "editMode": "Manual" }""")]
+    public void Load_ClashingShortcuts_RepairedSoTheyWorkTogether(string json)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Null(Shortcuts.Problem(result.Settings));
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 5, "vocabulary": "not a list" }""")]
+    [InlineData("""{ "version": 5, "vocabulary": 5 }""")]
+    [InlineData("""{ "version": 5, "startDelayMilliseconds": 900 }""")]
+    [InlineData("""{ "version": 5, "editModeKey": "Alt" }""")]
+    public void Load_InvalidVocabularyOrShortcutOption_FallsBackAsRepaired(string json)
     {
         var result = LoadFrom(json);
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Null(result.Settings.Vocabulary);
-        Assert.False(result.Settings.HandsFree);
+        Assert.Equal(0, result.Settings.StartDelayMilliseconds);
     }
 
     [Fact]
     public void Load_VocabularyOver500Characters_FallsBackAsRepaired()
     {
-        var result = LoadFrom($$"""{ "version": 4, "vocabulary": "{{new string('v', 501)}}" }""");
+        var result = LoadFrom($$"""{ "version": 5, "vocabulary": "{{new string('v', 501)}}" }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
     }
 
     [Theory]
-    [InlineData("""{ "version": 4 }""", "Local")]
-    [InlineData("""{ "version": 4, "transcriptionProvider": "Local" }""", "Local")]
-    [InlineData("""{ "version": 4, "transcriptionProvider": "local" }""", "Local")]
-    [InlineData("""{ "version": 4, "transcriptionProvider": "CLOUD" }""", "Cloud")]
+    [InlineData("""{ "version": 5 }""", "Local")]
+    [InlineData("""{ "version": 5, "transcriptionProvider": "Local" }""", "Local")]
+    [InlineData("""{ "version": 5, "transcriptionProvider": "local" }""", "Local")]
+    [InlineData("""{ "version": 5, "transcriptionProvider": "CLOUD" }""", "Cloud")]
     public void Load_TranscriptionProvider_ReturnsIt(string json, string expected)
     {
         var result = LoadFrom(json);
@@ -375,17 +460,17 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidTranscriptionProvider_FallsBackToLocalAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "transcriptionProvider": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "transcriptionProvider": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(TranscriptionProvider.Local, result.Settings.TranscriptionProvider);
     }
 
     [Theory]
-    [InlineData("""{ "version": 4 }""", "Base")]
-    [InlineData("""{ "version": 4, "localModel": "Turbo" }""", "Turbo")]
-    [InlineData("""{ "version": 4, "localModel": "turbo" }""", "Turbo")]
-    [InlineData("""{ "version": 4, "localModel": "BASE" }""", "Base")]
+    [InlineData("""{ "version": 5 }""", "Base")]
+    [InlineData("""{ "version": 5, "localModel": "Turbo" }""", "Turbo")]
+    [InlineData("""{ "version": 5, "localModel": "turbo" }""", "Turbo")]
+    [InlineData("""{ "version": 5, "localModel": "BASE" }""", "Base")]
     public void Load_LocalModel_ReturnsIt(string json, string expected)
     {
         var result = LoadFrom(json);
@@ -402,7 +487,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("null")]
     public void Load_InvalidLocalModel_FallsBackToBaseAsRepaired(string value)
     {
-        var result = LoadFrom($$"""{ "version": 4, "localModel": {{value}} }""");
+        var result = LoadFrom($$"""{ "version": 5, "localModel": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(WhisperModel.Base, result.Settings.LocalModel);
@@ -430,9 +515,9 @@ public sealed class SettingsStoreTests : IDisposable
         var reloaded = new SettingsStore(SettingsPath).Load();
 
         var written = File.ReadAllText(SettingsPath);
-        Assert.Contains("\"dictationShortcut\": \"LeftCtrl+Space\"", written, StringComparison.Ordinal);
+        Assert.Contains("\"holdShortcut\": \"LeftCtrl+Space\"", written, StringComparison.Ordinal);
         Assert.Equal(SettingsStatus.Loaded, reloaded.Status);
-        Assert.Equal("LeftCtrl+Space", reloaded.Settings.DictationShortcut.ToString());
+        Assert.Equal("LeftCtrl+Space", reloaded.Settings.HoldShortcut?.ToString());
     }
 
     [Fact]
@@ -451,7 +536,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Load_FileLockedByAnotherProcess_ReturnsDefaultsAsReadFailed()
     {
-        File.WriteAllText(SettingsPath, """{ "version": 4, "fileLogging": false }""");
+        File.WriteAllText(SettingsPath, """{ "version": 5, "fileLogging": false }""");
         using var exclusive = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.None);
 
         var result = new SettingsStore(SettingsPath).Load();

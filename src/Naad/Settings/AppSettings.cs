@@ -21,7 +21,7 @@ internal sealed record AppSettings
     /// Bump when a property is renamed, removed or changes meaning, and add the matching
     /// migration to <see cref="SettingsStore"/>. Adding a property with a default needs no bump.
     /// </summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public static AppSettings Defaults { get; } = new();
 
@@ -51,8 +51,34 @@ internal sealed record AppSettings
     /// </summary>
     public bool ShowTrayIcon { get; init; } = true;
 
-    /// <summary>The keys to hold while dictating, written like "RightCtrl" (see Chord).</summary>
-    public Chord DictationShortcut { get; init; } = Chord.RightCtrl;
+    /// <summary>
+    /// The keys to hold while dictating, written like "RightCtrl" (see Chord); null when hold to
+    /// talk is off. <see cref="Shortcuts.Problem"/> keeps it or <see cref="ToggleShortcut"/> on.
+    /// </summary>
+    public Chord? HoldShortcut { get; init; } = Chord.RightCtrl;
+
+    /// <summary>Keys pressed once to start a hands-free dictation and again to stop it; null for none.</summary>
+    public Chord? ToggleShortcut { get; init; }
+
+    /// <summary>The last chord captured for hold to talk that isn't a preset, offered again in menus.</summary>
+    public Chord? CustomHoldShortcut { get; init; }
+
+    /// <summary>The last chord captured for the toggle that isn't a preset.</summary>
+    public Chord? CustomToggleShortcut { get; init; }
+
+    /// <summary>The last chord captured for paste again that isn't a preset.</summary>
+    public Chord? CustomPasteAgainShortcut { get; init; }
+
+    /// <summary>
+    /// How long a shortcut must stay down before recording starts, 0 to 500 ms, so a quick tap
+    /// records nothing. Stopping is always immediate.
+    /// </summary>
+    public int StartDelayMilliseconds { get; init; }
+
+    /// <summary>The longest start delay: longer feels like the shortcut didn't work.</summary>
+    public const int MaxStartDelayMilliseconds = 500;
+
+    public static bool IsValidStartDelay(int milliseconds) => milliseconds is >= 0 and <= MaxStartDelayMilliseconds;
 
     /// <summary>
     /// Whether speech is transcribed by Whisper on this PC or by the cloud API. On this PC by
@@ -148,6 +174,10 @@ internal sealed record AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter<EditMode>))]
     public EditMode EditMode { get; init; } = EditMode.Automatic;
 
+    /// <summary>The key held with the shortcut for a Manual edit.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<EditModeKey>))]
+    public EditModeKey EditModeKey { get; init; } = EditModeKey.Shift;
+
     /// <summary>
     /// Transcribe each phrase while still speaking and show it in the overlay. Only with Whisper on
     /// this PC running on a graphics card: on the processor it would slow the dictation down.
@@ -185,9 +215,6 @@ internal sealed record AppSettings
     /// Off by default.
     /// </summary>
     public bool RecordingFlagFile { get; init; }
-
-    /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
-    public bool HandsFree { get; init; }
 
     /// <summary>
     /// Whether AI steps run on a language model on this PC or a cloud chat API. On this PC by

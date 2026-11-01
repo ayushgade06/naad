@@ -12,7 +12,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_LanguageModelSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 4, "languageModelProvider": "cloud", "localLanguageModel": "Large",
+            { "version": 5, "languageModelProvider": "cloud", "localLanguageModel": "Large",
               "languageModelBaseUrl": "http://localhost:11434/v1", "languageModelName": "qwen2.5:1.5b",
               "languageModelFallbackName": "llama-3.3-70b-versatile" }
             """);
@@ -29,7 +29,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_CleanupSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 4, "cleanup": "basic", "cleanupPrompt": "Tidy it.\nKeep it short.",
+            { "version": 5, "cleanup": "basic", "cleanupPrompt": "Tidy it.\nKeep it short.",
               "cleanupPromptVersion": "2026-10-01", "instructionGuard": false, "outputLanguage": "Portuguese (Brazil)" }
             """);
 
@@ -45,7 +45,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_InvalidAiSettings_FallBackToDefaultsAsRepaired()
     {
         var result = SettingsStore.Parse("""
-            { "version": 4, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
+            { "version": 5, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
               "languageModelBaseUrl": "http://llm.example.test/v1", "languageModelName": "two words",
               "languageModelFallbackName": "", "cleanup": "Max", "cleanupPrompt": "bell\u0007",
               "cleanupPromptVersion": "yesterday", "instructionGuard": "yes", "outputLanguage": "<b>" }
@@ -95,7 +95,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_NewFeatureSettings_ReturnThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 4, "historyRetention": "Week", "pressEnterCommand": true,
+            { "version": 5, "historyRetention": "Week", "pressEnterCommand": true,
               "pasteAgainShortcut": "RightAlt+V", "overlayTimer": true, "context": false,
               "contextExcludedApps": ["keepass"], "contextScreenshot": true, "screenshotSize": 640,
               "screenshotWholeDesktop": true, "editMode": "Manual" }
@@ -127,7 +127,7 @@ public sealed class SettingsStoreAiTests
     [InlineData("\"20\"")]
     public void Parse_InvalidTimeout_FallsBackAsRepaired(string value)
     {
-        var result = SettingsStore.Parse($$"""{ "version": 4, "transcriptionTimeoutSeconds": {{value}} }""");
+        var result = SettingsStore.Parse($$"""{ "version": 5, "transcriptionTimeoutSeconds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(20, result.Settings.TranscriptionTimeoutSeconds);

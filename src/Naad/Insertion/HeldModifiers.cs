@@ -23,13 +23,13 @@ internal static class HeldModifiers
     /// of Windows alone the Start menu, so those are never lifted for the user.
     /// </summary>
     /// <param name="down">The modifiers held now.</param>
-    /// <param name="shortcut">The dictation shortcut, whose Ctrl and Shift keys may stay held.</param>
-    public static bool BlockTyping(IReadOnlyCollection<Key> down, Chord shortcut) =>
-        down.Any(key => !shortcut.Contains(key) || !Liftable(key));
+    /// <param name="shortcuts">The dictation shortcuts, whose Ctrl and Shift keys may stay held.</param>
+    public static bool BlockTyping(IReadOnlyCollection<Key> down, IReadOnlyList<Chord> shortcuts) =>
+        down.Any(key => !shortcuts.Any(s => s.Contains(key)) || !Liftable(key));
 
-    /// <summary>The shortcut's Ctrl and Shift keys that are held, to release before typing.</summary>
-    public static IReadOnlyList<Key> ToLift(IReadOnlyCollection<Key> down, Chord shortcut) =>
-        [.. down.Where(key => shortcut.Contains(key) && Liftable(key))];
+    /// <summary>The shortcuts' Ctrl and Shift keys that are held, to release before typing.</summary>
+    public static IReadOnlyList<Key> ToLift(IReadOnlyCollection<Key> down, IReadOnlyList<Chord> shortcuts) =>
+        [.. down.Where(key => shortcuts.Any(s => s.Contains(key)) && Liftable(key))];
 
     private static bool Liftable(Key key) =>
         key is Key.LControlKey or Key.RControlKey or Key.LShiftKey or Key.RShiftKey;

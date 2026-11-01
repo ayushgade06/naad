@@ -23,13 +23,21 @@ internal sealed partial class DictationController
     /// </summary>
     public void Toggle()
     {
-        if (_session.State == DictationState.Recording && !_handsFree && !_latched)
+        if (_disposed || _pendingStart is not null)
         {
-            Release();
+            return;
+        }
+
+        // A click starts at once: there is no tap to tell apart from a hold.
+        if (_session.State == DictationState.Idle)
+        {
+            Start(latch: true, delayed: false);
         }
         else
         {
-            Press();
+            ApplyNow(_session.State == DictationState.Recording && !_latched
+                ? DictationEvent.Released
+                : DictationEvent.Pressed);
         }
     }
 
@@ -82,6 +90,12 @@ internal sealed partial class DictationController
         }
 
         Log.Info(LogEvent.DictationCancelledByEscape, ("state", (int)_session.State));
+        if (_pendingStart is not null)
+        {
+            CancelPendingStart();
+            return;
+        }
+
         if (_session.State == DictationState.Recording)
         {
             Apply(DictationEvent.CancelledByKey, _session.Job);
@@ -104,7 +118,11 @@ internal sealed partial class DictationController
     /// </summary>
     public void Latch()
     {
-        if (!_disposed && !_handsFree && _session.State == DictationState.Recording)
+        if (_pendingStart is { } pending)
+        {
+            pending.Latch = true;
+        }
+        else if (!_disposed && _session.State == DictationState.Recording)
         {
             _latched = true;
             Log.Info(LogEvent.DictationLatched);
@@ -162,5 +180,19 @@ internal sealed partial class DictationController
         Log.Info(LogEvent.DictationRefusedDuringMeeting);
         RefusedWhileBusy?.Invoke();
         return true;
+    }
+
+    // A context read that fails costs the hints, never the transcript.
+    private static async Task<DictationContext> ContextOrNoneAsync(Task<DictationContext> context)
+    {
+        try
+        {
+            return await context;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            Log.Error(LogEvent.ContextReadFailed, e);
+            return DictationContext.None;
+        }
     }
 }

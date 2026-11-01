@@ -43,7 +43,6 @@ internal sealed partial class DictationController(
     private Func<WindowTarget, Task<DictationContext>>? _readContext;
     private Task<DictationContext> _context = Task.FromResult(DictationContext.None);
     private CancellationTokenSource? _jobCancel;
-    private bool _handsFree;
     private bool _latched;
 
     // The last text a dictation produced, for Paste again. Memory only.
@@ -114,13 +113,13 @@ internal sealed partial class DictationController(
 
     public DictationState State => _session.State;
 
-    /// <summary>The shortcut went down. Call on the UI thread.</summary>
+    /// <summary>The hold-to-talk shortcut went down. Call on the UI thread.</summary>
     public void Press() => ApplyShortcut(DictationEvent.Pressed);
 
-    /// <summary>The shortcut was released. Call on the UI thread.</summary>
+    /// <summary>The hold-to-talk shortcut was released. Call on the UI thread.</summary>
     public void Release() => ApplyShortcut(DictationEvent.Released);
 
-    /// <summary>Another key or a mouse button joined the shortcut. Call on the UI thread.</summary>
+    /// <summary>Another key or a mouse button joined the hold-to-talk shortcut. Call on the UI thread.</summary>
     public void Cancel(CancelCause cause) => ApplyShortcut(
         cause == CancelCause.Mouse ? DictationEvent.CancelledByMouse : DictationEvent.CancelledByKey);
 
@@ -139,12 +138,6 @@ internal sealed partial class DictationController(
 
 
     /// <summary>
-    /// Hands-free: a press starts recording and the next press stops it; releasing the shortcut
-    /// does nothing. Otherwise the shortcut is held while speaking. Call on the UI thread.
-    /// </summary>
-    public void UseHandsFree(bool handsFree) => _handsFree = handsFree;
-
-    /// <summary>
     /// Stops accepting new dictations and cancels a transcription or paste in flight, so nothing
     /// is inserted once shutdown starts. Dispose before the recorder it uses.
     /// </summary>
@@ -156,23 +149,17 @@ internal sealed partial class DictationController(
         }
 
         _disposed = true;
+        CancelPendingStart();
         TakeLive()?.Dispose();
         _shutdown.Cancel();
         _shutdown.Dispose();
     }
 
-    // Shortcut events always apply to the current job; after shutdown they are ignored.
-    private void ApplyShortcut(DictationEvent e)
+    private void ApplyNow(DictationEvent e)
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        // Hands-free (and a latched recording) maps its second press onto the release that ends a
-        // held dictation, so the session's rules (short-hold check, time limit, cancels) stay the
-        // same in every mode.
-        if (_handsFree || _latched)
+        // A latched recording maps its next press onto the release that ends a held dictation, so
+        // the session's rules (short-hold check, time limit, cancels) stay the same in every mode.
+        if (_latched)
         {
             if (e == DictationEvent.Released)
             {
@@ -501,20 +488,6 @@ internal sealed partial class DictationController(
                 ? DictationEvent.Inserted
                 : DictationEvent.TranscriptionFailed;
             Apply(end, step.Job);
-        }
-    }
-
-    // A context read that fails costs the hints, never the transcript.
-    private static async Task<DictationContext> ContextOrNoneAsync(Task<DictationContext> context)
-    {
-        try
-        {
-            return await context;
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            Log.Error(LogEvent.ContextReadFailed, e);
-            return DictationContext.None;
         }
     }
 

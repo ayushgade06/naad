@@ -1,4 +1,3 @@
-using Naad.Hotkey;
 using Naad.Providers;
 using Naad.Transcription;
 using Naad.Tray;
@@ -16,7 +15,6 @@ namespace Naad.Settings;
 internal sealed partial class SettingsWindow : Form
 {
     private const string WindowsDefaultMicrophone = "Windows default";
-    private const string CapturePrompt = "Press the new shortcut, then release it. Esc cancels.";
 
     private readonly AppSettings _current;
     private readonly SettingsWindowActions _actions;
@@ -46,19 +44,21 @@ internal sealed partial class SettingsWindow : Form
         // Three digits and the arrows.
         Width = 60,
     };
-    private readonly Label _shortcutText = new() { AutoSize = true, Anchor = AnchorStyles.Left };
-    private readonly Button _changeShortcut = new() { Text = "Change...", AutoSize = true };
+    private readonly ShortcutField _hold;
+    private readonly ShortcutField _toggle;
+    private readonly ShortcutField _pasteAgain;
+    private readonly ComboBox _editKey = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
+    private readonly NumericUpDown _startDelay = new()
+    {
+        Minimum = 0,
+        Maximum = AppSettings.MaxStartDelayMilliseconds,
+        Increment = 25,
+        Width = 60,
+    };
     private readonly ComboBox _microphone = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly TextBox _language = new() { Width = 60 };
-    private readonly CheckBox _handsFree = new()
-    {
-        Text = "Hands-free: press the shortcut to start, and again to stop",
-        AutoSize = true,
-    };
-
     private readonly Label _error = Note();
-    private Chord _shortcut;
-    private bool _capturing;
+    private ShortcutField? _capturing;
 
     /// <param name="current">The settings in use.</param>
     /// <param name="microphones">The connected recording devices' names.</param>
@@ -77,7 +77,10 @@ internal sealed partial class SettingsWindow : Form
         _embedded = embedded;
         _current = current;
         _actions = actions;
-        _shortcut = current.DictationShortcut;
+        _hold = new(ShortcutRole.Hold, current.HoldShortcut, current.CustomHoldShortcut, FieldWidth);
+        _toggle = new(ShortcutRole.Toggle, current.ToggleShortcut, current.CustomToggleShortcut, FieldWidth);
+        _pasteAgain = new(
+            ShortcutRole.PasteAgain, current.PasteAgainShortcut, current.CustomPasteAgainShortcut, FieldWidth);
         _cloud = new(
             CloudServices.ForTranscription,
             current.TranscriptionService,
@@ -128,7 +131,10 @@ internal sealed partial class SettingsWindow : Form
         _testTranscriptionButton.Click += (_, _) => _ = TestTranscriptionAsync();
         _downloadModelButton.Click += (_, _) => _ = DownloadModelAsync();
         _localModel.SelectedIndexChanged += (_, _) => ShowModelStatus();
-        _changeShortcut.Click += (_, _) => BeginCapture();
+        foreach (var field in new[] { _hold, _toggle, _pasteAgain })
+        {
+            field.CaptureRequested += BeginCapture;
+        }
 
         // Keys typed in other apps would be swallowed while capturing, so leaving the window ends it.
         Deactivate += (_, _) => CancelCapture();
@@ -180,9 +186,10 @@ internal sealed partial class SettingsWindow : Form
         _localModel.Items.AddRange(["Base: fast on any PC", "Large v3 Turbo: more accurate, needs a GPU"]);
         _localModel.SelectedIndex = (int)_current.LocalModel;
         ShowModelStatus();
-        _shortcutText.Text = _shortcut.Describe();
         _language.Text = _current.Language ?? "";
-        _handsFree.Checked = _current.HandsFree;
+        _editKey.Items.AddRange(["Shift", "Ctrl"]);
+        _editKey.SelectedIndex = (int)_current.EditModeKey;
+        _startDelay.Value = _current.StartDelayMilliseconds;
         _timeout.Value = _current.TranscriptionTimeoutSeconds;
     }
 
@@ -221,8 +228,12 @@ internal sealed partial class SettingsWindow : Form
         Row(dictation, "Transcribe with", _provider);
         Row(dictation, "Model on this PC", _localModel);
         Row(dictation, "", Flow(_modelStatus, _downloadModelButton));
-        Row(dictation, "Shortcut", Flow(_shortcutText, _changeShortcut));
-        Row(dictation, "", _handsFree);
+        Row(dictation, "Hold to talk", _hold.Box);
+        Row(dictation, "Toggle (hands-free)", _toggle.Box);
+        Row(dictation, "Paste again", _pasteAgain.Box);
+        Row(dictation, "Edit Mode key", Flow(_editKey, Note("held with the shortcut, when Edit Mode is Manual")));
+        Row(dictation, "Start delay", Flow(_startDelay, Note("ms before recording starts, so a quick tap " +
+            "records nothing")));
         Row(dictation, "Microphone", _microphone);
         Row(dictation, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
         Row(dictation, "Vocabulary", Note("Names and terms to spell right are on the Dictionary page."));
@@ -270,9 +281,15 @@ internal sealed partial class SettingsWindow : Form
         CancelCapture();
         var chosen = _current with
         {
-            DictationShortcut = _shortcut,
+            HoldShortcut = _hold.Chosen,
+            ToggleShortcut = _toggle.Chosen,
+            PasteAgainShortcut = _pasteAgain.Chosen,
+            CustomHoldShortcut = _hold.Custom,
+            CustomToggleShortcut = _toggle.Custom,
+            CustomPasteAgainShortcut = _pasteAgain.Custom,
+            EditModeKey = (Naad.Context.EditModeKey)_editKey.SelectedIndex,
+            StartDelayMilliseconds = (int)_startDelay.Value,
             Microphone = _microphones[_microphone.SelectedIndex],
-            HandsFree = _handsFree.Checked,
             TranscriptionProvider = (TranscriptionProvider)_provider.SelectedIndex,
             LocalModel = ChosenModel,
             TranscriptionTimeoutSeconds = (int)_timeout.Value,
@@ -371,6 +388,12 @@ internal sealed partial class SettingsWindow : Form
         }
 
         settings = _live.Apply(general);
+        if (Shortcuts.Problem(settings) is { } clash)
+        {
+            _error.Text = clash;
+            return;
+        }
+
         if (!IsDisposed && _actions.Save(new(settings, newKeys, _general.StartAtLogin)) is { } problem)
         {
             _error.Text = problem;
@@ -384,39 +407,6 @@ internal sealed partial class SettingsWindow : Form
         }
 
         Close();
-    }
-
-    // Only a definite rejection stops the save: a service that can't be reached may work later.
-    private async Task<string?> RejectsAsync(CloudService service, string key, AppSettings settings)
-    {
-        var url = service == settings.LanguageModelService
-            ? settings.LanguageModelBaseUrl
-            : settings.TranscriptionBaseUrl;
-        try
-        {
-            var result = await _actions.TestKey(service, key, url, _closing.Token);
-            return result.Failure?.Error == TranscriptionError.Unauthorized
-                ? $"{CloudServices.For(service).Name} rejected the new key, so nothing was saved."
-                : null;
-        }
-        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
-        {
-            return "Settings closed before the key was checked.";
-        }
-    }
-
-    private async Task<string?> EndpointRejectsAsync(CloudChoice endpoint)
-    {
-        var key = endpoint.NewKey ?? _actions.KeyFor(CloudService.Custom).Key;
-        try
-        {
-            return SettingsInput.EndpointSaveError(
-                await _actions.TestKey(CloudService.Custom, key, endpoint.CustomUrl, _closing.Token));
-        }
-        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
-        {
-            return "Settings closed before the address was checked.";
-        }
     }
 
     // Fire-and-forget from a click: anything not caught here would vanish silently.

@@ -327,9 +327,10 @@ internal sealed class SetupWizard : System.Windows.Window
         var result = Muted("");
         box.TextChanged += (_, _) => result.Text = box.Text.Length > 0 ? "It works. Your words arrived." : "";
         box.Loaded += (_, _) => box.Focus();
-        var how = _settings.HandsFree
-            ? $"Click in the box, press {_settings.DictationShortcut.Describe()}, say a sentence, and press it again."
-            : $"Click in the box, hold {_settings.DictationShortcut.Describe()}, say a sentence, and let go.";
+        var (shortcut, handsFree) = Shortcuts.Primary(_settings);
+        var how = handsFree
+            ? $"Click in the box, press {shortcut.Describe()}, say a sentence, and press it again."
+            : $"Click in the box, hold {shortcut.Describe()}, say a sentence, and let go.";
         return Page("Try it", how + " The first dictation can take a minute while models load.", box, result);
     }
 

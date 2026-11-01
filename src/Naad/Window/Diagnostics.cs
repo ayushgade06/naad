@@ -24,7 +24,9 @@ internal static class Diagnostics
         $"Language model: {(s.LanguageModelProvider == LanguageModel.LanguageModelProvider.Local
             ? $"this PC, {s.LocalLanguageModel}" : $"cloud, {s.LanguageModelService}")}; cleanup {s.Cleanup}",
         $"Live: preview {OnOff(s.LivePreview)}, typing {OnOff(s.LiveTyping)}, on {s.LiveService}",
-        $"Context {OnOff(s.Context)}, Edit Mode {s.EditMode}, hands-free {OnOff(s.HandsFree)}",
+        $"Context {OnOff(s.Context)}, Edit Mode {s.EditMode} ({s.EditModeKey})",
+        $"Shortcuts: hold {OnOff(s.HoldShortcut is not null)}, toggle {OnOff(s.ToggleShortcut is not null)}, " +
+            $"paste again {OnOff(s.PasteAgainShortcut is not null)}, start delay {s.StartDelayMilliseconds} ms",
         $"History {s.HistoryRetention}, meeting offers {s.MeetingDetection}",
         $"Settings version {s.Version}",
     ]);

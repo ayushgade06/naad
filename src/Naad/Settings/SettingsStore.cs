@@ -91,6 +91,23 @@ internal sealed class SettingsStore(string path)
                 root["vocabulary"] = new JsonArray([.. words.Select(w => (JsonNode)w)]);
             }
         },
+
+        // 4 -> 5: one shortcut, held or (with handsFree) pressed, becomes a shortcut per role. The
+        // old one keeps its role; the other dictation role is off, as it was.
+        root =>
+        {
+            if (!root.ContainsKey("dictationShortcut") && !root.ContainsKey("handsFree"))
+            {
+                return;
+            }
+
+            var shortcut = root["dictationShortcut"]?.DeepClone() ?? JsonValue.Create(Chord.RightCtrl.ToString());
+            var handsFree = root["handsFree"] is JsonValue value && value.TryGetValue(out bool on) && on;
+            root.Remove("dictationShortcut");
+            root.Remove("handsFree");
+            root.TryAdd("holdShortcut", handsFree ? null : shortcut);
+            root.TryAdd("toggleShortcut", handsFree ? shortcut : null);
+        },
     ];
 
     public static string DefaultPath { get; } = Path.Combine(
@@ -318,20 +335,10 @@ internal sealed class SettingsStore(string path)
         var repaired = false;
         var fileLogging = ReadBool(root, "fileLogging", AppSettings.Defaults.FileLogging, ref repaired);
         var playSounds = ReadBool(root, "playSounds", AppSettings.Defaults.PlaySounds, ref repaired);
-        var handsFree = ReadBool(root, "handsFree", AppSettings.Defaults.HandsFree, ref repaired);
-
-        var shortcut = AppSettings.Defaults.DictationShortcut;
-        if (root.TryGetPropertyValue("dictationShortcut", out var node))
-        {
-            if (node is JsonValue value && value.TryGetValue(out string? text) && Chord.TryParse(text, out var chord))
-            {
-                shortcut = chord;
-            }
-            else
-            {
-                repaired = true;
-            }
-        }
+        // Missing or unreadable: the default; null: off on purpose.
+        var hold = root.TryGetPropertyValue("holdShortcut", out var holdNode) && holdNode is null
+            ? null
+            : ReadChord(root, "holdShortcut", ref repaired) ?? AppSettings.Defaults.HoldShortcut;
 
         var provider = ReadName(
             root, "transcriptionProvider", AppSettings.Defaults.TranscriptionProvider, ref repaired);
@@ -341,7 +348,13 @@ internal sealed class SettingsStore(string path)
         {
             FileLogging = fileLogging,
             PlaySounds = playSounds,
-            DictationShortcut = shortcut,
+            HoldShortcut = hold,
+            ToggleShortcut = ReadChord(root, "toggleShortcut", ref repaired),
+            CustomHoldShortcut = ReadChord(root, "customHoldShortcut", ref repaired),
+            CustomToggleShortcut = ReadChord(root, "customToggleShortcut", ref repaired),
+            CustomPasteAgainShortcut = ReadChord(root, "customPasteAgainShortcut", ref repaired),
+            StartDelayMilliseconds = ReadInt(
+                root, "startDelayMilliseconds", 0, AppSettings.IsValidStartDelay, ref repaired),
             TranscriptionProvider = provider,
             LocalModel = localModel,
             TranscriptionService = ReadName(root, "transcriptionService", defaults.TranscriptionService, ref repaired),
@@ -352,7 +365,6 @@ internal sealed class SettingsStore(string path)
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
             Microphone = ReadOptional(root, "microphone", AppSettings.IsValidMicrophone, ref repaired),
             Words = ReadList(root, "vocabulary", AppSettings.IsValidWord, ref repaired),
-            HandsFree = handsFree,
             LanguageModelProvider = ReadName(
                 root, "languageModelProvider", defaults.LanguageModelProvider, ref repaired),
             LocalLanguageModel = ReadName(root, "localLanguageModel", defaults.LocalLanguageModel, ref repaired),
@@ -385,6 +397,7 @@ internal sealed class SettingsStore(string path)
             ScreenshotWholeDesktop = ReadBool(
                 root, "screenshotWholeDesktop", defaults.ScreenshotWholeDesktop, ref repaired),
             EditMode = ReadName(root, "editMode", defaults.EditMode, ref repaired),
+            EditModeKey = ReadName(root, "editModeKey", defaults.EditModeKey, ref repaired),
             LivePreview = ReadBool(root, "livePreview", defaults.LivePreview, ref repaired),
             LiveTyping = ReadBool(root, "liveTyping", defaults.LiveTyping, ref repaired),
             LiveService = ReadName(root, "liveService", defaults.LiveService, ref repaired),
@@ -394,6 +407,13 @@ internal sealed class SettingsStore(string path)
             MeetingIgnoredApps = ReadList(root, "meetingIgnoredApps", AppSettings.IsValidWord, ref repaired),
             RecordingFlagFile = ReadBool(root, "recordingFlagFile", defaults.RecordingFlagFile, ref repaired),
         };
+        // Shortcuts that can't work together, as written by hand: off is safer than a clash.
+        if (Shortcuts.Problem(settings) is not null)
+        {
+            repaired = true;
+            settings = Shortcuts.Repair(settings);
+        }
+
         return (settings, repaired);
     }
 }

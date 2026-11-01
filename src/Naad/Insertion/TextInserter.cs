@@ -131,19 +131,20 @@ internal sealed class TextInserter(
         return sent == inputs.Length;
     }
 
-    /// <summary>Whether a Shift key is physically held: Manual Edit Mode's signal.</summary>
-    public static bool ShiftDown() => IsDown(User32.VkShift);
+    /// <summary>Whether a modifier, such as Manual Edit Mode's key, is physically held on either side.</summary>
+    /// <param name="vk">VK_SHIFT or VK_CONTROL.</param>
+    public static bool ModifierDown(ushort vk) => IsDown(vk);
 
     /// <summary>Sends Enter to the foreground window, for the "press enter" voice command.</summary>
     public static bool SendEnter() => Send([Key(User32.VkReturn, up: false), Key(User32.VkReturn, up: true)]);
 
     /// <summary>
     /// Sends Ctrl+C to the foreground window, to read a selection UI Automation can't. A held Shift
-    /// (Manual Edit Mode's) is lifted around it, so the app doesn't get Ctrl+Shift+C.
+    /// (Manual Edit Mode's key) is lifted around it, so the app doesn't get Ctrl+Shift+C.
     /// </summary>
     public static bool SendCopy()
     {
-        var shift = ShiftDown();
+        ushort[] held = [.. new[] { User32.VkShift }.Where(IsDown)];
         User32.Input[] copy =
         [
             Key(User32.VkControl, up: false),
@@ -151,7 +152,8 @@ internal sealed class TextInserter(
             Key(User32.VkC, up: true),
             Key(User32.VkControl, up: true),
         ];
-        return Send(shift ? [Key(User32.VkShift, up: true), .. copy, Key(User32.VkShift, up: false)] : copy);
+        return Send(
+            [.. held.Select(vk => Key(vk, up: true)), .. copy, .. held.Select(vk => Key(vk, up: false))]);
     }
 
     private static bool Send(User32.Input[] inputs) =>

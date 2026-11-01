@@ -8,7 +8,7 @@ public sealed class SettingsStoreLiveTests
     public void Parse_LiveSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 4, "livePreview": true, "liveTyping": true, "liveService": "Deepgram",
+            { "version": 5, "livePreview": true, "liveTyping": true, "liveService": "Deepgram",
               "liveModel": "nova-2", "keepMeetingAudio": true,
               "meetingDetection": "Off", "meetingIgnoredApps": ["chrome"] }
             """);
@@ -25,7 +25,7 @@ public sealed class SettingsStoreLiveTests
     [Fact]
     public void Parse_LivePreviewNotABool_RepairsToOff()
     {
-        var result = SettingsStore.Parse("""{ "version": 4, "livePreview": "yes" }""");
+        var result = SettingsStore.Parse("""{ "version": 5, "livePreview": "yes" }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.False(result.Settings.LivePreview);

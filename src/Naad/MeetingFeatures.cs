@@ -40,7 +40,7 @@ internal static class MeetingFeatures
         var recorder = new MeetingRecorder(
             store,
             transcriber,
-            () => controller.State == DictationState.Idle,
+            () => controller.IsIdle,
             () => AudioRecorder.DeviceNumber(AudioRecorder.ConnectedNames(), settings().Microphone),
             () => settings().KeepMeetingAudio,
             copy);

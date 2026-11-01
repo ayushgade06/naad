@@ -345,17 +345,14 @@ public sealed class DictationControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task HandsFree_PressReleasePress_TranscribesOnceAfterTheSecondPress()
+    public async Task Toggle_PressThenPress_TranscribesOnceAfterTheSecondPress()
     {
-        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
         var idle = _h.NextIdle();
 
-        await _h.Ui.RunAsync(_h.Controller.Press);
-        await _h.Ui.RunAsync(_h.Controller.Release);
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
         _h.Time.Advance(LongHold);
         var stillRecording = _h.Controller.State;
-        await _h.Ui.RunAsync(_h.Controller.Press);
-        await _h.Ui.RunAsync(_h.Controller.Release);
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
         await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal(DictationState.Recording, stillRecording);
@@ -365,41 +362,135 @@ public sealed class DictationControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task HandsFree_QuickSecondPress_IsAShortHoldAndUploadsNothing()
+    public async Task Toggle_QuickSecondPress_IsAShortHoldAndUploadsNothing()
     {
-        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
         var idle = _h.NextIdle();
 
-        await _h.Ui.RunAsync(_h.Controller.Press);
-        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
         await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, _h.Transcriber.Calls);
     }
 
     [Fact]
-    public async Task HandsFree_OtherKeyDuringTheFirstPress_CancelsLikeHold()
+    public async Task Toggle_WhileHolding_KeepsRecordingAfterTheRelease()
     {
-        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
         var idle = _h.NextIdle();
 
         await _h.Ui.RunAsync(_h.Controller.Press);
-        await _h.Ui.RunAsync(() => _h.Controller.Cancel(CancelCause.OtherKey));
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+        _h.Time.Advance(LongHold);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+        var stillRecording = _h.Controller.State;
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
         await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, _h.Transcriber.Calls);
-        Assert.Equal(DictationState.Idle, _h.Controller.State);
-    }
-
-    [Fact]
-    public async Task HandsFree_TurnedOff_ReleaseEndsTheDictationAgain()
-    {
-        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(true));
-        await _h.Ui.RunAsync(() => _h.Controller.UseHandsFree(false));
-
-        await _h.DictateAsync(LongHold);
-
+        Assert.Equal(DictationState.Recording, stillRecording);
         Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
+    public async Task Toggle_ThenHoldReleased_ReleaseDoesNotStopIt()
+    {
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+
+        Assert.Equal(DictationState.Recording, _h.Controller.State);
+    }
+
+    [Fact]
+    public async Task StartDelay_ReleasedBeforeIt_NeverOpensTheMicrophone()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseStartDelay(TimeSpan.FromSeconds(10)));
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+
+        Assert.Equal(DictationState.Idle, _h.Controller.State);
+        Assert.Equal(0, _h.Recorder.Starts);
+        Assert.Empty(_h.States);
+    }
+
+    [Fact]
+    public async Task StartDelay_HeldThroughIt_Records()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseStartDelay(TimeSpan.FromMilliseconds(20)));
+        var recording = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Controller.StateChanged += s =>
+        {
+            if (s == DictationState.Recording)
+            {
+                recording.TrySetResult();
+            }
+        };
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        var before = _h.Controller.State;
+        await recording.Task.WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(DictationState.Idle, before);
+        Assert.Equal(DictationState.Recording, _h.Controller.State);
+    }
+
+    [Fact]
+    public async Task StartDelay_EscapeDuringIt_StartsNothing()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseStartDelay(TimeSpan.FromSeconds(10)));
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Escape);
+
+        Assert.Equal(0, _h.Recorder.Starts);
+        Assert.Empty(_h.States);
+        Assert.True(_h.Controller.IsIdle);
+    }
+
+    [Fact]
+    public async Task StartDelay_Waiting_IsNotIdleSoEscIsArmed()
+    {
+        var pending = new List<bool>();
+        _h.Controller.StartPending += pending.Add;
+        await _h.Ui.RunAsync(() => _h.Controller.UseStartDelay(TimeSpan.FromSeconds(10)));
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        var idle = _h.Controller.IsIdle;
+        await _h.Ui.RunAsync(_h.Controller.Release);
+
+        Assert.False(idle);
+        Assert.Equal([true, false], pending);
+    }
+
+    [Fact]
+    public async Task Toggle_OtherKeyJoinsItsPress_ThrowsTheRecordingAway()
+    {
+        var idle = _h.NextIdle();
+
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+        await _h.Ui.RunAsync(_h.Controller.CancelToggle);
+        await idle.WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _h.Transcriber.Calls);
+    }
+
+    [Fact]
+    public async Task Toggle_OtherKeyAfterLatchingAHold_KeepsRecording()
+    {
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+        await _h.Ui.RunAsync(_h.Controller.CancelToggle);
+
+        Assert.Equal(DictationState.Recording, _h.Controller.State);
+    }
+
+    [Fact]
+    public async Task Toggle_WithAStartDelay_StartsAtOnce()
+    {
+        await _h.Ui.RunAsync(() => _h.Controller.UseStartDelay(TimeSpan.FromSeconds(10)));
+
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+
+        Assert.Equal(DictationState.Recording, _h.Controller.State);
     }
 
     [Fact]

@@ -159,7 +159,7 @@ temporary folders only.
 ## Shortcut (P7): M-SC1 and M-SC2
 
 Since P7 the shortcut comes from `dictationShortcut` in settings.json (see
-[settings.md](settings.md#the-dictation-shortcut)), and the rules that turn
+[settings.md](settings.md#the-shortcuts)), and the rules that turn
 key events into a press, a release or a cancel live in `ChordMatcher`.
 Those rules are unit tested with synthetic key events, so these
 keyboard-only cases no longer depend on a manual run:
@@ -1118,6 +1118,20 @@ Deepgram key is needed.
 | M-FX5 | Offline while dictating | With **Cloud** chosen and the model on this PC downloaded, start a dictation, turn Wi-Fi off before letting go, then release. | The text arrives, transcribed on this PC, with the offline notice; without the local model the tray says there is no internet, not that the request timed out. | **No.** The timeout rule and fallbacks are unit tested. |
 
 **Status after P41:** M-FX1 to M-FX5 have **not been run** by a person.
+
+## Shortcut roles and recording start (P42): M-SH1 to M-SH4
+
+Since P42, `dictationShortcut` and `handsFree` in the older checks above are
+`holdShortcut` and `toggleShortcut`.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-SH1 | Hold and toggle together | On **Dictation**, set **Toggle (hands-free)** to F9 and save. Dictate by holding Right Ctrl; then press F9, speak, press F9 again; then hold Right Ctrl, press F9, let go of both, speak and press F9. | All three paste once. The third keeps recording after you let go. | **No.** Routing and the controller are unit tested. |
+| M-SH2 | Clashes and capture | Set **Paste again** to F9 while the toggle uses it; then choose **Other keys...** for paste again and press Right Alt+V; save; open the tray's **Shortcuts > Paste again**. | Saving the clash shows "Toggle (hands-free) and Paste again both use F9" and saves nothing. The captured keys are saved and shown as **Custom: Right Alt+V** in the tray, with F9 greyed out. | **No.** The checks are unit tested. |
+| M-SH3 | Start delay | Set **Start delay** to 300 ms. Tap Right Ctrl quickly; then hold it and speak. | The tap opens no microphone (no tone, no overlay; the log shows `DictationStartCancelled`); the hold records as usual and stops at once on release. | **No.** Unit tested. |
+| M-SH4 | Starting and timer | With **Show a timer** on, dictate with a USB headset that wakes slowly, then with one that is already in use. | **Starting** appears only when opening takes longer than 0.2 s; otherwise the bars show at once. The timer starts at 0:00 when the bars appear. Upgrading a 2.0 settings file keeps its shortcut and hands-free choice. | **No.** |
+
+**Status after P42:** M-SH1 to M-SH4 have **not been run** by a person.
 
 ## v2.0.0: the automated pass, 2026-11-01
 

@@ -193,8 +193,8 @@ internal static class Program
             MeetingActions? meetings = null;
             void Exit() => _ = meetings?.ExitAsync(Application.ExitThread);
             using var tray = new TrayIcon(
-                settings.DictationShortcut,
-                settings.HandsFree,
+                Shortcuts.Primary(settings).Shortcut,
+                Shortcuts.Primary(settings).HandsFree,
                 copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
                 openSettings: () => windows?.Open(Pages.Settings),
                 exit: Exit);
@@ -206,7 +206,8 @@ internal static class Program
             // Raised on the capture thread; the overlay is drawn on this one.
             var ui = SynchronizationContext.Current!;
             recorder.LevelMeasured += (rms, duration) => ui.Post(_ => overlay.ShowLevel(rms, duration), null);
-            using var hook = new KeyboardHook(settings.DictationShortcut);
+            using var hook = new KeyboardHook(
+                settings.HoldShortcut, settings.ToggleShortcut, settings.PasteAgainShortcut);
             using var clipboard = new WindowsClipboard();
             var inserter = new TextInserter(
                 clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, text => UnicodeTyping.Type(text));
@@ -236,7 +237,7 @@ internal static class Program
             enforceHistory = r => history.Enforce(r);
             DictationFeatures.ConnectLive(
                 controller, recorder, overlay, ui, () => transcriber, () => pending ?? settings, KeyFor);
-            controller.UseHandsFree(settings.HandsFree);
+            controller.UseStartDelay(TimeSpan.FromMilliseconds(settings.StartDelayMilliseconds));
             UseLanguageModel(settings, replace: true);
             offline = () =>
             {
@@ -270,11 +271,6 @@ internal static class Program
             controller.TranscriptKept += tray.ShowTranscriptKept;
             controller.TranscriberMissing += tray.ShowApiKeyNeeded;
 
-            // The hook raises these on this thread. Disposing the controller first makes later
-            // events no-ops, and the hook is unhooked right after.
-            hook.TriggerPressed += controller.Press;
-            hook.TriggerReleased += controller.Release;
-            hook.TriggerCancelled += controller.Cancel;
             hook.CaptureEnded += step => windows?.SettingsForm?.ShowCapture(step);
             windows = new WindowHost(
                 () => pending ?? settings,
@@ -305,6 +301,10 @@ internal static class Program
                     startup.IsEnabled())),
                 () => windows.Open(Pages.Home),
                 windows.OpenSetup);
+            tray.AddShortcutMenus(
+                () => pending ?? settings,
+                next => Save(new(next, new Dictionary<CloudService, string>(), startup.IsEnabled())),
+                () => windows.Open(Pages.Settings));
             tray.SetVisible(settings.ShowTrayIcon);
 
             // Raised on a thread-pool thread when Naad is started again.
@@ -314,7 +314,7 @@ internal static class Program
             using var updates = new UpdatePrompt(
                 new AppUpdater(),
                 tray,
-                () => controller.State == DictationState.Idle && meetings?.Recorder.IsBusy != true,
+                () => controller.IsIdle && meetings?.Recorder.IsBusy != true,
                 Application.ExitThread);
             controller.Finished += report => updates.MarkAfterDictation(
                 report.Outcome == HistoryOutcome.Pasted && !overlay.ShowingNotice, overlay.ShowNotice);
@@ -389,7 +389,7 @@ internal static class Program
                 BeginCapture: () =>
                 {
                     // A capture swallows every key, so it never starts during a dictation.
-                    if (controller.State != DictationState.Idle)
+                    if (!controller.IsIdle)
                     {
                         return false;
                     }
@@ -421,7 +421,7 @@ internal static class Program
             // the change waits until it is done.
             void Apply(AppSettings next, bool languageModelKeyChanged = false)
             {
-                if (controller.State != DictationState.Idle || meetings?.Recorder.IsBusy == true)
+                if (!controller.IsIdle || meetings?.Recorder.IsBusy == true)
                 {
                     pending = next;
                     replaceLanguageModel |= languageModelKeyChanged;
@@ -450,7 +450,6 @@ internal static class Program
                 }
 
                 tray.SetVisible(next.ShowTrayIcon);
-                hook.SetPasteAgainShortcut(next.PasteAgainShortcut);
                 overlay.UseTimer(next.OverlayTimer);
                 if (next.HistoryRetention != settings.HistoryRetention)
                 {
@@ -458,9 +457,9 @@ internal static class Program
                     _ = Task.Run(() => enforceHistory?.Invoke(retention));
                 }
 
-                hook.SetShortcut(next.DictationShortcut);
-                tray.SetShortcut(next.DictationShortcut, next.HandsFree);
-                controller.UseHandsFree(next.HandsFree);
+                hook.SetShortcuts(next.HoldShortcut, next.ToggleShortcut, next.PasteAgainShortcut);
+                tray.SetShortcut(Shortcuts.Primary(next).Shortcut, Shortcuts.Primary(next).HandsFree);
+                controller.UseStartDelay(TimeSpan.FromMilliseconds(next.StartDelayMilliseconds));
                 recorder.UseMicrophone(next.Microphone);
                 var replaced = transcriber;
                 transcriber = TranscriberSetup.Create(http, KeyFor, next, Offline);

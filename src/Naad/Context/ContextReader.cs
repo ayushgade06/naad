@@ -13,13 +13,15 @@ namespace Naad.Context;
 /// <param name="Screenshot">Capture the window for a cloud vision model.</param>
 /// <param name="ScreenshotSize">The screenshot's longest side, in pixels.</param>
 /// <param name="WholeDesktop">Capture the desktop when the window can't be captured.</param>
+/// <param name="EditKey">The key held with the shortcut for a Manual edit.</param>
 internal sealed record ContextOptions(
     bool ReadNearby,
     IReadOnlyList<string> ExcludedApps,
     EditMode Edit,
     bool Screenshot,
     int ScreenshotSize,
-    bool WholeDesktop);
+    bool WholeDesktop,
+    EditModeKey EditKey = EditModeKey.Shift);
 
 /// <summary>
 /// Reads what Naad may know about the app being dictated into, once, as the dictation starts:
@@ -46,7 +48,11 @@ internal sealed class ContextReader(Func<ContextOptions> options, IClipboard cli
         var o = options();
         var started = Stopwatch.GetTimestamp();
         var app = AppName(target.ProcessId);
-        var intent = EditModeDecision.Decide(o.Edit, TextInserter.ShiftDown());
+        var intent = EditModeDecision.Decide(o.Edit, TextInserter.ModifierDown(o.EditKey switch
+        {
+            EditModeKey.Ctrl => User32.VkControl,
+            _ => User32.VkShift,
+        }));
         var excluded = app is not null && o.ExcludedApps.Contains(app, StringComparer.OrdinalIgnoreCase);
         var wantsText = !excluded && (o.ReadNearby || intent != EditIntent.Dictate);
         var read = (Nearby: (string?)null, Selection: (string?)null, Password: false);

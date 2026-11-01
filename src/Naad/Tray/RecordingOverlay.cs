@@ -47,6 +47,10 @@ internal sealed class RecordingOverlay : Form
     // Long enough to read two words at a glance, short enough not to linger over the text.
     private const int FallbackNoticeMilliseconds = 2500;
 
+    // A microphone that opens sooner than this shows the bars straight away: a "Starting" that
+    // flashes for a moment reads as a glitch.
+    private const int StartingDelayMilliseconds = 200;
+
     private static readonly Color Background = Color.FromArgb(0x14, 0x14, 0x16);
     private static readonly Color Border = Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF);
     private static readonly Color BarColor = Color.FromArgb(0xF5, 0xF5, 0xF7);
@@ -55,6 +59,7 @@ internal sealed class RecordingOverlay : Form
     private readonly LevelMeter _meter = new();
     private readonly VoiceBars _bars = new(BarCount);
     private readonly System.Windows.Forms.Timer _notice = new() { Interval = FallbackNoticeMilliseconds };
+    private readonly System.Windows.Forms.Timer _starting = new() { Interval = StartingDelayMilliseconds };
     private readonly float[] _shown = new float[BarCount];
     private DictationState _state;
     private string _label = "Transcribing";
@@ -70,6 +75,14 @@ internal sealed class RecordingOverlay : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
+        _starting.Tick += (_, _) =>
+        {
+            _starting.Stop();
+            if (_state == DictationState.Recording && !_microphoneOpen)
+            {
+                ShowNow();
+            }
+        };
         _notice.Tick += (_, _) =>
         {
             _notice.Stop();
@@ -99,6 +112,7 @@ internal sealed class RecordingOverlay : Form
     public void ShowState(DictationState state, nint target)
     {
         _state = state;
+        _starting.Stop();
         if (state == DictationState.Idle)
         {
             // A notice that cleanup fell back stays up for its time.
@@ -121,9 +135,19 @@ internal sealed class RecordingOverlay : Form
             _meter.Reset();
             _bars.Reset();
             Place(target);
+
+            // Shown once the microphone opens, or as "Starting" if that takes a while.
+            Hide();
+            _starting.Start();
+            return;
         }
 
-        // ShowWithoutActivation makes this SW_SHOWNOACTIVATE: focus stays where it is.
+        ShowNow();
+    }
+
+    // ShowWithoutActivation makes this SW_SHOWNOACTIVATE: focus stays where it is.
+    private void ShowNow()
+    {
         Show();
         Render();
     }
@@ -159,9 +183,13 @@ internal sealed class RecordingOverlay : Form
     public void ShowMicrophoneOpen()
     {
         _microphoneOpen = true;
-        if (Visible)
+        _starting.Stop();
+
+        // The timer counts what is recorded, not the wait for the microphone.
+        _recordingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_state == DictationState.Recording)
         {
-            Render();
+            ShowNow();
         }
     }
 
@@ -353,6 +381,7 @@ internal sealed class RecordingOverlay : Form
         if (disposing)
         {
             _notice.Dispose();
+            _starting.Dispose();
         }
 
         base.Dispose(disposing);

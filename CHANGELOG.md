@@ -101,6 +101,18 @@ All notable changes to Naad are listed here. The format follows
   custom base URL is checked when it is saved, even without a key.
 - With a dictation language set, AI cleanup is told the text is in it.
 
+- **Shortcut roles**: hold to talk, a hands-free toggle and paste again
+  each have their own shortcut, chosen from presets, captured, or off, in
+  Settings or the tray's **Shortcuts** menu. Hold and toggle work side by
+  side; pressing the toggle while holding keeps recording. Clashes are
+  refused with both roles named, and the last custom keys are kept per
+  role. The Manual Edit Mode key can be Shift or Ctrl. Settings
+  version 5 moves the old shortcut and hands-free choice into the new roles.
+- A start delay (0 to 500 ms) so a quick tap of hold to talk records
+  nothing. The overlay
+  shows **Starting** only when the microphone is slow to open, and its
+  timer counts from when recording began.
+
 ### Fixed
 
 - Live typing types while the shortcut is held: the shortcut's Ctrl or

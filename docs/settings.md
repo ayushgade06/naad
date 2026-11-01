@@ -20,7 +20,12 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "soundVolume": 80,
   "theme": "System",
   "showTrayIcon": true,
-  "dictationShortcut": "RightCtrl",
+  "holdShortcut": "RightCtrl",
+  "toggleShortcut": null,
+  "customHoldShortcut": null,
+  "customToggleShortcut": null,
+  "customPasteAgainShortcut": null,
+  "startDelayMilliseconds": 0,
   "transcriptionProvider": "Local",
   "localModel": "Base",
   "transcriptionService": "Groq",
@@ -40,6 +45,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "screenshotSize": 1024,
   "screenshotWholeDesktop": false,
   "editMode": "Automatic",
+  "editModeKey": "Shift",
   "livePreview": false,
   "liveTyping": false,
   "liveService": "Local",
@@ -48,7 +54,6 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "meetingDetection": "Notify",
   "meetingIgnoredApps": [],
   "recordingFlagFile": false,
-  "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
   "languageModelService": "Groq",
@@ -73,7 +78,10 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `soundVolume` | 0 to 100 | `80` | How loud the tones are. **Preview** on the General tab plays one. |
 | `theme` | `"System"`, `"Light"` or `"Dark"` | `"System"` | The look of Naad's window. `"System"` follows Windows' app mode. |
 | `showTrayIcon` | `true` or `false` | `true` | Show Naad in the notification area. When hidden, start Naad again (from the Start menu) to open its window. |
-| `dictationShortcut` | text | `"RightCtrl"` | The keys you hold while dictating. See [The dictation shortcut](#the-dictation-shortcut). |
+| `holdShortcut` | text or `null` | `"RightCtrl"` | Hold to talk: the keys you hold while dictating. `null` turns it off. See [The shortcuts](#the-shortcuts). |
+| `toggleShortcut` | text or `null` | `null` | Toggle (hands-free): keys pressed once to start dictating and again to stop. `null` has none. Hold to talk or the toggle must have a shortcut. |
+| `customHoldShortcut`, `customToggleShortcut`, `customPasteAgainShortcut` | text or `null` | `null` | The last keys you captured for each shortcut that aren't one of its presets, offered again in Settings and the tray menu. |
+| `startDelayMilliseconds` | 0 to 500 | `0` | How long hold to talk must stay down before recording starts, so a quick tap records nothing. Letting go sooner does nothing at all; stopping is always immediate. The toggle starts at once: another key pressed with it cancels it instead. |
 | `transcriptionProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where speech becomes text: `"Local"` transcribes on this PC with Whisper, offline and free, once the model is downloaded (see [Transcribing on this PC](#transcribing-on-this-pc)); `"Cloud"` uploads it to the service below. Naad never switches between them by itself. A version-1 file without this setting was using the cloud, so its migration keeps `"Cloud"`. |
 | `localModel` | `"Base"` or `"Turbo"` | `"Base"` | The Whisper model used on this PC: `"Base"` (148 MB, fast on any PC) or `"Turbo"` (large-v3-turbo, 574 MB, more accurate, for PCs with a graphics card). Each needs its own download; see [Transcribing on this PC](#transcribing-on-this-pc). |
 | `transcriptionService` | `"Groq"`, `"OpenAI"`, `"Gemini"`, `"XAI"`, `"Deepgram"` or `"Custom"` | `"Groq"` | The cloud service that transcribes with **Cloud** chosen. See [Cloud services](#cloud-services). |
@@ -84,7 +92,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `vocabulary` | list of text | `[]` | Your dictionary: names and terms you use, such as `["Naad", "Groq", "Priya"]`, each up to 100 characters. Edit it on the **Dictionary** page. They are sent with each recording as Whisper's prompt (the first 500 characters' worth), and to the language model, so they are spelled right. They go to the services you chose but never into the log. |
 | `historyRetention` | `"Off"`, `"Week"`, `"Month"` or `"Forever"` | `"Month"` | How long dictations are kept on the **History** page: not at all, 7 days, 30 days, or until you delete them. They are encrypted; see [History](#history). Choosing a shorter time deletes older ones at once. |
 | `pressEnterCommand` | `true` or `false` | `false` | Saying "press enter" at the end of a dictation presses Enter after the text, for chat boxes. Only if the same window is still in front. |
-| `pasteAgainShortcut` | text or `null` | `null` | Keys, written like `dictationShortcut` (for example `"RightAlt+V"`), that paste the last dictation again. `null` has none. |
+| `pasteAgainShortcut` | text or `null` | `null` | Keys, written like `holdShortcut` (for example `"RightAlt+V"`), that paste the last dictation again. `null` has none. It needs a key besides Ctrl, Shift, Alt or Windows. |
 | `overlayTimer` | `true` or `false` | `false` | Show the recording time on the overlay. |
 | `context` | `true` or `false` | `true` | Read the app's name and up to 2,000 characters around the cursor when you dictate, so the language model can spell names you can see. Never from a password field. See [Context and Edit Mode](#context-and-edit-mode). |
 | `contextExcludedApps` | list of text | `[]` | App names (the program's file name without `.exe`, such as `"keepass"`) Naad never reads context from. |
@@ -92,6 +100,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `screenshotSize` | `512`, `640`, `768` or `1024` | `1024` | The longest side of the screenshot, in pixels. |
 | `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
 | `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
+| `editModeKey` | `"Shift"` or `"Ctrl"` | `"Shift"` | With `editMode` `"Manual"`, the key (either side) held as you press the shortcut to edit the selection. It can't be part of a dictation shortcut. |
 | `livePreview` | `true` or `false` | `false` | Transcribe while you speak and show the words in the overlay, so the text is ready sooner after you let go. With `liveService` `"Local"`, only when Whisper on this PC (`transcriptionProvider` `"Local"`) runs on a graphics card; it starts from the second dictation after Naad starts or settings are saved, once the model is loaded. On the processor alone it does nothing. The words are shown, never saved. |
 | `liveTyping` | `true` or `false` | `false` | Type each finished phrase into the window while you speak. Typed text skips cleanup and snippets, which can't change words already typed. It types while you hold the shortcut too: Naad lets go of the shortcut's Ctrl or Shift for the app first, so the letters never become shortcuts such as Ctrl+A. While any other modifier is held, or an Alt or Windows shortcut, typing waits; if nothing was typed by the time you let go, the text is cleaned up and pasted as usual. If you switch windows, or the service revises words already typed, typing stops and the full text is kept for **Copy last transcript** and **Paste again**. Never over a selection (Edit Mode). |
 | `liveService` | `"Local"`, `"OpenAI"` or `"Deepgram"` | `"Local"` | Where live preview and typing transcribe. `"Local"` is Whisper on this PC, phrase by phrase, with a graphics card (see `livePreview`). `"OpenAI"` and `"Deepgram"` stream your voice to that service's realtime API as you speak, using its key (set on the Dictation or AI tab); they need nothing on this PC. If the connection fails, or the service hasn't answered for every word within 8 seconds of the end (13 if it was still connecting), the recording is transcribed by `transcriptionProvider` as usual. |
@@ -100,7 +109,6 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `meetingDetection` | `"Notify"` or `"Off"` | `"Notify"` | When a call app (Teams, Zoom, Slack, Discord, Webex, WhatsApp, Skype, Signal, Telegram) or a browser has used the microphone for 3 seconds, offer meeting notes in a notification. Nothing records unless you click it; one offer per call. |
 | `meetingIgnoredApps` | list of text | `[]` | Apps that never get the offer, by the program's file name without `.exe` (such as `"chrome"`) or a Store app's package name without its publisher (such as `"msteams"`); case and `.exe` don't matter. |
 | `recordingFlagFile` | `true` or `false` | `false` | While a dictation records, keep a file `%LOCALAPPDATA%\Naad\is-recording` holding the Unix time it started, for other tools (a stream overlay, a script that pauses music) to check. It is removed when recording stops or Naad quits, and at the next start after a crash. |
-| `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
 | `localLanguageModel` | `"Small"` or `"Large"` | `"Small"` | The language model on this PC: `"Small"` (Qwen2.5-1.5B-Instruct, 1.1 GB, fast on any PC) or `"Large"` (Qwen3-4B-Instruct-2507, 2.5 GB, more accurate, for PCs with a graphics card). |
@@ -119,9 +127,27 @@ Hand edits are forgiving. Property names may use any casing, and `//`
 comments and trailing commas are accepted. Naad keeps the file as you wrote
 it unless it has to repair or migrate it.
 
-## The dictation shortcut
+## The shortcuts
 
-`dictationShortcut` is one to four key names joined by `+`, for example
+Each job has its own shortcut, set on the **Dictation** tab or under
+**Shortcuts** in the tray menu:
+
+- **Hold to talk** (`holdShortcut`, Right Ctrl by default): hold, speak,
+  let go.
+- **Toggle (hands-free)** (`toggleShortcut`, off by default): press to
+  start, press again to stop. Pressed while you hold the hold-to-talk
+  shortcut, it keeps that dictation going after you let go.
+- **Paste again** (`pasteAgainShortcut`, off by default).
+
+Each offers Off, a few presets and the last keys you captured; **Other
+keys...** captures new ones. One of hold to talk and the toggle must stay
+on, and two shortcuts can't share the same keys: Settings names both and
+saves nothing, and the tray menu greys such a choice out. A shortcut that
+is a longer form of another (Right Ctrl and Right Ctrl+V) is fine: the
+longest one held wins. A typing key alone, such as `A` or `Space`, is
+refused, because it would stop typing in every app.
+
+Each shortcut is one to four key names joined by `+`, for example
 `"RightCtrl"`, `"LeftCtrl+Space"` or `"RightAlt+F9"`. Names ignore case,
 and spaces around `+` are allowed.
 
@@ -136,8 +162,12 @@ and spaces around `+` are allowed.
   without a side (`ControlKey`, `ShiftKey`, `Menu`) and mouse buttons. A
   key listed twice, or more than four keys, is refused too.
 
-An invalid value falls back to Right Ctrl, and the file is backed up and
-repaired as described below. The tray icon's tooltip names the shortcut in
+An invalid value is read as off, falling back to Right Ctrl for hold to
+talk when no dictation shortcut is left, and the file is backed up and
+repaired as described below. Shortcuts that clash are repaired the same way:
+only the shortcut at fault is turned off (paste again before the toggle),
+or Edit Mode becomes Automatic when its key is part of a dictation
+shortcut. The tray icon's tooltip names the shortcut in
 use, for example "Naad: hold Right Ctrl to dictate".
 
 How the keys are matched:
@@ -380,9 +410,13 @@ not in settings.json, because they often hold personal details.
 
 - **Esc** while recording cancels the dictation; during cleanup it cancels
   that too, and nothing is pasted. Esc goes to the app as usual otherwise.
-- **Space** while holding the shortcut keeps recording after you let go
-  (hands-free for one dictation). Press the shortcut again to stop.
+- **Space** while holding the hold-to-talk shortcut keeps recording after
+  you let go (hands-free for one dictation). Press a shortcut again to stop.
 - The `pasteAgainShortcut` pastes the last dictation again.
+- With a `startDelayMilliseconds`, letting go or pressing another key
+  before the delay ends records nothing.
+- The overlay shows **Starting** only when the microphone takes more than
+  0.2 seconds to open, and the timer counts from when recording began.
 
 ## Context and Edit Mode
 
@@ -440,6 +474,9 @@ A setting is added only when the app actually reads it.
   service each base URL belongs to, or `"Custom"`.
 - Version 4 (Naad 2.0) made `vocabulary` a list. Migrating a version-3
   file splits its text at commas, semicolons and line breaks.
+- Version 5 (Naad 2.1) gave each shortcut role its own setting. Migrating a
+  version-4 file moves `dictationShortcut` to `holdShortcut`, or to
+  `toggleShortcut` when `handsFree` was on, and removes both old settings.
 - Before Naad migrates or repairs a file, it copies the original next to it
   (see below), so nothing is lost.
 - A file with a **newer** version than this build supports was written by a
@@ -456,7 +493,7 @@ A setting is added only when the app actually reads it.
 | Unknown setting | Ignores it. It stays in the file unless the file has to be rewritten. | `SettingsLoaded` |
 | No `version` (older file) | Migrates it, backs up the original as `v0`, then rewrites it. | `SettingsMigrated from_version=0` |
 | `version` 1 (before transcribing on this PC was the default) | Migrates it: without `transcriptionProvider` it keeps `"Cloud"`, as version 1 meant. Backs up the original as `v1`, then rewrites it. | `SettingsMigrated from_version=1` |
-| Wrong-typed or invalid value, e.g. `"fileLogging": "no"` or `"dictationShortcut": "Ctrl"` | Uses that setting's default, backs up the original as `invalid`, then rewrites it. | `SettingsRepaired` |
+| Wrong-typed or invalid value, e.g. `"fileLogging": "no"` or `"holdShortcut": "Ctrl"` | Uses that setting's default, backs up the original as `invalid`, then rewrites it. | `SettingsRepaired` |
 | Empty file, invalid JSON, or an invalid `version` | Uses defaults, backs up the original as `corrupt`, then writes defaults. | `SettingsCorrupt` |
 | Newer `version` than supported | Uses defaults in memory. The file is left exactly as it is. | `SettingsFutureVersion` |
 | File can't be read (locked, access denied) | Uses defaults in memory. Doesn't retry or write. | `SettingsReadFailed` |

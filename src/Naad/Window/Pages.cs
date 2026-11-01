@@ -28,9 +28,10 @@ internal static class Pages
     {
         var stats = DictationStats.Compute(
             records, DateOnly.FromDateTime(DateTime.Now), TimeZoneInfo.Local);
-        var how = s.HandsFree
-            ? $"Press {s.DictationShortcut.Describe()} to start dictating into any app, and again to stop."
-            : $"Hold {s.DictationShortcut.Describe()} and speak; let go and your words appear where you are typing.";
+        var (shortcut, handsFree) = Shortcuts.Primary(s);
+        var how = handsFree
+            ? $"Press {shortcut.Describe()} to start dictating into any app, and again to stop."
+            : $"Hold {shortcut.Describe()} and speak; let go and your words appear where you are typing.";
         var row = new WrapPanel { Margin = new Thickness(0, 8, 0, 16) };
         row.Children.Add(Stat("Words dictated", stats.Words.ToString("N0", CultureInfo.CurrentCulture), palette));
         row.Children.Add(Stat("Words per minute", stats.WordsPerMinute > 0 ? stats.WordsPerMinute.ToString(

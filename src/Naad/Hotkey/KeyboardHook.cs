@@ -16,8 +16,9 @@ internal enum CancelCause
 }
 
 /// <summary>
-/// Watches the dictation shortcut through a low-level keyboard hook, and the mouse while the
-/// shortcut is held; the <see cref="ChordMatcher"/> decides what the input means. Create and
+/// Watches the shortcuts through a low-level keyboard hook, and the mouse while one is held; the
+/// <see cref="ChordMatcher"/> decides what the input means and <see cref="ShortcutRouter"/> which
+/// role it is for. Create and
 /// dispose it on the UI thread: Windows calls the hooks on the installing thread's message loop.
 /// </summary>
 internal sealed class KeyboardHook : IDisposable
@@ -43,15 +44,19 @@ internal sealed class KeyboardHook : IDisposable
     private nint _mouseHandle;
     private bool _disposed;
 
-    private Chord _shortcut;
+    private Chord? _hold;
+    private Chord? _toggle;
     private Chord? _pasteAgain;
 
-    public KeyboardHook(Chord shortcut)
+    /// <param name="hold">Hold to talk's shortcut, or null for none.</param>
+    /// <param name="toggle">The hands-free toggle's shortcut, or null for none.</param>
+    /// <param name="pasteAgain">Paste again's shortcut, or null for none.</param>
+    public KeyboardHook(Chord? hold, Chord? toggle, Chord? pasteAgain)
     {
-        _shortcut = shortcut;
         _ui = SynchronizationContext.Current
             ?? throw new InvalidOperationException("KeyboardHook must be created on a thread with a message loop.");
-        _matcher = new ChordMatcher([shortcut]);
+        _matcher = new ChordMatcher([]);
+        SetShortcuts(hold, toggle, pasteAgain);
         _proc = OnKey;
         _mouseProc = OnMouse;
         _handle = Install(User32.WhKeyboardLl, _proc);
@@ -70,20 +75,31 @@ internal sealed class KeyboardHook : IDisposable
         SystemEvents.SessionSwitch += OnSessionSwitch;
     }
 
+    /// <summary>The hold-to-talk shortcut went down.</summary>
     public event Action? TriggerPressed;
 
+    /// <summary>The hold-to-talk shortcut was let go.</summary>
     public event Action? TriggerReleased;
 
     /// <summary>
-    /// Another key or a mouse button was pressed while the shortcut was held, e.g. Right Ctrl+C.
-    /// No <see cref="TriggerReleased"/> follows.
+    /// Another key or a mouse button was pressed while the hold-to-talk shortcut was held, e.g.
+    /// Right Ctrl+C. No <see cref="TriggerReleased"/> follows.
     /// </summary>
     public event Action<CancelCause>? TriggerCancelled;
+
+    /// <summary>The toggle shortcut went down: start, or stop, a hands-free dictation.</summary>
+    public event Action? TogglePressed;
+
+    /// <summary>Another key joined the toggle shortcut, as in a longer shortcut of another app.</summary>
+    public event Action? ToggleCancelled;
 
     /// <summary>Esc was pressed while <see cref="EscapeArmed"/>; it was kept from the app.</summary>
     public event Action? EscapePressed;
 
-    /// <summary>Space joined the held shortcut: keep recording after it is let go.</summary>
+    /// <summary>
+    /// Space, or the keys that make the toggle shortcut, joined the held hold-to-talk shortcut:
+    /// keep recording after it is let go.
+    /// </summary>
     public event Action? Latched;
 
     /// <summary>The paste-again shortcut was pressed.</summary>
@@ -123,21 +139,15 @@ internal sealed class KeyboardHook : IDisposable
     public void CancelCapture() => _matcher.CancelCapture();
 
     /// <summary>
-    /// Watches for <paramref name="shortcut"/> from now on, without reinstalling the hook. Call on
-    /// the UI thread while no dictation runs: a shortcut held right now ends without an event.
+    /// Watches for these shortcuts from now on (null for a role that is off), without reinstalling
+    /// the hook. Settings keep them apart (<see cref="Naad.Settings.Shortcuts.Problem"/>). Call on the UI
+    /// thread while no dictation runs: a shortcut held right now ends without an event.
     /// </summary>
-    public void SetShortcut(Chord shortcut)
+    public void SetShortcuts(Chord? hold, Chord? toggle, Chord? pasteAgain)
     {
-        _shortcut = shortcut;
-        _matcher.SetChords(_pasteAgain is { } paste ? [shortcut, paste] : [shortcut]);
+        (_hold, _toggle, _pasteAgain) = (hold, toggle, pasteAgain);
+        _matcher.SetChords([.. new[] { hold, toggle, pasteAgain }.OfType<Chord>().Distinct()]);
         SyncMouseHook();
-    }
-
-    /// <summary>Also watches for <paramref name="pasteAgain"/>; null for none. Call on the UI thread.</summary>
-    public void SetPasteAgainShortcut(Chord? pasteAgain)
-    {
-        _pasteAgain = pasteAgain == _shortcut ? null : pasteAgain;
-        SetShortcut(_shortcut);
     }
 
     public void Dispose()
@@ -284,20 +294,18 @@ internal sealed class KeyboardHook : IDisposable
             return;
         }
 
-        foreach (var e in events)
+        foreach (var action in ShortcutRouter.Route(events, _hold, _toggle, _pasteAgain))
         {
-            // The paste-again chord acts on its press only; its release and cancel mean nothing.
-            var paste = e.Kind is not (ChordEventKind.Escape or ChordEventKind.Latched)
-                && e.Chord != _shortcut && e.Chord == _pasteAgain;
-            Action? handler = e.Kind switch
+            Action? handler = action switch
             {
-                ChordEventKind.Pressed when paste => PasteAgainPressed,
-                _ when paste => null,
-                ChordEventKind.Pressed => TriggerPressed,
-                ChordEventKind.Released => TriggerReleased,
-                ChordEventKind.Cancelled => TriggerCancelled is { } cancelled ? () => cancelled(cause) : null,
-                ChordEventKind.Escape => EscapePressed,
-                ChordEventKind.Latched => Latched,
+                ShortcutAction.HoldPressed => TriggerPressed,
+                ShortcutAction.HoldReleased => TriggerReleased,
+                ShortcutAction.HoldCancelled => TriggerCancelled is { } cancelled ? () => cancelled(cause) : null,
+                ShortcutAction.TogglePressed => TogglePressed,
+                ShortcutAction.ToggleCancelled => ToggleCancelled,
+                ShortcutAction.PasteAgainPressed => PasteAgainPressed,
+                ShortcutAction.Escape => EscapePressed,
+                ShortcutAction.Latched => Latched,
                 _ => throw new UnreachableException(),
             };
             if (handler is not null)

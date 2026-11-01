@@ -56,12 +56,19 @@ internal static class DictationFeatures
             }
 
             hook.EscapeArmed = state != DictationState.Idle;
-            hook.LatchArmed = state == DictationState.Recording && !settings().HandsFree;
+            hook.LatchArmed = state == DictationState.Recording;
         };
+        controller.StartPending += pending => hook.EscapeArmed = pending || controller.State != DictationState.Idle;
+        // The hook raises these on the UI thread. Disposing the controller first makes later events
+        // no-ops, and the hook is unhooked right after.
+        hook.TriggerPressed += controller.Press;
+        hook.TriggerReleased += controller.Release;
+        hook.TriggerCancelled += controller.Cancel;
+        hook.TogglePressed += controller.PressToggle;
+        hook.ToggleCancelled += controller.CancelToggle;
         hook.EscapePressed += controller.Escape;
         hook.Latched += controller.Latch;
         hook.PasteAgainPressed += () => _ = controller.PasteAgainAsync();
-        hook.SetPasteAgainShortcut(settings().PasteAgainShortcut);
         overlay.UseTimer(settings().OverlayTimer);
 
         controller.MicrophoneOpened += overlay.ShowMicrophoneOpen;
@@ -85,7 +92,8 @@ internal static class DictationFeatures
                     Screenshot: model && s.Context && s.Cleanup == Cleanup.CleanupLevel.Ai && s.ContextScreenshot
                         && s.LanguageModelProvider == LanguageModel.LanguageModelProvider.Cloud,
                     s.ScreenshotSize,
-                    s.ScreenshotWholeDesktop);
+                    s.ScreenshotWholeDesktop,
+                    s.EditModeKey);
             },
             clipboard);
         controller.UseContextReader(reader.ReadAsync);
@@ -159,12 +167,13 @@ internal static class DictationFeatures
             {
                 // Typed while the shortcut is held, with its Ctrl or Shift let go first; any other
                 // key held makes typing wait.
-                var shortcut = s.DictationShortcut;
+                // Either dictation shortcut may be the one held.
+                Hotkey.Chord[] shortcuts = [.. new[] { s.HoldShortcut, s.ToggleShortcut }.OfType<Hotkey.Chord>()];
                 typer = new(
                     target,
                     FocusGuard.Check,
-                    () => HeldModifiers.BlockTyping(TextInserter.ModifiersDown(), shortcut),
-                    text => UnicodeTyping.Type(text, HeldModifiers.ToLift(TextInserter.ModifiersDown(), shortcut)));
+                    () => HeldModifiers.BlockTyping(TextInserter.ModifiersDown(), shortcuts),
+                    text => UnicodeTyping.Type(text, HeldModifiers.ToLift(TextInserter.ModifiersDown(), shortcuts)));
                 session.StableChanged += stable => ui.Post(_ => typer.Update(stable), null);
             }
 

@@ -8,45 +8,36 @@ internal sealed partial class SettingsWindow
     /// <summary>The hook finished a capture this window started. Call on the UI thread.</summary>
     public void ShowCapture(CaptureStep step)
     {
-        if (!_capturing)
+        if (_capturing is not { } field)
         {
             return;
         }
 
-        if (step.Chord is { } chord)
-        {
-            _shortcut = chord;
-        }
-
-        EndCapture();
+        _capturing = null;
+        field.EndCapture(step.Chord);
         _error.Text = step.Status == CaptureStatus.Rejected ? "That key can't be part of a shortcut. Try another." : "";
     }
 
-    private void BeginCapture()
+    private void BeginCapture(ShortcutField field)
     {
-        if (_capturing || !_actions.BeginCapture())
+        CancelCapture();
+        if (!_actions.BeginCapture())
         {
+            field.EndCapture(null);
             return;
         }
 
-        _capturing = true;
-        _changeShortcut.Enabled = false;
-        _shortcutText.Text = CapturePrompt;
+        _capturing = field;
+        field.ShowCapturing();
     }
 
     private void CancelCapture()
     {
-        if (_capturing)
+        if (_capturing is { } field)
         {
             _actions.CancelCapture();
-            EndCapture();
+            _capturing = null;
+            field.EndCapture(null);
         }
-    }
-
-    private void EndCapture()
-    {
-        _capturing = false;
-        _changeShortcut.Enabled = true;
-        _shortcutText.Text = _shortcut.Describe();
     }
 }

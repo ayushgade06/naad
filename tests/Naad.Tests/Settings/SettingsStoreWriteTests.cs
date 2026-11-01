@@ -29,14 +29,19 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.True(result.Saved);
         Assert.Equal("""
             {
-              "version": 4,
+              "version": 5,
               "fileLogging": true,
               "playSounds": false,
               "errorSound": false,
               "soundVolume": 80,
               "theme": "System",
               "showTrayIcon": true,
-              "dictationShortcut": "RightCtrl",
+              "holdShortcut": "RightCtrl",
+              "toggleShortcut": null,
+              "customHoldShortcut": null,
+              "customToggleShortcut": null,
+              "customPasteAgainShortcut": null,
+              "startDelayMilliseconds": 0,
               "transcriptionProvider": "Local",
               "localModel": "Base",
               "transcriptionService": "Groq",
@@ -56,6 +61,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "screenshotSize": 1024,
               "screenshotWholeDesktop": false,
               "editMode": "Automatic",
+              "editModeKey": "Shift",
               "livePreview": false,
               "liveTyping": false,
               "liveService": "Local",
@@ -64,7 +70,6 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "meetingDetection": "Notify",
               "meetingIgnoredApps": [],
               "recordingFlagFile": false,
-              "handsFree": false,
               "languageModelProvider": "Local",
               "localLanguageModel": "Small",
               "languageModelService": "Groq",
@@ -106,7 +111,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
 
     [Theory]
     [InlineData("""{ "fileLogging": false }""", "v0")]
-    [InlineData("""{ "version": 4, "fileLogging": "no" }""", "invalid")]
+    [InlineData("""{ "version": 5, "fileLogging": "no" }""", "invalid")]
     [InlineData("{ not json", "corrupt")]
     public void Load_FileNeedingRewrite_BacksUpOriginalThenRewrites(string original, string reason)
     {
@@ -123,7 +128,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Load_ValidCurrentFile_IsNotRewritten()
     {
-        const string Original = """{ "version": 4, "fileLogging": false, "unknownKept": true }""";
+        const string Original = """{ "version": 5, "fileLogging": false, "unknownKept": true }""";
         File.WriteAllText(SettingsPath, Original);
 
         var result = new SettingsStore(SettingsPath).Load();
@@ -206,7 +211,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Save_WriteFails_ReturnsErrorAndKeepsPreviousFile()
     {
-        const string Original = """{ "version": 4, "fileLogging": false }""";
+        const string Original = """{ "version": 5, "fileLogging": false }""";
         File.WriteAllText(SettingsPath, Original);
         BlockWrites();
 
@@ -232,8 +237,9 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.Equal(
             [
                 "cleanup", "cleanupPrompt", "cleanupPromptVersion", "context", "contextExcludedApps",
-                "contextScreenshot", "dictationShortcut", "editMode", "errorSound", "fileLogging",
-                "handsFree", "historyRetention", "instructionGuard", "keepMeetingAudio", "language",
+                "contextScreenshot", "customHoldShortcut", "customPasteAgainShortcut", "customToggleShortcut",
+                "editMode", "editModeKey", "errorSound", "fileLogging", "historyRetention", "holdShortcut",
+                "instructionGuard", "keepMeetingAudio", "language",
                 "languageModelBaseUrl",
                 "languageModelFallbackName",
                 "languageModelName", "languageModelProvider", "languageModelService", "languageModelTimeoutSeconds",
@@ -242,7 +248,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
                 "microphone", "outputLanguage", "overlayTimer",
                 "pasteAgainShortcut", "playSounds", "pressEnterCommand", "recordingFlagFile", "screenshotSize",
                 "screenshotWholeDesktop",
-                "showTrayIcon", "soundVolume", "theme",
+                "showTrayIcon", "soundVolume", "startDelayMilliseconds", "theme", "toggleShortcut",
                 "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "transcriptionService",
                 "transcriptionTimeoutSeconds", "version", "vocabulary",
             ],

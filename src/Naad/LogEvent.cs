@@ -121,6 +121,7 @@ internal enum LogEvent
     EditFailed,
     EditNeedsSelection,
     DictationCancelledByEscape,
+    DictationStartCancelled,
     DictationLatched,
     PastedAgain,
     SnippetsWriteFailed,

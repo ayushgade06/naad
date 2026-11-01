@@ -9,8 +9,21 @@ internal enum EditMode
     /// <summary>Whenever text is selected as the dictation starts.</summary>
     Automatic,
 
-    /// <summary>Only when Shift is held with the shortcut, so plain dictation still replaces a selection.</summary>
+    /// <summary>
+    /// Only when the Edit Mode key (Shift by default) is held as the shortcut is pressed, so plain
+    /// dictation still replaces a selection.
+    /// </summary>
     Manual,
+}
+
+/// <summary>
+/// The key held with the shortcut for a Manual edit, on either side of the keyboard. Not Alt: let
+/// go of on its own around a shortcut whose keys apps never see, it would open the app's menu.
+/// </summary>
+internal enum EditModeKey
+{
+    Shift,
+    Ctrl,
 }
 
 internal enum EditIntent
@@ -28,10 +41,12 @@ internal enum EditIntent
 /// <summary>Whether a dictation should read the selection, from the mode and the keys held. Pure.</summary>
 internal static class EditModeDecision
 {
-    public static EditIntent Decide(EditMode mode, bool shiftHeld) => mode switch
+    /// <param name="mode">The Edit Mode setting.</param>
+    /// <param name="keyHeld">Whether the Edit Mode key is held.</param>
+    public static EditIntent Decide(EditMode mode, bool keyHeld) => mode switch
     {
         EditMode.Automatic => EditIntent.EditIfSelected,
-        EditMode.Manual when shiftHeld => EditIntent.EditRequired,
+        EditMode.Manual when keyHeld => EditIntent.EditRequired,
         _ => EditIntent.Dictate,
     };
 }

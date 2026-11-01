@@ -39,8 +39,10 @@ with **Cloud** chosen, an API key.
 - **Another key or a click while holding** cancels the dictation on purpose,
   so shortcuts such as Right Ctrl+C keep working (`DictationCancelledByKey`,
   `DictationCancelledByMouse`).
-- **Hands-free is on.** Then you press once to start and once more to
-  stop; the tooltip says so.
+- **Hold to talk is off**, and only the toggle has a shortcut. Then you
+  press once to start and once more to stop; the tooltip says so.
+- **A start delay is set.** A press shorter than `startDelayMilliseconds`
+  records nothing (`DictationStartCancelled`).
 
 ## Nothing is typed after I let go
 

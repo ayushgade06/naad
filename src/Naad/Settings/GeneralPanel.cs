@@ -1,4 +1,3 @@
-using Naad.Hotkey;
 using Naad.Tray;
 using Naad.Window;
 
@@ -62,7 +61,6 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Text = "Keep meeting recordings with their notes (encrypted)",
         AutoSize = true,
     };
-    private readonly TextBox _pasteAgain = new() { Width = 200 };
     private SoundCues? _previewCues;
 
     /// <param name="current">The settings in use.</param>
@@ -86,7 +84,6 @@ internal sealed class GeneralPanel : TableLayoutPanel
         _timer.Checked = current.OverlayTimer;
         _keepMeetingAudio.Checked = current.KeepMeetingAudio;
         _detectMeetings.Checked = current.MeetingDetection == Naad.Meetings.MeetingDetection.Notify;
-        _pasteAgain.Text = current.PasteAgainShortcut?.ToString() ?? "";
 
         Row(this, "Theme", _theme);
         Row(this, "", _showTrayIcon);
@@ -102,11 +99,10 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "", _keepMeetingAudio);
         Row(this, "", Note("Meeting notes are kept encrypted until you delete them on the Meetings page. " +
             "Without this, each piece of audio is dropped once it is transcribed."));
-        Row(this, "Paste again", Flow(_pasteAgain, Note("Keys such as RightAlt+V; blank for none.")));
         Row(this, "", _pressEnter);
         Row(this, "", _timer);
-        Row(this, "", Note("Esc cancels a dictation. Pressing Space while holding the shortcut keeps " +
-            "recording after you let go; press the shortcut again to stop."));
+        Row(this, "", Note("Esc cancels a dictation. Pressing Space while holding the hold-to-talk shortcut " +
+            "keeps recording after you let go; press a shortcut again to stop."));
         Row(this, "", new Label
         {
             Text = "Off by default: on PCs whose speakers sleep, waking them can delay the start of a dictation.",
@@ -127,25 +123,10 @@ internal sealed class GeneralPanel : TableLayoutPanel
     /// <summary>Whether to start at sign-in, as ticked.</summary>
     public bool StartAtLogin => _startAtLogin.Checked;
 
-    /// <summary>
-    /// <paramref name="chosen"/> with this page's choices applied, or null with
-    /// <paramref name="error"/> when the paste-again keys aren't a shortcut.
-    /// </summary>
+    /// <summary><paramref name="chosen"/> with this page's choices applied.</summary>
     public AppSettings? Apply(AppSettings chosen, out string? error)
     {
         error = null;
-        Chord? pasteAgain = null;
-        if (_pasteAgain.Text.Trim() is { Length: > 0 } keys)
-        {
-            if (!Chord.TryParse(keys, out var chord) || chord == chosen.DictationShortcut)
-            {
-                error = "The paste-again keys must be a shortcut such as RightAlt+V, other than the dictation one.";
-                return null;
-            }
-
-            pasteAgain = chord;
-        }
-
         return Apply(chosen) with
         {
             HistoryRetention = (Naad.History.HistoryRetention)_history.SelectedIndex,
@@ -155,7 +136,6 @@ internal sealed class GeneralPanel : TableLayoutPanel
             MeetingDetection = _detectMeetings.Checked
                 ? Naad.Meetings.MeetingDetection.Notify
                 : Naad.Meetings.MeetingDetection.Off,
-            PasteAgainShortcut = pasteAgain,
         };
     }
 
