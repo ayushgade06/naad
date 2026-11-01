@@ -41,6 +41,9 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "screenshotWholeDesktop": false,
   "editMode": "Automatic",
   "livePreview": false,
+  "liveTyping": false,
+  "liveService": "Local",
+  "liveModel": null,
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
@@ -85,7 +88,10 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `screenshotSize` | `512`, `640`, `768` or `1024` | `1024` | The longest side of the screenshot, in pixels. |
 | `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
 | `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
-| `livePreview` | `true` or `false` | `false` | Transcribe each phrase while you speak and show the words in the overlay, so the text is ready sooner after you let go. Only with `transcriptionProvider` `"Local"` and Whisper running on a graphics card; it starts from the second dictation after Naad starts or settings are saved, once the model is loaded. On the processor alone it does nothing. The words are shown, never saved. |
+| `livePreview` | `true` or `false` | `false` | Transcribe while you speak and show the words in the overlay, so the text is ready sooner after you let go. With `liveService` `"Local"`, only when Whisper on this PC (`transcriptionProvider` `"Local"`) runs on a graphics card; it starts from the second dictation after Naad starts or settings are saved, once the model is loaded. On the processor alone it does nothing. The words are shown, never saved. |
+| `liveTyping` | `true` or `false` | `false` | Type each finished phrase into the window while you speak. Typed text skips cleanup and snippets, which can't change words already typed. While a key of the shortcut is held (such as Right Ctrl) nothing is typed, since an app could read the letters as shortcuts; if nothing was typed by the time you let go, the text is cleaned up and pasted as usual. In hands-free mode it types as you speak. If you switch windows, or the service revises words already typed, typing stops and the full text is kept for **Copy last transcript** and **Paste again**. Never over a selection (Edit Mode). |
+| `liveService` | `"Local"`, `"OpenAI"` or `"Deepgram"` | `"Local"` | Where live preview and typing transcribe. `"Local"` is Whisper on this PC, phrase by phrase, with a graphics card (see `livePreview`). `"OpenAI"` and `"Deepgram"` stream your voice to that service's realtime API as you speak, using its key (set on the Dictation or AI tab); they need nothing on this PC. If the connection fails, or the service hasn't answered for every word within 8 seconds of the end (13 if it was still connecting), the recording is transcribed by `transcriptionProvider` as usual. |
+| `liveModel` | text or `null` | `null` | The streaming model; `null` uses `gpt-4o-mini-transcribe` (OpenAI) or `nova-3` (Deepgram). It must suit `liveService`; choosing another service on the Live tab clears it. A model the service refuses makes every dictation fall back to the regular upload. |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |

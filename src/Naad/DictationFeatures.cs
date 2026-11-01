@@ -103,9 +103,10 @@ internal static class DictationFeatures
     }
 
     /// <summary>
-    /// Live preview: while a dictation records, each phrase is transcribed by Whisper on this PC
-    /// and shown in the overlay. Only when the setting is on and the model already runs on a
-    /// graphics card; otherwise the recording is transcribed in one pass on release.
+    /// Live preview and typing: while a dictation records, it is transcribed by Whisper on this PC
+    /// phrase by phrase (only once the model runs on a graphics card) or streamed to the chosen
+    /// cloud service; the words are shown in the overlay, typed into the window, or both.
+    /// Otherwise the recording is transcribed in one pass on release.
     /// </summary>
     /// <param name="controller">The dictation.</param>
     /// <param name="recorder">Its microphone, whose buffers feed the live transcript.</param>
@@ -113,32 +114,69 @@ internal static class DictationFeatures
     /// <param name="ui">The UI thread, where the overlay is drawn.</param>
     /// <param name="transcriber">The transcriber in use.</param>
     /// <param name="settings">The settings in use.</param>
+    /// <param name="keyFor">A service's API key, or null.</param>
     public static void ConnectLive(
         DictationController controller,
         Audio.AudioRecorder recorder,
         RecordingOverlay overlay,
         SynchronizationContext ui,
         Func<Transcription.ITranscriber?> transcriber,
-        Func<AppSettings> settings)
+        Func<AppSettings> settings,
+        Func<Providers.CloudService, string?> keyFor)
     {
-        Live.LiveTranscript? current = null;
+        Live.ILiveSession? current = null;
 
         // Raised on the capture thread; a recording without a live transcript ignores it.
         recorder.PcmRecorded += pcm => Volatile.Read(ref current)?.Add(pcm);
-        controller.UseLiveTranscript(() =>
+        controller.UseLiveTranscript(target =>
         {
-            if (!settings().LivePreview
-                || transcriber() is not Transcription.LocalWhisperTranscriber { OnGraphicsCard: true } local)
+            var s = settings();
+            var session = s.LivePreview || s.LiveTyping ? LiveSession(s, transcriber(), keyFor) : null;
+            Volatile.Write(ref current, session);
+            if (session is null)
             {
-                Volatile.Write(ref current, null);
                 return null;
             }
 
-            var live = new Live.LiveTranscript(local, Live.SpeechChunker.ForDictation());
-            live.TextChanged += text => ui.Post(_ => overlay.ShowLiveText(text), null);
-            Volatile.Write(ref current, live);
-            return live;
+            if (s.LivePreview)
+            {
+                session.TextChanged += text => ui.Post(_ => overlay.ShowLiveText(text), null);
+            }
+
+            Live.LiveTyper? typer = null;
+            if (s.LiveTyping)
+            {
+                typer = new(target, FocusGuard.Check, TextInserter.AnyModifierDown, UnicodeTyping.Type);
+                session.StableChanged += stable => ui.Post(_ => typer.Update(stable), null);
+            }
+
+            return new(session, typer);
         });
+    }
+
+    // On this PC only once Whisper runs on a graphics card; in the cloud only with the service's key.
+    private static Live.ILiveSession? LiveSession(
+        AppSettings s, Transcription.ITranscriber? upload, Func<Providers.CloudService, string?> keyFor)
+    {
+        if (s.LiveService == Live.LiveService.Local)
+        {
+            return upload is Transcription.LocalWhisperTranscriber { OnGraphicsCard: true } local
+                ? new Live.LiveTranscript(local, Live.SpeechChunker.ForDictation())
+                : null;
+        }
+
+        var service = s.LiveService == Live.LiveService.OpenAI
+            ? Providers.CloudService.OpenAI
+            : Providers.CloudService.Deepgram;
+        if (upload is null || keyFor(service) is not { } key)
+        {
+            return null;
+        }
+
+        var stream = new Live.RealtimeTranscript(
+            s.LiveService, key, s.LiveModel ?? Live.RealtimeProtocol.DefaultModel(s.LiveService), s.Language, upload);
+        stream.Start();
+        return stream;
     }
 
     /// <summary>

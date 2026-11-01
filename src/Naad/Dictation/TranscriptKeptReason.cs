@@ -11,4 +11,7 @@ internal enum TranscriptKeptReason
 
     /// <summary>Pasting and typing both failed, or a modifier key was still held.</summary>
     NotInserted,
+
+    /// <summary>Live typing stopped part way: focus moved, or the words were revised.</summary>
+    LiveTypingStopped,
 }

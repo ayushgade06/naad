@@ -154,6 +154,19 @@ internal sealed record AppSettings
     /// </summary>
     public bool LivePreview { get; init; }
 
+    /// <summary>
+    /// Type each finished phrase into the window while still speaking. Typed text skips cleanup,
+    /// which can't change words already typed. Off by default.
+    /// </summary>
+    public bool LiveTyping { get; init; }
+
+    /// <summary>Where live preview and typing transcribe: this PC, or a streaming cloud service.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<Live.LiveService>))]
+    public Live.LiveService LiveService { get; init; } = Live.LiveService.Local;
+
+    /// <summary>The streaming service's model; null uses its default.</summary>
+    public string? LiveModel { get; init; }
+
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
 

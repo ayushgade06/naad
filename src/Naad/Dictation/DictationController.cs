@@ -399,6 +399,20 @@ internal sealed partial class DictationController(
                 return;
             }
 
+            // Once live typing has put words in, the rest is typed too; with nothing typed yet (the
+            // shortcut was held throughout, say) the text is cleaned up and pasted as usual.
+            live?.Typer?.StopIfNothingTyped();
+            if (live?.Typer is { Typed.Length: > 0 } typer && !context.IsEdit && raw.Length > 0)
+            {
+                if (Apply(DictationEvent.Transcribed, step.Job).Action == DictationAction.Insert)
+                {
+                    var typed = await FinishTypedAsync(typer, raw, cancel);
+                    Finished?.Invoke(report with { Raw = raw, Text = raw, Outcome = typed, Wav = wav });
+                }
+
+                return;
+            }
+
             if (raw.Length > 0 && cleanup is not null)
             {
                 var cleanStart = time.GetTimestamp();

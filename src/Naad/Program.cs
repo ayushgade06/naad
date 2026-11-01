@@ -222,7 +222,7 @@ internal static class Program
                 SaveWords);
             enforceHistory = r => history.Enforce(r);
             DictationFeatures.ConnectLive(
-                controller, recorder, overlay, ui, () => transcriber, () => pending ?? settings);
+                controller, recorder, overlay, ui, () => transcriber, () => pending ?? settings, KeyFor);
             controller.UseHandsFree(settings.HandsFree);
             UseLanguageModel(settings, replace: true);
             offline = () =>

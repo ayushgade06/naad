@@ -1042,3 +1042,18 @@ loaded.
 | M-LV4 | Processor only | With **Base** and no graphics card (or Vulkan missing), dictate with the setting on. | The overlay shows only the bars; dictation works as before. | **No.** |
 
 **Status after P35:** M-LV1 to M-LV4 have **not been run** by a person.
+
+## Live typing and streaming (P36): M-LY1 to M-LY5
+
+Tick **Live > Type the words into the app while I speak**. For M-LY3 and M-LY4 an OpenAI or
+Deepgram key is needed.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-LY1 | Typing in hands-free mode | With hands-free on and **This PC** chosen, start a dictation in Notepad and say three sentences with pauses. | Each sentence appears in Notepad after its pause; on stop the last one is typed. Nothing is pasted through the clipboard. | **No.** Unit tested with fakes. |
+| M-LY2 | Focus change | During a hands-free dictation, click another window after the first sentence is typed, then stop. | Typing stops; a notification says live typing stopped early; **Copy last transcript** gives the full text. Nothing is typed into the second window. | **No.** Unit tested. |
+| M-LY3 | Streaming | Choose **OpenAI realtime** (or **Deepgram streaming**), hold the shortcut and speak for 15 seconds. | With **Preview** ticked, words appear while you speak; the text is typed on release. The log shows `LiveFinished` with a character count only. | **No.** |
+| M-LY4 | Lost connection | Start a streamed dictation, turn Wi-Fi off mid-way, then on again before release; repeat with a wrong key. | The whole text still arrives (the log shows `LiveStreamFailed` and `LiveFellBack`), transcribed by the regular provider. | **No.** The fallback is unit tested offline. |
+| M-LY5 | Held shortcut | With Right Ctrl held (not hands-free), dictate into a browser text box with cleanup on. | Nothing is typed while Ctrl is held, so no shortcut such as Ctrl+A fires; on release the cleaned text is pasted as usual. | **No.** Unit tested. |
+
+**Status after P36:** M-LY1 to M-LY5 have **not been run** by a person.

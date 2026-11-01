@@ -7,10 +7,15 @@ public sealed class SettingsStoreLiveTests
     [Fact]
     public void Parse_LiveSettings_ReturnsThem()
     {
-        var result = SettingsStore.Parse("""{ "version": 4, "livePreview": true }""");
+        var result = SettingsStore.Parse("""
+            { "version": 4, "livePreview": true, "liveTyping": true, "liveService": "Deepgram",
+              "liveModel": "nova-2" }
+            """);
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
-        Assert.True(result.Settings.LivePreview);
+        Assert.True(result.Settings.LivePreview && result.Settings.LiveTyping);
+        Assert.Equal(Naad.Live.LiveService.Deepgram, result.Settings.LiveService);
+        Assert.Equal("nova-2", result.Settings.LiveModel);
     }
 
     [Fact]

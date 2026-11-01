@@ -12,7 +12,7 @@ namespace Naad.Live;
 /// </summary>
 /// <param name="transcriber">Transcribes each piece; Whisper on this PC.</param>
 /// <param name="chunker">Finds the pauses.</param>
-internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chunker) : IDisposable
+internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chunker) : ILiveSession
 {
     private readonly Lock _gate = new();
     private readonly MemoryStream _pending = new();
@@ -22,13 +22,11 @@ internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chu
     private long _pendingStart;
     private volatile bool _failed;
 
-    /// <summary>
-    /// The words heard so far, after each piece is transcribed. Raised on a thread-pool thread;
-    /// user content, never logged.
-    /// </summary>
     public event Action<string>? TextChanged;
 
-    /// <summary>The next audio from the microphone, in <see cref="AudioRecorder.Format"/>.</summary>
+    /// <summary>Raised with <see cref="TextChanged"/>: a transcribed piece never changes.</summary>
+    public event Action<string>? StableChanged;
+
     public void Add(byte[] pcm)
     {
         lock (_gate)
@@ -53,11 +51,8 @@ internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chu
         }
     }
 
-    /// <summary>
-    /// The whole dictation's text, once the pieces in flight are done and the rest of
-    /// <paramref name="pcm"/> (the full recording) is transcribed. If any piece failed, the whole
-    /// recording is transcribed again in one pass, so no words are lost to a bad piece.
-    /// </summary>
+    // Once the pieces in flight are done, only the rest of the recording is transcribed; after a
+    // failed piece, the whole recording is.
     public async Task<TranscriptionResult> FinishAsync(byte[] pcm, CancellationToken cancellationToken)
     {
         Task work;
@@ -141,7 +136,9 @@ internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chu
             var text = Keep(result.Text);
             if (text.Length > 0)
             {
-                TextChanged?.Invoke(Joined());
+                var joined = Joined();
+                StableChanged?.Invoke(joined);
+                TextChanged?.Invoke(joined);
             }
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)

@@ -13,6 +13,7 @@ HTTPS.
 | When | Destination | What is sent |
 |---|---|---|
 | You dictate with **Cloud** chosen under **Transcribe with** | The chosen cloud service: `api.groq.com` by default, or `api.openai.com`, `generativelanguage.googleapis.com` (Gemini), `api.x.ai`, `api.deepgram.com`, or your custom base URL | The recording as a WAV file, the model name, the language if you set one, your vocabulary if you set one, and the service's API key in a header (`Authorization`; Gemini's `x-goog-api-key`) |
+| You dictate with **Live preview** or **Live typing** on and **Transcribe live on** set to OpenAI or Deepgram | `wss://api.openai.com/v1/realtime` or `wss://api.deepgram.com/v1/listen` (a WebSocket over TLS) | Your voice as it is recorded, the model name, the language if you set one, and the service's API key in the `Authorization` header. Streaming starts when you press the shortcut, so a dictation you cancel has already been sent. If streaming fails, the recording is then sent as in the row above |
 | You dictate with **Cloud** chosen under **AI runs on** and cleanup set to **AI**, or an output language set, or edit a selection | The chosen AI service: `api.groq.com` by default, or `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `api.anthropic.com`, `api.cerebras.ai`, or your custom base URL | The transcript, your vocabulary, your cleanup instructions and the model name, and the service's API key in the `Authorization` header. With **Context** on, also the app's name and up to 2,000 characters of text around the cursor; for an edit, the selected text. No audio |
 | As above, with **send a screenshot** ticked | The same AI service | A screenshot of the window you dictate into (or the whole screen, if you chose that), at most 1,024 pixels on its longest side, to describe what's on screen. It is never saved |
 | You click **Test** or **Test model** for the cleanup prompt with **Cloud** chosen | The same AI base URL | The sample text and the instructions. No audio |
@@ -59,7 +60,7 @@ reads a password field or an app you excluded.
 
 With **Live preview** on, the words heard so far are shown in the overlay
 while you speak, kept in memory for that dictation only, and never logged.
-They are transcribed on this PC; nothing extra is sent anywhere.
+They are transcribed on this PC unless you chose a streaming service.
 
 If a transcript can't be pasted, for example because you switched windows,
 Naad keeps the latest one in memory so you can choose **Copy last

@@ -132,6 +132,12 @@ internal enum LogEvent
 
     LiveFinished,
     LiveFellBack,
+    LiveStreamFailed,
+    LiveTyped,
+    LiveTypingStopped,
+    LiveTypingRevised,
+    LiveTypingFocusChanged,
+    LiveTypingFailed,
 
     UpdateNotAvailable,
     UpdateAvailable,

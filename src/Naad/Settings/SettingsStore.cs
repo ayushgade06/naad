@@ -386,6 +386,9 @@ internal sealed class SettingsStore(string path)
                 root, "screenshotWholeDesktop", defaults.ScreenshotWholeDesktop, ref repaired),
             EditMode = ReadName(root, "editMode", defaults.EditMode, ref repaired),
             LivePreview = ReadBool(root, "livePreview", defaults.LivePreview, ref repaired),
+            LiveTyping = ReadBool(root, "liveTyping", defaults.LiveTyping, ref repaired),
+            LiveService = ReadName(root, "liveService", defaults.LiveService, ref repaired),
+            LiveModel = ReadOptional(root, "liveModel", AppSettings.IsValidModel, ref repaired),
         };
         return (settings, repaired);
     }

@@ -187,6 +187,8 @@ internal sealed class TrayIcon : IDisposable
             "paste it. Click here or choose Copy last transcript in the Naad menu, then paste it with Ctrl+V.",
         TranscriptKeptReason.TargetElevated => "Windows doesn't let Naad type into apps running as " +
             "administrator. Click here or choose Copy last transcript in the Naad menu, then paste with Ctrl+V.",
+        TranscriptKeptReason.LiveTypingStopped => "Live typing stopped early, so part of your text may be " +
+            "missing. Click here or choose Copy last transcript in the Naad menu for the full text.",
         _ => "Naad couldn't paste your text. Click here or choose Copy last transcript in the Naad menu, " +
             "then paste it with Ctrl+V.",
     };

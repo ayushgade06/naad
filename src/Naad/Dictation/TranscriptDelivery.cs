@@ -106,6 +106,10 @@ internal sealed class TranscriptDelivery(
         return true;
     }
 
+    /// <summary>Keeps the full text of a dictation whose live typing stopped early, and says so.</summary>
+    public void KeepLiveTyped(string text) =>
+        Keep(text, new(TranscriptKeptReason.LiveTypingStopped, LogEvent.LiveTypingStopped));
+
     private void Keep(string text, KeptFor kept)
     {
         _kept = text;
