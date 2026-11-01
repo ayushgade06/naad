@@ -84,6 +84,17 @@ internal static class SettingsInput
         _ => null,
     };
 
+    /// <summary>What Test context prompt found, in a sentence or two.</summary>
+    public static string ContextTestMessage(PromptTest test) => test switch
+    {
+        { Failure: null, Verdict: null } => "No language model is set up: download one or choose the cloud, " +
+            "then save, and test again.",
+        { Failure: { } failure } => Context.ContextFailures.Message(Context.ContextFailures.From(failure)),
+        { Verdict: ReplyVerdict.Accepted } => $"Replied in {test.Milliseconds} ms. Cleanup would get the first two " +
+            "sentences as a hint.",
+        _ => $"Replied in {test.Milliseconds} ms, but with nothing usable, so cleanup would go on without it.",
+    };
+
     /// <summary>A failed request to the language model, in a sentence.</summary>
     public static string CompletionMessage(CompletionFailure failure) => failure.Error switch
     {

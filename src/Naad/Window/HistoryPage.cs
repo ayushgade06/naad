@@ -116,7 +116,9 @@ internal sealed class HistoryPage : DockPanel, IDisposable
             Foreground = MainWindow.Brush(failed ? _palette.Muted : _palette.Text),
         };
         var meta = Muted($"{local:t} · {record.App ?? "unknown app"} · {record.AudioMilliseconds / 1000.0:0.0} s"
-            + (record.Selection is not null ? " · edit" : "")
+            + (record.Selection is null ? ""
+                : record.Invocation is { } invocation ? $" · edit ({invocation})"
+                : " · edit")
             + (record.Outcome == HistoryOutcome.Kept ? " · not pasted" : ""));
         var buttons = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         if (!failed)

@@ -47,6 +47,10 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "contextScreenshot": false,
   "screenshotSize": 1024,
   "screenshotWholeDesktop": false,
+  "contextWindowTitle": false,
+  "contextModelName": null,
+  "contextPrompt": null,
+  "contextPromptVersion": null,
   "editMode": "Automatic",
   "editModeKey": "Shift",
   "livePreview": false,
@@ -102,9 +106,12 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `muteWhileDictating` | `true` or `false` | `false` | Mute the speakers while a dictation records, just after the start tone. Naad unmutes only speakers it muted itself, and only if they are still muted; it notes the device in `%LOCALAPPDATA%\Naad\muted-output.json` first, so a crash mid-dictation is put right when Naad next starts. |
 | `context` | `true` or `false` | `true` | Read the app's name and up to 2,000 characters around the cursor when you dictate, so the language model can spell names you can see. Never from a password field. See [Context and Edit Mode](#context-and-edit-mode). |
 | `contextExcludedApps` | list of text | `[]` | App names (the program's file name without `.exe`, such as `"keepass"`) Naad never reads context from. |
-| `contextScreenshot` | `true` or `false` | `false` | With `context` on, AI cleanup and a **Cloud** language model, also send a screenshot of the window you dictate into, so the model can see what you're replying to. |
+| `contextScreenshot` | `true` or `false` | `false` | With `context` on, AI cleanup and a **Cloud** language model, also send a screenshot of the window you dictate into to the context model, so it can see what you're replying to. Only that window is captured, never what lies on top of it, as a JPEG under 500 KB. |
 | `screenshotSize` | `512`, `640`, `768` or `1024` | `1024` | The longest side of the screenshot, in pixels. |
 | `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
+| `contextWindowTitle` | `true` or `false` | `false` | With `context` on, also send the window's title to the context model. Off by default: titles often hold names, email subjects and file names. Never logged, never kept. |
+| `contextModelName` | text or `null` | `null` | The cloud model that sums up what you are doing, one that reads images; `null` uses the service's suggestion (for Groq, `meta-llama/llama-4-scout-17b-16e-instruct`). On this PC, the language model there does it. |
+| `contextPrompt`, `contextPromptVersion` | text or `null` | `null` | Your own context instructions, and the default's version they were based on; `null` uses the default. Like `cleanupPrompt`. |
 | `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
 | `editModeKey` | `"Shift"` or `"Ctrl"` | `"Shift"` | With `editMode` `"Manual"`, the key (either side) held as you press the shortcut to edit the selection. It can't be part of a dictation shortcut. |
 | `livePreview` | `true` or `false` | `false` | Transcribe while you speak and show the words in the overlay, so the text is ready sooner after you let go. With `liveService` `"Local"`, only when Whisper on this PC (`transcriptionProvider` `"Local"`) runs on a graphics card; it starts from the second dictation after Naad starts or settings are saved, once the model is loaded. On the processor alone it does nothing. The words are shown, never saved. |
@@ -442,18 +449,34 @@ Nothing is read from a password field or an app in `contextExcludedApps`.
 With a language model on this PC it never leaves the PC; with **Cloud** it
 goes to the AI service with the transcript.
 
+As you start speaking, the **context model** sums up in two sentences what
+you are doing, from the app's name, the text near the cursor and, if you
+turned them on, the window's title (`contextWindowTitle`) and a screenshot
+of the window. It runs while you speak, so it adds at most a second after
+you let go; if it isn't ready by then, cleanup goes on without it. Choose
+the model on the **AI** tab (**Context model**, with **Reset** for the
+service's suggestion), and edit or test its instructions with **Context
+prompt...**, which says when a newer default has shipped. When the summary
+fails, a notification says why, once per reason: the key was rejected, the
+model isn't known, the rate limit was reached, it took too long, or the
+service couldn't be reached.
+
 **Edit Mode** turns speech into an instruction when text is selected:
 select a paragraph, hold the shortcut and say "make this more formal", and
 the language model rewrites the selection, which Naad pastes over it.
 
 - `"Automatic"`: speaking over a selection edits it.
-- `"Manual"`: hold **Shift** with the shortcut to edit. In apps that don't
-  expose their selection, Naad copies it with Ctrl+C and then restores your
-  clipboard.
+- `"Manual"`: hold the Edit Mode key (`editModeKey`, Shift by default)
+  with the shortcut to edit. Naad checks for a selection before it starts
+  recording; with none, it says **Select text first** and records nothing.
+  In apps that don't expose their selection, Naad copies it with Ctrl+C and
+  then restores your clipboard.
 - `"Off"`: dictation replaces a selection like typing does.
 
 If the edit fails or the model is slow, nothing is pasted and the selection
-stays as it was; the overlay says so.
+stays as it was; the overlay says so. The edit is told the app, the context
+summary and the output language. History marks each edit as Automatic or
+Manual.
 
 ## Starting Naad when you sign in
 

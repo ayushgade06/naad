@@ -103,7 +103,17 @@ internal static class DictationFeatures
         controller.EditFailed += needsSelection =>
         {
             overlay.ShowNotice(needsSelection ? "Select text first" : "Edit failed");
-            tray.ShowEditFailed(needsSelection);
+            tray.ShowEditFailed(needsSelection, settings().EditModeKey.ToString());
+        };
+
+        // Each reason is told once a run: a key that stays wrong shouldn't nag at every dictation.
+        var told = new HashSet<ContextFailure>();
+        controller.ContextFailed += failure =>
+        {
+            if (told.Add(failure))
+            {
+                tray.ShowContextFailed(failure);
+            }
         };
 
         var reader = new ContextReader(
@@ -119,10 +129,12 @@ internal static class DictationFeatures
                         && s.LanguageModelProvider == LanguageModel.LanguageModelProvider.Cloud,
                     s.ScreenshotSize,
                     s.ScreenshotWholeDesktop,
-                    s.EditModeKey);
+                    s.EditModeKey,
+                    WindowTitle: model && s.Context && s.Cleanup == Cleanup.CleanupLevel.Ai && s.ContextWindowTitle);
             },
             clipboard);
         controller.UseContextReader(reader.ReadAsync);
+        controller.UseEditIntent(reader.Intent);
 
         var history = new HistoryRecorder(
             new HistoryStore(HistoryStore.DefaultFolder, TimeProvider.System),
@@ -254,7 +266,7 @@ internal static class DictationFeatures
             return null;
         }
 
-        var context = new DictationContext(record.App, null, record.Selection, null);
+        var context = new DictationContext(record.App, null, record.Selection, null, Invocation: record.Invocation);
         var text = cleanup is null
             ? heard.Text
             : (await cleanup.CleanAsync(heard.Text, context, CancellationToken.None)).Text;

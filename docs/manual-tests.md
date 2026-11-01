@@ -1145,6 +1145,18 @@ Since P42, `dictationShortcut` and `handsFree` in the older checks above are
 
 **Status after P43:** M-OV1 to M-OV5 have **not been run** by a person.
 
+## Context model and Edit Mode finish (P44): M-CM1 to M-CM5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-CM1 | Summary while speaking | With a cloud AI and **Context** on, open an email reply and dictate a sentence naming the recipient; time from release to paste with Context on and off. | The name is spelled as in the email; with Context on the paste is at most about a second slower. The log shows `ContextSummarized` with a count only. | **No.** The summary's timing is unit tested. |
+| M-CM2 | Context model and prompt | Set **Context model** to a made-up id, save and dictate; then **Reset**, open **Context prompt...**, click **Test**, edit the prompt, **OK**, save. | A notification says the service doesn't know the context model, once; dictation still pastes. After Reset the test replies in two sentences; the edited prompt is kept. | **No.** Failures are unit tested. |
+| M-CM3 | Window only, JPEG, title | Tick **send a screenshot**, put a small window (Notepad) over part of the target window, dictate; then tick the window title. | The context model gets the target window without the window on top (check with a proxy or the provider's request log), as JPEG under 500 KB; the title is sent only once ticked. Nothing about either is in the log. | **No.** The JPEG cap is unit tested. |
+| M-CM4 | Select text first | With Edit Mode **Manual**, hold Shift and the shortcut with nothing selected. | **Select text first** shows at once, no tone plays and the microphone never opens. | **No.** Unit tested. |
+| M-CM5 | Edit context and history | Set **Write in** to German, select an English sentence, hold Shift and the shortcut and say "make it formal"; open History. | The rewrite is in German; the record says **edit (Manual)**. An edit made over a selection without Shift says **edit (Automatic)**. | **No.** The prompt and record are unit tested. |
+
+**Status after P44:** M-CM1 to M-CM5 have **not been run** by a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical

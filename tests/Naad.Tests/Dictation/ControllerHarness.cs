@@ -203,12 +203,15 @@ internal sealed class FakeCleanup(CleanupResult result) : ITranscriptCleanup
 
     public List<string> Cleaned { get; } = [];
 
+    public List<Naad.Context.DictationContext> Contexts { get; } = [];
+
     public void Prepare() => Prepared++;
 
     public Task<CleanupResult> CleanAsync(
         string transcript, Naad.Context.DictationContext context, CancellationToken cancellationToken)
     {
         Cleaned.Add(transcript);
+        Contexts.Add(context);
         return Error is null ? Task.FromResult(result) : Task.FromException<CleanupResult>(Error);
     }
 }

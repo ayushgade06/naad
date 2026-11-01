@@ -53,7 +53,7 @@ internal sealed class TranscriptCleanup(
     {
         var started = Stopwatch.GetTimestamp();
         var (result, reason) = context.IsEdit
-            ? await EditAsync(context.Selection!, transcript, cancellationToken)
+            ? await EditAsync(context.Selection!, transcript, context, cancellationToken)
             : await RunAsync(transcript, context, cancellationToken);
         var milliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (result.Outcome is CleanupOutcome.FellBack or CleanupOutcome.EditFailed)
@@ -88,7 +88,7 @@ internal sealed class TranscriptCleanup(
     }
 
     private async Task<(CleanupResult, FallbackReason)> EditAsync(
-        string selection, string instruction, CancellationToken cancellationToken)
+        string selection, string instruction, DictationContext context, CancellationToken cancellationToken)
     {
         if (ai is null)
         {
@@ -96,7 +96,7 @@ internal sealed class TranscriptCleanup(
         }
 
         return await WithinBudgetAsync(
-            token => ai.EditAsync(selection, instruction, token),
+            token => ai.EditAsync(selection, instruction, context, token),
             new("", CleanupOutcome.EditFailed),
             cancellationToken);
     }

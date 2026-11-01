@@ -37,6 +37,12 @@ internal sealed class SoundCues : IDisposable
     private readonly SoundPlayer _stop;
     private readonly SoundPlayer _error;
 
+    /// <summary>
+    /// The cues for <paramref name="s"/>, or null when no tone is on: each holds its tones in memory.
+    /// </summary>
+    public static SoundCues? For(Settings.AppSettings s) =>
+        s.PlaySounds || s.ErrorSound ? new SoundCues(s.SoundVolume) : null;
+
     /// <param name="volume">0 to 100; 100 is the tones' full, already soft, level.</param>
     public SoundCues(int volume = 100)
     {

@@ -23,6 +23,9 @@ internal sealed partial class DictationController
     /// <summary>The recording is an Edit Mode instruction, not a dictation. Raised on the UI thread.</summary>
     public event Action? EditRecording;
 
+    /// <summary>The context model gave no summary, and why. Raised on the UI thread.</summary>
+    public event Action<ContextFailure>? ContextFailed;
+
     /// <summary>Esc cancelled a recording or a transcription in flight. Raised on the UI thread.</summary>
     public event Action? Cancelled;
 
@@ -55,6 +58,44 @@ internal sealed partial class DictationController
     /// reads nothing. The reader must keep its own time limit. Call on the UI thread.
     /// </summary>
     public void UseContextReader(Func<WindowTarget, Task<DictationContext>>? reader) => _readContext = reader;
+
+    /// <summary>
+    /// Sums up what the user is doing from the context, started with each recording; null for no
+    /// summary. Call on the UI thread.
+    /// </summary>
+    public void UseContextSummary(Func<Task<DictationContext>, CancellationToken, Task<ContextSummary>>? summarize) =>
+        _summarize = summarize;
+
+    // The summary, once the dictation needs it: what is ready within a moment, or nothing.
+    private async Task<DictationContext> WithSummaryAsync(
+        DictationContext context, Task<ContextSummary> summary, CancellationToken cancel)
+    {
+        ContextSummary ready;
+        try
+        {
+            ready = await summary.WaitAsync(SummaryWait, cancel);
+        }
+        catch (TimeoutException)
+        {
+            // Stopped, not left running: a model on this PC answers one prompt at a time, and
+            // cleanup must not queue behind a summary nobody will read.
+            Log.Info(LogEvent.ContextSummaryLate);
+            StopSummary();
+            return context;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            Log.Error(LogEvent.ContextSummaryFailed, e);
+            return context;
+        }
+
+        if (ready.Failure is { } failure)
+        {
+            ContextFailed?.Invoke(failure);
+        }
+
+        return context with { Summary = ready.Text };
+    }
 
     /// <summary>
     /// Puts the kept transcript on the clipboard, out of clipboard history, for the user to

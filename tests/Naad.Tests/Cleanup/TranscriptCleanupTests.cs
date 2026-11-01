@@ -250,15 +250,6 @@ public sealed class TranscriptCleanupTests : IDisposable
         Assert.Contains("never copy it", instructions, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(10, 5, 10)]
-    [InlineData(5000, 0, 2000)]
-    [InlineData(5000, 5000, 2000)]
-    public void Around_LongText_KeepsTheLimitNearTheCaret(int length, int caret, int expected)
-    {
-        Assert.Equal(expected, Naad.Context.ContextReader.Around(new string('x', length), caret).Length);
-    }
-
     private TranscriptCleanup Cleanup(CleanupLevel level, FakeModel model, FakeModel? fallback = null) =>
         new(level, Ai(fallback is null ? [new("m", model)] : [new("m", model), new("f", fallback)]));
 

@@ -112,6 +112,9 @@ internal enum LogEvent
     OfflineFallbackUsed,
 
     ContextSummaryFailed,
+    ContextSummarized,
+    ContextSummaryLate,
+    ContextPromptTested,
     ContextRead,
     HistoryExportFailed,
     HistoryActionFailed,

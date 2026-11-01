@@ -88,6 +88,30 @@ internal static partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWindow(nint hWnd);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsIconic(nint hWnd);
+
+    // PW_RENDERFULLCONTENT: draws the window's own content, even DirectX and browser windows,
+    // and never what lies on top of it.
+    public const uint PwRenderFullContent = 2;
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool PrintWindow(nint hwnd, nint hdcBlt, uint nFlags);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW", SetLastError = true)]
+    public static partial int GetWindowText(nint hWnd, ref ushort lpString, int nMaxCount);
+
+    /// <summary>A window's title, at most <paramref name="max"/> characters; empty when it has none.</summary>
+    public static string WindowTitle(nint window, int max)
+    {
+        // UTF-16 units, as a blittable buffer the generated marshaller passes straight through.
+        var buffer = new ushort[max + 1];
+        var length = GetWindowText(window, ref buffer[0], buffer.Length);
+        return new string(MemoryMarshal.Cast<ushort, char>(buffer.AsSpan(0, Math.Max(0, length))));
+    }
+
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DestroyIcon(nint hIcon);

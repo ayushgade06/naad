@@ -108,9 +108,10 @@ public sealed class CleanupSetupTests : IDisposable
             LanguageModelProvider = LanguageModelProvider.Cloud,
             LanguageModelName = "synthetic-main",
             LanguageModelFallbackName = "synthetic-fallback",
+            ContextModelName = "synthetic-context",
         };
 
-        Assert.Equal(["synthetic-main", "synthetic-fallback"], CleanupSetup.ModelsToTest(s));
+        Assert.Equal(["synthetic-main", "synthetic-fallback", "synthetic-context"], CleanupSetup.ModelsToTest(s));
     }
 
     [Fact]
@@ -121,6 +122,7 @@ public sealed class CleanupSetupTests : IDisposable
             LanguageModelProvider = LanguageModelProvider.Cloud,
             LanguageModelName = "synthetic-main",
             LanguageModelFallbackName = "synthetic-main",
+            ContextModelName = "synthetic-main",
         };
 
         Assert.Equal(["synthetic-main"], CleanupSetup.ModelsToTest(s));
@@ -148,6 +150,7 @@ public sealed class CleanupSetupTests : IDisposable
             LanguageModelProvider = LanguageModelProvider.Cloud,
             LanguageModelName = "synthetic-main",
             LanguageModelFallbackName = "synthetic-fallback",
+            ContextModelName = "synthetic-main",
         };
         var main = new OpenAiChatLanguageModel(http, FakeKey, s.LanguageModelBaseUrl, "synthetic-main", Temperature());
 

@@ -17,14 +17,12 @@ internal enum FallbackReason
 /// <param name="Vocabulary">Names and terms to spell exactly, or null.</param>
 /// <param name="OutputLanguage">A language to write the result in, or null to keep the speaker's.</param>
 /// <param name="Guard">Whether to refuse replies that answer the dictation instead of tidying it.</param>
-/// <param name="ContextModel">A cloud model that describes a screenshot of the app, or null.</param>
 /// <param name="SpokenLanguage">The language set for dictation, such as "de", or null when detected.</param>
 internal sealed record CleanupOptions(
     string? Instructions,
     string? Vocabulary,
     string? OutputLanguage,
     bool Guard,
-    ILanguageModel? ContextModel = null,
     string? SpokenLanguage = null)
 {
     // The generated ToString would print the instructions and vocabulary.
@@ -74,7 +72,6 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
             return (new("", CleanupOutcome.Empty), FallbackReason.None);
         }
 
-        var summary = await DescribeAsync(context, token);
         return await RunAsync(
             CleanupPrompt.Clean(
                 options.Instructions,
@@ -82,7 +79,7 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
                 options.OutputLanguage,
                 basic,
                 context,
-                summary,
+                context.Summary,
                 options.SpokenLanguage),
             transcript,
             token);
@@ -93,47 +90,16 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
     /// an unusable reply comes back as EditFailed, so the selection is left alone.
     /// </summary>
     public async Task<(CleanupResult Result, FallbackReason Reason)> EditAsync(
-        string selection, string instruction, CancellationToken token)
+        string selection, string instruction, DictationContext context, CancellationToken token)
     {
         var (result, reason) = await RunAsync(
-            CleanupPrompt.Edit(selection, instruction, options.Vocabulary), selection, token, editing: true);
+            CleanupPrompt.Edit(selection, instruction, options.Vocabulary, options.OutputLanguage, context),
+            selection,
+            token,
+            editing: true);
         return result.Outcome == CleanupOutcome.Cleaned
             ? (result with { Outcome = CleanupOutcome.Edited }, reason)
             : (new("", CleanupOutcome.EditFailed), reason == FallbackReason.None ? FallbackReason.Rejected : reason);
-    }
-
-    // A cloud context model's two-sentence account of a screenshot, or null. Its failure leaves the
-    // prompt without it; it never costs the dictation.
-    // Cleanup without the summary beats a cleanup that runs out of time.
-    private static readonly TimeSpan DescribeBudget = TimeSpan.FromSeconds(3);
-
-    private async Task<string?> DescribeAsync(DictationContext context, CancellationToken token)
-    {
-        if (context.Screenshot is not { } image || options.ContextModel is not { } model)
-        {
-            return null;
-        }
-
-        using var wait = CancellationTokenSource.CreateLinkedTokenSource(token);
-        wait.CancelAfter(DescribeBudget);
-        CompletionResult reply;
-        try
-        {
-            reply = await model.CompleteAsync(CleanupPrompt.DescribeScreenshot(image), wait.Token);
-        }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
-        {
-            Log.Warn(LogEvent.ContextSummaryFailed, ("error", -2));
-            return null;
-        }
-
-        if (reply.Failure is not null || reply.Text.Length == 0)
-        {
-            Log.Warn(LogEvent.ContextSummaryFailed, ("error", reply.Failure is { } f ? (int)f.Error : -1));
-            return null;
-        }
-
-        return reply.Text;
     }
 
     /// <summary>Translates without tidying, for when cleanup is off. Needs <see cref="Translates"/>.</summary>

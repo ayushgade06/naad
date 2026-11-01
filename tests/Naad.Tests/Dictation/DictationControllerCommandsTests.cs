@@ -200,6 +200,129 @@ public sealed class DictationControllerCommandsTests : IDisposable
         Assert.Equal(0, _h.Pastes);
     }
 
+    [Fact]
+    public async Task Press_ManualEditWithNothingSelected_NeverOpensTheMicrophone()
+    {
+        var failures = new List<bool>();
+        _h.Controller.EditFailed += failures.Add;
+        _h.Controller.UseEditIntent(() => EditIntent.EditRequired);
+        _h.Controller.UseContextReader(_ => Task.FromResult(DictationContext.None with { NeedsSelection = true }));
+        var refused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Controller.EditFailed += _ => refused.TrySetResult();
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await refused.Task.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], failures);
+        Assert.Equal(0, _h.Recorder.Starts);
+        Assert.True(_h.Controller.IsIdle);
+    }
+
+    [Fact]
+    public async Task Press_ManualEditWithASelection_RecordsAndEdits()
+    {
+        _h.Controller.UseEditIntent(() => EditIntent.EditRequired);
+        var reads = 0;
+        _h.Controller.UseContextReader(_ =>
+        {
+            reads++;
+            return Task.FromResult(
+                new DictationContext("app", null, "selected", null, Invocation: EditInvocation.Manual));
+        });
+        var cleanup = new FakeCleanup(new("synthetic rewrite", CleanupOutcome.Edited));
+        _h.Controller.UseCleanup(cleanup);
+        var recording = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Controller.MicrophoneOpened += () => recording.TrySetResult();
+
+        var idle = _h.NextIdle();
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await recording.Task.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
+        _h.Time.Advance(LongHold);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+        await idle.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, reads);
+        Assert.Equal(EditInvocation.Manual, Assert.Single(_reports).Invocation);
+    }
+
+    [Fact]
+    public async Task Press_ReleasedDuringTheSelectionCheck_StartsNothing()
+    {
+        var read = new TaskCompletionSource<DictationContext>();
+        _h.Controller.UseEditIntent(() => EditIntent.EditRequired);
+        _h.Controller.UseContextReader(_ => read.Task);
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Release);
+        read.SetResult(new DictationContext("app", null, "selected", null));
+        await _h.Ui.RunAsync(() => { });
+
+        Assert.Equal(0, _h.Recorder.Starts);
+        Assert.True(_h.Controller.IsIdle);
+    }
+
+    [Fact]
+    public async Task Dictate_LateSummary_IsStoppedSoCleanupDoesNotWait()
+    {
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Controller.UseCleanup(new FakeCleanup(new("synthetic", CleanupOutcome.Cleaned)));
+        _h.Controller.UseContextSummary(async (_, token) =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            catch (OperationCanceledException)
+            {
+                stopped.TrySetResult();
+            }
+
+            return ContextSummary.None;
+        });
+
+        await _h.DictateAsync(LongHold);
+
+        await stopped.Task.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
+        Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
+    public async Task Dictate_Summary_GoesToCleanup()
+    {
+        var cleanup = new FakeCleanup(new("synthetic", CleanupOutcome.Cleaned));
+        _h.Controller.UseCleanup(cleanup);
+        _h.Controller.UseContextSummary((_, _) => Task.FromResult(new ContextSummary("They write an email.")));
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal("They write an email.", Assert.Single(cleanup.Contexts).Summary);
+    }
+
+    [Fact]
+    public async Task Dictate_SummaryFails_SaysWhyAndStillPastes()
+    {
+        var failures = new List<ContextFailure>();
+        _h.Controller.ContextFailed += failures.Add;
+        _h.Controller.UseCleanup(new FakeCleanup(new("synthetic", CleanupOutcome.Cleaned)));
+        _h.Controller.UseContextSummary((_, _) => Task.FromResult(new ContextSummary(null, ContextFailure.Key)));
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal([ContextFailure.Key], failures);
+        Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
+    public async Task Dictate_SummaryNeverFinishes_PastesWithoutIt()
+    {
+        _h.Controller.UseContextSummary((_, token) => Task.Delay(Timeout.Infinite, token)
+            .ContinueWith(_ => ContextSummary.None, TaskScheduler.Default));
+
+        await _h.DictateAsync(LongHold);
+
+        Assert.Equal(1, _h.Pastes);
+    }
+
     // A cleanup that answers only when it is cancelled, as a slow model would be by Esc.
     private sealed class WaitingCleanup : ITranscriptCleanup
     {

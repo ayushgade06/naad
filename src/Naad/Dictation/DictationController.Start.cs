@@ -1,3 +1,6 @@
+using Naad.Context;
+using Naad.Insertion;
+
 namespace Naad.Dictation;
 
 // How shortcut presses start a recording: the hands-free toggle, and the start delay that lets a
@@ -10,6 +13,17 @@ internal sealed partial class DictationController
 
     // The job the toggle's own press started, so keys joining that press cancel it, as with a hold.
     private long? _toggleStartedJob;
+
+    // A Manual edit is checked for a selection before recording; that read is then the recording's.
+    private Func<EditIntent>? _editIntent;
+    private Task<DictationContext>? _preread;
+    private WindowTarget? _prereadTarget;
+
+    /// <summary>
+    /// Whether a press asks for a Manual edit, read at once when it comes; null for never. Call on
+    /// the UI thread.
+    /// </summary>
+    public void UseEditIntent(Func<EditIntent>? intent) => _editIntent = intent;
 
     /// <summary>
     /// A press of hold to talk is waiting out the start delay, or no longer is. Raised on the UI
@@ -117,6 +131,17 @@ internal sealed partial class DictationController
             return;
         }
 
+        // A Manual edit with nothing selected is refused before the microphone opens.
+        if (_preread is null && _editIntent?.Invoke() == EditIntent.EditRequired && _readContext is { } reader)
+        {
+            var check = new PendingStart { Latch = latch };
+            _pendingStart = check;
+            StartPending?.Invoke(true);
+            var target = captureTarget();
+            _ = CheckSelectionAsync(check, target, reader(target));
+            return;
+        }
+
         ApplyNow(DictationEvent.Pressed);
         if (latch && _session.State == DictationState.Recording)
         {
@@ -147,6 +172,32 @@ internal sealed partial class DictationController
         Start(pending.Latch, delayed: false);
     }
 
+    private async Task CheckSelectionAsync(PendingStart check, WindowTarget target, Task<DictationContext> read)
+    {
+        var context = await ContextOrNoneAsync(read);
+
+        // Let go or cancelled meanwhile: nothing starts.
+        if (_pendingStart != check)
+        {
+            return;
+        }
+
+        _pendingStart = null;
+        check.Cancel.Dispose();
+        StartPending?.Invoke(false);
+        if (context.NeedsSelection)
+        {
+            Log.Warn(LogEvent.EditNeedsSelection);
+            EditFailed?.Invoke(true);
+            return;
+        }
+
+        // The recording is for the window that was checked, even if the focus moved meanwhile.
+        (_preread, _prereadTarget) = (Task.FromResult(context), target);
+        Start(check.Latch, delayed: false);
+        (_preread, _prereadTarget) = (null, null);
+    }
+
     private void CancelPendingStart()
     {
         if (_pendingStart is { } pending)
@@ -157,6 +208,28 @@ internal sealed partial class DictationController
             Log.Info(LogEvent.DictationStartCancelled);
             StartPending?.Invoke(false);
         }
+    }
+
+    // A recording starts: the summary of its context starts too, and any earlier one stops.
+    private void StartSummary()
+    {
+        StopSummary();
+        if (_summarize is null)
+        {
+            _summary = Task.FromResult(ContextSummary.None);
+            return;
+        }
+
+        _summaryCancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        _summary = _summarize(_context, _summaryCancel.Token);
+    }
+
+    private void StopSummary()
+    {
+        _summaryCancel?.Cancel();
+        _summaryCancel?.Dispose();
+        _summaryCancel = null;
+        _summary = Task.FromResult(ContextSummary.None);
     }
 
     // A press waiting out the start delay. Latch: the toggle joined it, so the recording runs hands-free.

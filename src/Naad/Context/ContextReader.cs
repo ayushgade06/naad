@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Drawing.Imaging;
 using System.Windows.Automation;
 using System.Windows.Automation.Text;
 using Naad.Insertion;
@@ -14,6 +13,7 @@ namespace Naad.Context;
 /// <param name="ScreenshotSize">The screenshot's longest side, in pixels.</param>
 /// <param name="WholeDesktop">Capture the desktop when the window can't be captured.</param>
 /// <param name="EditKey">The key held with the shortcut for a Manual edit.</param>
+/// <param name="WindowTitle">Read the window's title too; off by default, since titles hold names.</param>
 internal sealed record ContextOptions(
     bool ReadNearby,
     IReadOnlyList<string> ExcludedApps,
@@ -21,7 +21,8 @@ internal sealed record ContextOptions(
     bool Screenshot,
     int ScreenshotSize,
     bool WholeDesktop,
-    EditModeKey EditKey = EditModeKey.Shift);
+    EditModeKey EditKey = EditModeKey.Shift,
+    bool WindowTitle = false);
 
 /// <summary>
 /// Reads what Naad may know about the app being dictated into, once, as the dictation starts:
@@ -43,25 +44,59 @@ internal sealed class ContextReader(Func<ContextOptions> options, IClipboard cli
     // How long a slow app's Ctrl+C is waited for, only to put the clipboard back.
     private static readonly TimeSpan LateCopy = TimeSpan.FromSeconds(1);
 
+    // A long selection is a document, not a sentence to rewrite; this keeps the prompt and the
+    // history record a sensible size.
+    private const int MaxSelectionCharacters = 20_000;
+
+    // Long enough for a busy window to draw itself; the summary runs while the user speaks anyway.
+    private static readonly TimeSpan CaptureBudget = TimeSpan.FromSeconds(1);
+
+    // Window titles are short; a longer one is cut.
+    private const int MaxTitleCharacters = 200;
+
+    /// <summary>
+    /// The user's intent from the Edit Mode setting and the key held now, read at once (no UI
+    /// Automation), so a Manual edit can be checked before recording starts.
+    /// </summary>
+    public EditIntent Intent()
+    {
+        var o = options();
+        return EditModeDecision.Decide(o.Edit, TextInserter.ModifierDown(o.EditKey switch
+        {
+            EditModeKey.Ctrl => User32.VkControl,
+            _ => User32.VkShift,
+        }));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="app"/>, a process name such as "keepass", is one the user excluded.
+    /// Names match in any case, with or without ".exe".
+    /// </summary>
+    public static bool IsExcluded(string? app, IReadOnlyList<string> excluded) =>
+        app is not null && excluded.Any(e => string.Equals(
+            e.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? e[..^4] : e,
+            app,
+            StringComparison.OrdinalIgnoreCase));
+
     public async Task<DictationContext> ReadAsync(WindowTarget target)
     {
         var o = options();
         var started = Stopwatch.GetTimestamp();
         var app = AppName(target.ProcessId);
-        var intent = EditModeDecision.Decide(o.Edit, TextInserter.ModifierDown(o.EditKey switch
-        {
-            EditModeKey.Ctrl => User32.VkControl,
-            _ => User32.VkShift,
-        }));
-        var excluded = app is not null && o.ExcludedApps.Contains(app, StringComparer.OrdinalIgnoreCase);
-        var wantsText = !excluded && (o.ReadNearby || intent != EditIntent.Dictate);
+        var intent = Intent();
+        var excluded = IsExcluded(app, o.ExcludedApps);
+
+        // A screenshot needs the password check too, so the focused field is read for it as well.
+        var wantsText = !excluded && (o.ReadNearby || o.Screenshot || intent != EditIntent.Dictate);
         var read = (Nearby: (string?)null, Selection: (string?)null, Password: false);
+        var checkedField = false;
         if (wantsText)
         {
             try
             {
                 read = await Task.Run(() => ReadFocused(target.ProcessId, o.ReadNearby))
                     .WaitAsync(Budget);
+                checkedField = true;
             }
             catch (TimeoutException)
             {
@@ -86,32 +121,47 @@ internal sealed class ContextReader(Func<ContextOptions> options, IClipboard cli
             }
         }
 
-        var screenshot = o.Screenshot && !excluded && !read.Password ? Capture(target, o) : null;
+        // Only once the focused field is known not to be a password: a read that timed out says nothing.
+        var screenshot = o.Screenshot && !excluded && checkedField && !read.Password
+            ? await CaptureWithinAsync(target, o)
+            : null;
+        var title = o.WindowTitle && !excluded ? User32.WindowTitle(target.Handle, MaxTitleCharacters) : "";
         Log.Info(
             LogEvent.ContextRead,
             ("nearby_chars", read.Nearby?.Length ?? 0),
             ("selection_chars", selection?.Length ?? 0),
             ("screenshot", screenshot is null ? 0 : 1),
+            ("title", title.Length > 0 ? 1 : 0),
             ("read_ms", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+        var selected = string.IsNullOrWhiteSpace(selection) ? null : selection;
+
+        // An excluded app's name isn't sent either; the history learns it from the window itself.
         return new(
-            app,
+            excluded ? null : app,
             o.ReadNearby && !read.Password ? read.Nearby : null,
-            string.IsNullOrWhiteSpace(selection) ? null : selection,
+            selected,
             screenshot,
-            NeedsSelection: intent == EditIntent.EditRequired && string.IsNullOrWhiteSpace(selection));
+            NeedsSelection: intent == EditIntent.EditRequired && selected is null,
+            WindowTitle: title.Length > 0 ? title : null,
+            Invocation: selected is null ? null
+                : intent == EditIntent.EditRequired ? EditInvocation.Manual
+                : EditInvocation.Automatic);
     }
 
     /// <summary>The text around a caret at <paramref name="caret"/> in <paramref name="text"/>, at most the
     /// limit.</summary>
-    public static string Around(string text, int caret)
+    public static string Around(string text, int caret) => Around(text, caret, NearbyCharacters);
+
+    /// <summary>The text around <paramref name="caret"/>, at most <paramref name="limit"/> characters.</summary>
+    public static string Around(string text, int caret, int limit)
     {
-        if (text.Length <= NearbyCharacters)
+        if (text.Length <= limit)
         {
             return text;
         }
 
-        var start = Math.Clamp(caret - (NearbyCharacters / 2), 0, text.Length - NearbyCharacters);
-        return text.Substring(start, NearbyCharacters);
+        var start = Math.Clamp(caret - (limit / 2), 0, text.Length - limit);
+        return text.Substring(start, limit);
     }
 
     private static string? AppName(uint processId)
@@ -144,7 +194,7 @@ internal sealed class ContextReader(Func<ContextOptions> options, IClipboard cli
         if (element.TryGetCurrentPattern(TextPattern.Pattern, out var pattern) && pattern is TextPattern text)
         {
             var selections = text.GetSelection();
-            var selected = selections.Length > 0 ? selections[0].GetText(-1) : null;
+            var selected = selections.Length > 0 ? selections[0].GetText(MaxSelectionCharacters) : null;
             string? around = null;
             if (nearby && selections.Length > 0)
             {
@@ -210,30 +260,70 @@ internal sealed class ContextReader(Func<ContextOptions> options, IClipboard cli
         return text;
     }
 
-    // The window (or, if asked, the desktop) as a PNG no larger than the chosen size.
+    // A window that doesn't draw itself for PrintWindow in time (it hangs) gives no screenshot.
+    private static async Task<byte[]?> CaptureWithinAsync(WindowTarget target, ContextOptions o)
+    {
+        try
+        {
+            return await Task.Run(() => Capture(target, o)).WaitAsync(CaptureBudget);
+        }
+        catch (TimeoutException)
+        {
+            Log.Info(LogEvent.ContextReadSkipped, ("reason", 3));
+            return null;
+        }
+    }
+
+    // The window alone, as Windows draws it for itself, so nothing lying on top of it (another app,
+    // Naad's overlay) is captured; the desktop only when that fails and the user allowed it. A
+    // JPEG under ScreenshotEncoder's cap.
+    // ponytail: some old apps draw nothing into PrintWindow; the desktop fallback covers them if allowed.
     private static byte[]? Capture(WindowTarget target, ContextOptions o)
     {
         try
         {
-            var bounds = User32.GetWindowRect(target.Handle, out var r) && r.Right > r.Left && r.Bottom > r.Top
-                ? Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom)
-                : o.WholeDesktop ? SystemInformation.VirtualScreen : Rectangle.Empty;
-            if (bounds.IsEmpty)
+            // A minimised window would give only its caption strip.
+            if (User32.IsIconic(target.Handle))
             {
                 return null;
             }
 
-            using var shot = new Bitmap(bounds.Width, bounds.Height);
-            using (var graphics = Graphics.FromImage(shot))
+            if (User32.GetWindowRect(target.Handle, out var r) && r.Right > r.Left && r.Bottom > r.Top)
             {
-                graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                using var window = new Bitmap(r.Right - r.Left, r.Bottom - r.Top);
+                bool printed;
+                using (var graphics = Graphics.FromImage(window))
+                {
+                    var dc = graphics.GetHdc();
+                    try
+                    {
+                        printed = User32.PrintWindow(target.Handle, dc, User32.PwRenderFullContent);
+                    }
+                    finally
+                    {
+                        graphics.ReleaseHdc(dc);
+                    }
+                }
+
+                if (printed)
+                {
+                    return ScreenshotEncoder.Jpeg(window, o.ScreenshotSize);
+                }
             }
 
-            var scale = Math.Min(1.0, o.ScreenshotSize / (double)Math.Max(bounds.Width, bounds.Height));
-            using var sized = new Bitmap(shot, (int)(bounds.Width * scale), (int)(bounds.Height * scale));
-            using var png = new MemoryStream();
-            sized.Save(png, ImageFormat.Png);
-            return png.ToArray();
+            if (!o.WholeDesktop)
+            {
+                return null;
+            }
+
+            var desktop = SystemInformation.VirtualScreen;
+            using var shot = new Bitmap(desktop.Width, desktop.Height);
+            using (var graphics = Graphics.FromImage(shot))
+            {
+                graphics.CopyFromScreen(desktop.Location, Point.Empty, desktop.Size);
+            }
+
+            return ScreenshotEncoder.Jpeg(shot, o.ScreenshotSize);
         }
         catch (Exception e) when (e is System.Runtime.InteropServices.ExternalException or ArgumentException)
         {

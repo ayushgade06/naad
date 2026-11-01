@@ -179,7 +179,7 @@ internal static class Program
         // Not disposed at exit: a local transcription may still be running native code, and the
         // process ending frees the model anyway. A replaced one is disposed while idle.
         ITranscriber? transcriber = null;
-        var sounds = Sounds(settings);
+        var sounds = SoundCues.For(settings);
         try
         {
             // Exit ends the message loop; the usings below then dispose in reverse order:
@@ -361,6 +361,7 @@ internal static class Program
 
                 cleanup = CleanupSetup.Create(languageModel, http, KeyFor, s, temperature, cooldowns, snippets);
                 controller.UseCleanup(cleanup);
+                controller.UseContextSummary(CleanupSetup.Summary(languageModel, http, KeyFor, s, temperature));
             }
 
             void Offline() => offline?.Invoke();
@@ -383,6 +384,8 @@ internal static class Program
                 (instructions, sample, token) =>
                     CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
                 (instructions, sample, token) => CleanupSetup.TestModelsAsync(
+                    languageModel, http, KeyFor, settings, temperature, instructions, sample, token),
+                (instructions, sample, token) => CleanupSetup.TestContextAsync(
                     languageModel, http, KeyFor, settings, temperature, instructions, sample, token),
                 cooldowns.For,
                 Save,
@@ -446,7 +449,7 @@ internal static class Program
                     != (settings.PlaySounds || settings.ErrorSound, settings.SoundVolume))
                 {
                     sounds?.Dispose();
-                    sounds = Sounds(next);
+                    sounds = SoundCues.For(next);
                 }
 
                 tray.SetVisible(next.ShowTrayIcon);
@@ -492,8 +495,4 @@ internal static class Program
 
         return key;
     }
-
-    // Only built when some tone is on: each holds its tones in memory.
-    private static SoundCues? Sounds(AppSettings s) =>
-        s.PlaySounds || s.ErrorSound ? new SoundCues(s.SoundVolume) : null;
 }

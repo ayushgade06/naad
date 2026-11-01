@@ -105,4 +105,31 @@ public sealed class HistoryStoreTests : IDisposable
 
         public override DateTimeOffset GetUtcNow() => Now;
     }
+
+    [Fact]
+    public void Add_ManualEdit_KeepsHowItWasAskedFor()
+    {
+        var store = new HistoryStore(_folder, _clock);
+        var edit = Record(_clock.Now, "synthetic rewrite") with
+        {
+            Selection = "synthetic selection",
+            Invocation = Naad.Context.EditInvocation.Manual,
+        };
+
+        store.Add(edit, wav: null);
+
+        Assert.Equal(Naad.Context.EditInvocation.Manual, store.All().Single().Invocation);
+    }
+
+    [Fact]
+    public void Read_RecordFromBeforeInvocation_HasNone()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(Record(_clock.Now, "synthetic old"));
+        var old = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        old.Remove("Invocation");
+
+        var record = System.Text.Json.JsonSerializer.Deserialize<HistoryRecord>(old.ToJsonString())!;
+
+        Assert.Null(record.Invocation);
+    }
 }

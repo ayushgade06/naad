@@ -66,4 +66,27 @@ public sealed class CleanupPromptTests
         Assert.Contains("Write the result in French", prompt.Instructions, StringComparison.Ordinal);
         Assert.DoesNotContain("German", prompt.Instructions, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Edit_OutputLanguageAndContext_TellsTheModel()
+    {
+        var context = new Naad.Context.DictationContext(
+            "outlook", null, "selected", null, Summary: "They reply to Priya.");
+
+        var prompt = CleanupPrompt.Edit("selected", "make it formal", null, "German", context);
+
+        Assert.Contains("Write the result in German.", prompt.Instructions, StringComparison.Ordinal);
+        Assert.Contains("The text is in outlook", prompt.Instructions, StringComparison.Ordinal);
+        Assert.Contains(
+            "What the person is doing: They reply to Priya.", prompt.Instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Edit_NoContext_KeepsTheLanguageAndAddsNoHint()
+    {
+        var prompt = CleanupPrompt.Edit("selected", "shorter", null);
+
+        Assert.Contains("Keep the text's language", prompt.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("What the person is doing", prompt.Instructions, StringComparison.Ordinal);
+    }
 }

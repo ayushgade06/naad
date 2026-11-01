@@ -3,17 +3,39 @@ using Naad.Tray;
 
 namespace Naad.Settings;
 
+/// <summary>Which prompt a <see cref="PromptDialog"/> edits.</summary>
+/// <param name="Title">The window's title.</param>
+/// <param name="Default">The default instructions.</param>
+/// <param name="DefaultVersion">When the default last changed, for the newer-default notice.</param>
+/// <param name="Sample">Invented text to test with.</param>
+/// <param name="Message">What a test found, in a sentence.</param>
+internal sealed record PromptKind(
+    string Title, string Default, string DefaultVersion, string Sample, Func<PromptTest, string> Message)
+{
+    /// <summary>The cleanup prompt, tested on a dictation with hesitations, a stutter and a self-correction.</summary>
+    public static PromptKind Cleanup { get; } = new(
+        "Cleanup prompt",
+        CleanupPrompt.DefaultInstructions,
+        CleanupPrompt.DefaultVersion,
+        "um so I think we should uh meet on tuesday at three no wait four pm to talk about the the budget",
+        SettingsInput.PromptTestMessage);
+
+    /// <summary>The context prompt, tested on invented text near the cursor in an email.</summary>
+    public static PromptKind Context { get; } = new(
+        "Context prompt",
+        Naad.Context.ContextPrompt.DefaultInstructions,
+        Naad.Context.ContextPrompt.DefaultVersion,
+        "Hi Priya, thanks for the notes on the Q3 budget review. About the hiring plan for the Pune office,",
+        SettingsInput.ContextTestMessage);
+}
+
 /// <summary>
-/// Edits the cleanup instructions, with Reset to default, a notice when a newer default has
+/// Edits a prompt (cleanup or context), with Reset to default, a notice when a newer default has
 /// shipped, and a test on editable sample text that shows the reply, its time and the full
 /// prompt sent. Modal; create and use it on the UI thread.
 /// </summary>
-internal sealed class CleanupPromptDialog : Form
+internal sealed class PromptDialog : Form
 {
-    /// <summary>Invented text with hesitations, a stutter and a self-correction to tidy.</summary>
-    public const string Sample = "um so I think we should uh meet on tuesday at three no wait four pm to talk " +
-        "about the the budget";
-
     private const int TextWidth = 560;
 
     private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _test;
@@ -27,20 +49,26 @@ internal sealed class CleanupPromptDialog : Form
     private readonly Label _status = new() { AutoSize = true, MaximumSize = new Size(TextWidth, 0) };
     private readonly string? _originalCustom;
     private readonly string? _originalVersion;
+    private readonly PromptKind _kind;
 
+    /// <param name="kind">Which prompt it edits.</param>
     /// <param name="custom">The custom instructions in use, or null for the default.</param>
     /// <param name="version">The default version they were based on.</param>
     /// <param name="test">Sends instructions (null for the default) and a sample to the saved model.</param>
-    public CleanupPromptDialog(
-        string? custom, string? version, Func<string?, string, CancellationToken, Task<PromptTest>> test)
+    public PromptDialog(
+        PromptKind kind,
+        string? custom,
+        string? version,
+        Func<string?, string, CancellationToken, Task<PromptTest>> test)
     {
+        _kind = kind;
         _test = test;
         _originalCustom = custom;
         _originalVersion = version;
         Custom = custom;
         Version = version;
 
-        Text = "Cleanup prompt";
+        Text = kind.Title;
         Icon = _icon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -48,11 +76,11 @@ internal sealed class CleanupPromptDialog : Form
         StartPosition = FormStartPosition.CenterParent;
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        _prompt.Text = (custom ?? CleanupPrompt.DefaultInstructions).ReplaceLineEndings("\r\n");
-        _sample.Text = Sample;
+        _prompt.Text = (custom ?? kind.Default).ReplaceLineEndings("\r\n");
+        _sample.Text = kind.Sample;
 
         var reset = new Button { Text = "Reset to default", AutoSize = true };
-        reset.Click += (_, _) => _prompt.Text = CleanupPrompt.DefaultInstructions.ReplaceLineEndings("\r\n");
+        reset.Click += (_, _) => _prompt.Text = kind.Default.ReplaceLineEndings("\r\n");
         _testButton.Click += (_, _) => _ = TestAsync();
         _sample.TextChanged += (_, _) => _testButton.Enabled = _sample.Text.Trim().Length > 0;
         var ok = new Button { Text = "OK", AutoSize = true };
@@ -78,7 +106,7 @@ internal sealed class CleanupPromptDialog : Form
             WrapContents = false,
             Padding = new Padding(12),
         };
-        if (custom is not null && string.CompareOrdinal(version ?? "", CleanupPrompt.DefaultVersion) < 0)
+        if (custom is not null && string.CompareOrdinal(version ?? "", kind.DefaultVersion) < 0)
         {
             var switchToDefault = new Button { Text = "Switch to default", AutoSize = true };
             switchToDefault.Click += (_, _) => reset.PerformClick();
@@ -140,7 +168,7 @@ internal sealed class CleanupPromptDialog : Form
     private string? Typed()
     {
         var text = _prompt.Text.ReplaceLineEndings("\n").Trim();
-        return text.Length == 0 || text == CleanupPrompt.DefaultInstructions.Trim() ? null : text;
+        return text.Length == 0 || text == _kind.Default.Trim() ? null : text;
     }
 
     private void Accept()
@@ -157,7 +185,7 @@ internal sealed class CleanupPromptDialog : Form
         // Unchanged text keeps the version it was written against, so the notice stays honest.
         Version = typed is null ? null
             : typed == _originalCustom?.ReplaceLineEndings("\n").Trim() ? _originalVersion
-            : CleanupPrompt.DefaultVersion;
+            : _kind.DefaultVersion;
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -172,7 +200,7 @@ internal sealed class CleanupPromptDialog : Form
             var result = await _test(Typed(), _sample.Text.Trim(), _closing.Token);
             _sent.Text = $"{result.Sent.Instructions}\n\n---\n\n{result.Sent.Text}".ReplaceLineEndings("\r\n");
             _reply.Text = result.Reply.ReplaceLineEndings("\r\n");
-            _status.Text = SettingsInput.PromptTestMessage(result);
+            _status.Text = _kind.Message(result);
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
         {

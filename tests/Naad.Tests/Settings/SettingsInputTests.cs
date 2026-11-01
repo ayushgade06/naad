@@ -216,4 +216,14 @@ public sealed class SettingsInputTests
             Assert.Contains(expected, message, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public void ContextTestMessage_Failure_SaysWhy()
+    {
+        var test = new Naad.Cleanup.PromptTest(
+            "", null, 0, new("i", "t"), new(Naad.LanguageModel.CompletionError.Rejected, 404));
+
+        Assert.Contains(
+            "doesn't know the context model", SettingsInput.ContextTestMessage(test), StringComparison.Ordinal);
+    }
 }

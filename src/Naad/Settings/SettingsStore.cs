@@ -399,6 +399,11 @@ internal sealed class SettingsStore(string path)
                 root, "screenshotSize", defaults.ScreenshotSize, AppSettings.IsValidScreenshotSize, ref repaired),
             ScreenshotWholeDesktop = ReadBool(
                 root, "screenshotWholeDesktop", defaults.ScreenshotWholeDesktop, ref repaired),
+            ContextWindowTitle = ReadBool(root, "contextWindowTitle", defaults.ContextWindowTitle, ref repaired),
+            ContextModelName = ReadOptional(root, "contextModelName", AppSettings.IsValidModel, ref repaired),
+            ContextPrompt = ReadOptional(root, "contextPrompt", AppSettings.IsValidCleanupPrompt, ref repaired),
+            ContextPromptVersion = ReadOptional(
+                root, "contextPromptVersion", AppSettings.IsValidPromptVersion, ref repaired),
             EditMode = ReadName(root, "editMode", defaults.EditMode, ref repaired),
             EditModeKey = ReadName(root, "editModeKey", defaults.EditModeKey, ref repaired),
             LivePreview = ReadBool(root, "livePreview", defaults.LivePreview, ref repaired),

@@ -175,15 +175,20 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
         return request;
     }
 
-    // Text alone, or with an image in OpenAI's content-parts form, which vision models read.
-    private static JsonNode UserContent(ChatPrompt prompt) => prompt.Image is not { } png
+    // Text alone, or with an image in OpenAI's content-parts form, which vision models read. A
+    // screenshot is a JPEG (it starts FF D8); other images are PNGs.
+    private static JsonNode UserContent(ChatPrompt prompt) => prompt.Image is not { } image
         ? JsonValue.Create(prompt.Text)
         : new JsonArray(
             new JsonObject { ["type"] = "text", ["text"] = prompt.Text },
             new JsonObject
             {
                 ["type"] = "image_url",
-                ["image_url"] = new JsonObject { ["url"] = "data:image/png;base64," + Convert.ToBase64String(png) },
+                ["image_url"] = new JsonObject
+                {
+                    ["url"] = (image is [0xFF, 0xD8, ..] ? "data:image/jpeg;base64," : "data:image/png;base64,")
+                        + Convert.ToBase64String(image),
+                },
             });
 
     // OpenAI's shape: { "error": { "param": "temperature", ... } }; Anthropic's has no param, only

@@ -111,6 +111,7 @@ internal sealed partial class SettingsWindow : Form
             actions.TestKey,
             actions.TestPrompt,
             actions.TestModels,
+            actions.TestContextPrompt,
             actions.CooldownFor,
             _closing.Token);
         Controls.Add(BuildLayout());

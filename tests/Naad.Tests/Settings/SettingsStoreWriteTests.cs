@@ -63,6 +63,10 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "contextScreenshot": false,
               "screenshotSize": 1024,
               "screenshotWholeDesktop": false,
+              "contextWindowTitle": false,
+              "contextModelName": null,
+              "contextPrompt": null,
+              "contextPromptVersion": null,
               "editMode": "Automatic",
               "editModeKey": "Shift",
               "livePreview": false,
@@ -240,7 +244,8 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.Equal(
             [
                 "cleanup", "cleanupPrompt", "cleanupPromptVersion", "context", "contextExcludedApps",
-                "contextScreenshot", "customHoldShortcut", "customPasteAgainShortcut", "customToggleShortcut",
+                "contextModelName", "contextPrompt", "contextPromptVersion", "contextScreenshot", "contextWindowTitle",
+                "customHoldShortcut", "customPasteAgainShortcut", "customToggleShortcut",
                 "editMode", "editModeKey", "errorSound", "fileLogging", "historyRetention", "holdShortcut",
                 "instructionGuard", "keepMeetingAudio", "language",
                 "languageModelBaseUrl",

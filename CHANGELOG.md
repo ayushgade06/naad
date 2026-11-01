@@ -124,6 +124,18 @@ All notable changes to Naad are listed here. The format follows
   them, even after a crash. **Preview** warns when the speakers are muted
   or nearly silent.
 
+- **A context model**: as you start speaking, it sums up in two sentences
+  what you're doing, from the app, the text near the cursor and, if you
+  allow them, the window's title (off by default) and a screenshot of the
+  window. It runs while you speak, so the paste waits at most a second for
+  it. It has its own model field with suggestions and **Reset**, and an
+  editable prompt with **Test**; a failed summary says why.
+- Screenshots capture only the target window, never what lies on top of
+  it, as a JPEG under 500 KB.
+- **Edit Mode**: a Manual edit with nothing selected says **Select text
+  first** before recording; the edit is told the app, the summary and the
+  output language; history marks edits Automatic or Manual.
+
 ### Fixed
 
 - Live typing types while the shortcut is held: the shortcut's Ctrl or
@@ -142,6 +154,10 @@ All notable changes to Naad are listed here. The format follows
   internet and falls back to this PC, as does a dropped connection.
 - The overlay no longer shows the last dictation's live words again under
   a later notice.
+- Context: an excluded app's name isn't sent, entries such as "keepass.exe"
+  match, a screenshot is taken only once the field is known not to be a
+  password, off the UI thread, and a selection is read up to 20,000
+  characters.
 - Esc says **Cancelled** on the overlay. A context read that fails no
   longer loses the dictation, and tray notifications show even when the
   icon is hidden.

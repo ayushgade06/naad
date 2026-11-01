@@ -26,6 +26,16 @@ internal enum EditModeKey
     Ctrl,
 }
 
+/// <summary>How an edit was asked for, kept in its history record.</summary>
+internal enum EditInvocation
+{
+    /// <summary>Text was selected as the dictation started.</summary>
+    Automatic,
+
+    /// <summary>The Edit Mode key was held with the shortcut.</summary>
+    Manual,
+}
+
 internal enum EditIntent
 {
     /// <summary>Dictate: the words are pasted.</summary>

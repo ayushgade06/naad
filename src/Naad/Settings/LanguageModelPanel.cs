@@ -18,6 +18,18 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _download;
     private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _testPrompt;
     private readonly Func<string?, string, CancellationToken, Task<IReadOnlyList<ModelTest>>> _testModels;
+    private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _testContext;
+    private readonly ComboBox _contextModel = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = FieldWidth };
+    private readonly Button _contextModelReset = new() { Text = "Reset", AutoSize = true };
+    private readonly Button _contextPromptButton = new() { Text = "Context prompt...", AutoSize = true };
+    private readonly CheckBox _windowTitle = new()
+    {
+        Text = "Also send the window\u2019s title (it often holds names and subjects)",
+        AutoSize = true,
+    };
+
+    private string? _contextPrompt;
+    private string? _contextPromptVersion;
     private readonly CancellationToken _closing;
     private readonly CloudServiceFields _cloud;
 
@@ -74,6 +86,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     /// <param name="testKey">Checks a service's key.</param>
     /// <param name="testPrompt">Sends instructions (null for the default) and a sample to the saved model.</param>
     /// <param name="testModels">Sends them to each saved model in turn.</param>
+    /// <param name="testContext">Sends context instructions and a sample to the saved context model.</param>
     /// <param name="cooldownFor">A cloud model's running rate limit, if any.</param>
     /// <param name="closing">Cancelled when the window closes.</param>
     public LanguageModelPanel(
@@ -83,11 +96,15 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         Func<CloudService, string?, Uri, CancellationToken, Task<KeyTestResult>> testKey,
         Func<string?, string, CancellationToken, Task<PromptTest>> testPrompt,
         Func<string?, string, CancellationToken, Task<IReadOnlyList<ModelTest>>> testModels,
+        Func<string?, string, CancellationToken, Task<PromptTest>> testContext,
         Func<string, Cooldown?> cooldownFor,
         CancellationToken closing)
     {
         _testPrompt = testPrompt;
         _testModels = testModels;
+        _testContext = testContext;
+        _contextPrompt = current.ContextPrompt;
+        _contextPromptVersion = current.ContextPromptVersion;
         _customPrompt = current.CleanupPrompt;
         _promptVersion = current.CleanupPromptVersion;
         _download = download;
@@ -127,7 +144,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         _context.Checked = current.Context;
         _excluded.Text = string.Join(", ", current.ContextExcludedApps);
         _edit.Items.AddRange(["Off: dictation replaces a selection", "Automatic: speech over a selection edits it",
-            "Manual: hold Shift with the shortcut to edit"]);
+            $"Manual: hold {current.EditModeKey} with the shortcut to edit"]);
         _edit.SelectedIndex = (int)current.EditMode;
         _screenshot.Checked = current.ContextScreenshot;
         _screenshotSize.Items.AddRange(["1024", "768", "640", "512"]);
@@ -139,6 +156,11 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             "If the edit fails, your text is left as it was."));
         Row(this, "Context", _context);
         Row(this, "Never read", Flow(_excluded, Note("App names, such as keepass")));
+        _windowTitle.Checked = current.ContextWindowTitle;
+        Row(this, "", _windowTitle);
+        Row(this, "Context model", Flow(_contextModel, _contextModelReset, _contextPromptButton));
+        Row(this, "", Note("Sums up what you are doing while you speak, as a hint for cleanup. In the cloud it is " +
+            "its own model, one that reads images for the screenshot; on this PC, the model there."));
         Row(this, "", _screenshot);
         Row(this, "Screenshot", Flow(_screenshotSize, _wholeDesktop));
         Row(this, "Wait up to", Flow(_timeout, Note("seconds for the AI, then paste as said")));
@@ -156,6 +178,14 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         }
 
         _promptButton.Click += (_, _) => EditPrompt();
+        _contextPromptButton.Click += (_, _) => EditContextPrompt();
+        _contextModel.Text = current.ContextModelName ?? "";
+        _contextModel.DropDown += (_, _) =>
+        {
+            _contextModel.Items.Clear();
+            _contextModel.Items.AddRange([.. CloudServices.ContextModels(_cloud.Service)]);
+        };
+        _contextModelReset.Click += (_, _) => _contextModel.Text = "";
         _testModelButton.Click += (_, _) => _ = TestModelAsync();
         _localModel.SelectedIndexChanged += (_, _) => ShowModelStatus();
         _downloadButton.Click += (_, _) => _ = DownloadAsync();
@@ -182,6 +212,14 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             return false;
         }
 
+        // Blank, or the service's own suggestion, follows the service.
+        var contextModel = _contextModel.Text.Trim();
+        if (contextModel.Length > 0 && !AppSettings.IsValidModel(contextModel))
+        {
+            error = "The context model must be a model id, or blank for the service's suggestion.";
+            return false;
+        }
+
         settings = chosen with
         {
             LanguageModelProvider = (LanguageModelProvider)_provider.SelectedIndex,
@@ -195,6 +233,10 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             Cleanup = (CleanupLevel)_cleanup.SelectedIndex,
             CleanupPrompt = _customPrompt,
             CleanupPromptVersion = _promptVersion,
+            ContextModelName = contextModel.Length == 0 ? null : contextModel,
+            ContextPrompt = _contextPrompt,
+            ContextPromptVersion = _contextPromptVersion,
+            ContextWindowTitle = _windowTitle.Checked,
             InstructionGuard = _guard.Checked,
             Context = _context.Checked,
             ContextExcludedApps = AppSettings.SplitWords(_excluded.Text),
@@ -209,11 +251,21 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
 
     private void EditPrompt()
     {
-        using var dialog = new CleanupPromptDialog(_customPrompt, _promptVersion, _testPrompt);
+        using var dialog = new PromptDialog(PromptKind.Cleanup, _customPrompt, _promptVersion, _testPrompt);
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
             _customPrompt = dialog.Custom;
             _promptVersion = dialog.Version;
+        }
+    }
+
+    private void EditContextPrompt()
+    {
+        using var dialog = new PromptDialog(PromptKind.Context, _contextPrompt, _contextPromptVersion, _testContext);
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _contextPrompt = dialog.Custom;
+            _contextPromptVersion = dialog.Version;
         }
     }
 
@@ -224,7 +276,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         _testModelResult.Text = "Waiting for the models (uses the saved AI settings)...";
         try
         {
-            var results = await _testModels(_customPrompt, CleanupPromptDialog.Sample, _closing);
+            var results = await _testModels(_customPrompt, PromptKind.Cleanup.Sample, _closing);
             _testModelResult.Text = string.Join(
                 "\n", results.Select(r => $"{r.Model}: {SettingsInput.PromptTestMessage(r.Result)}"));
         }

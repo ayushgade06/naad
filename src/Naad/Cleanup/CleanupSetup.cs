@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Naad.Context;
 using Naad.LanguageModel;
 using Naad.Providers;
 using Naad.Settings;
@@ -26,17 +27,112 @@ internal sealed record ModelTest(string Model, PromptTest Result);
 /// <summary>Builds the language model and the cleanup step from the settings.</summary>
 internal static class CleanupSetup
 {
+    // The summary runs while the user speaks; one that takes longer than a long sentence is no use.
+    private static readonly TimeSpan ContextTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>The context model's id in the cloud: the chosen one, or the service's suggestion.</summary>
+    public static string ContextModelName(AppSettings s) =>
+        s.ContextModelName
+        ?? (CloudServices.ContextModels(s.LanguageModelService) is [var suggested, ..]
+            ? suggested
+            : s.LanguageModelName);
+
+    /// <summary>
+    /// What sums up the user's activity while they speak, or null when no language model runs. In
+    /// the cloud it is its own model; on this PC, <paramref name="model"/> itself.
+    /// </summary>
+    public static ContextSummarizer? CreateContextSummarizer(
+        ILanguageModel? model,
+        HttpClient http,
+        Func<CloudService, string?> keyFor,
+        AppSettings s,
+        TemperatureSupport temperature,
+        Func<string?> customPrompt)
+    {
+        return ContextModel(model, http, keyFor, s, temperature) is { } contextModel
+            ? new(contextModel, customPrompt, ContextTimeout)
+            : null;
+    }
+
+    /// <summary>
+    /// Sends the context prompt for <paramref name="sample"/>, as text near the cursor in an email,
+    /// to the context model once, for Settings to show what came back.
+    /// </summary>
+    public static async Task<PromptTest> TestContextAsync(
+        ILanguageModel? model,
+        HttpClient http,
+        Func<CloudService, string?> keyFor,
+        AppSettings s,
+        TemperatureSupport temperature,
+        string? instructions,
+        string sample,
+        CancellationToken token)
+    {
+        var prompt = ContextPrompt.Build(instructions, new("outlook", sample, null, null));
+        if (ContextModel(model, http, keyFor, s, temperature) is not { } contextModel)
+        {
+            return new("", null, 0, prompt, null);
+        }
+
+        var started = Stopwatch.GetTimestamp();
+        CompletionResult result;
+        try
+        {
+            result = await contextModel.CompleteAsync(prompt, token);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            result = new("", new(CompletionError.Timeout));
+        }
+
+        var milliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        Log.Info(LogEvent.ContextPromptTested, ("failed", result.Failure is null ? 0 : 1), ("reply_ms", milliseconds));
+        var verdict = ContextPrompt.TwoSentences(result.Text) is null ? ReplyVerdict.Empty : ReplyVerdict.Accepted;
+        return result.Failure is { } failure
+            ? new("", null, milliseconds, prompt, failure)
+            : new(result.Text, verdict, milliseconds, prompt, null);
+    }
+
+    // In the cloud, a model of its own; on this PC, the model that cleans up.
+    private static ILanguageModel? ContextModel(
+        ILanguageModel? model,
+        HttpClient http,
+        Func<CloudService, string?> keyFor,
+        AppSettings s,
+        TemperatureSupport temperature) =>
+        model is null ? null
+        : s.LanguageModelProvider == LanguageModelProvider.Cloud ? new OpenAiChatLanguageModel(
+            http,
+            keyFor(s.LanguageModelService),
+            CloudServices.For(s.LanguageModelService).BaseUrl ?? s.LanguageModelBaseUrl,
+            ContextModelName(s),
+            temperature,
+            ContextTimeout)
+        : model;
+
+    /// <summary>
+    /// The summary to start with each recording, or null when context isn't read for AI cleanup
+    /// or no model runs.
+    /// </summary>
+    public static Func<Task<DictationContext>, CancellationToken, Task<ContextSummary>>? Summary(
+        ILanguageModel? model, HttpClient http, Func<CloudService, string?> keyFor, AppSettings s,
+        TemperatureSupport temperature) =>
+        s.Context && s.Cleanup == CleanupLevel.Ai
+            && CreateContextSummarizer(model, http, keyFor, s, temperature, () => s.ContextPrompt) is { } summarizer
+            ? summarizer.SummarizeAsync
+            : null;
+
     /// <summary>How a test names the model on this PC.</summary>
     public const string LocalModelName = "Model on this PC";
 
     /// <summary>
-    /// The models <b>Test models</b> asks, in order: the cloud model and its fallback, each once,
-    /// or the model on this PC.
+    /// The models <b>Test models</b> asks, in order: the cloud model, its fallback and the context
+    /// model, each once, or the model on this PC.
     /// </summary>
     public static IReadOnlyList<string> ModelsToTest(AppSettings s) =>
         s.LanguageModelProvider != LanguageModelProvider.Cloud
             ? [LocalModelName]
-            : [.. new[] { s.LanguageModelName, s.LanguageModelFallbackName }
+            : [.. new[] { s.LanguageModelName, s.LanguageModelFallbackName, ContextModelName(s) }
                 .Where(m => !string.IsNullOrWhiteSpace(m))
                 .Distinct()
                 .Cast<string>()];
@@ -153,10 +249,8 @@ internal static class CleanupSetup
                 http, keyFor(s.LanguageModelService), url, fallback, temperature, budget)));
         }
 
-        // The screenshot goes only to a cloud model the user chose, and only when they opted in.
-        var describer = cloud && s.ContextScreenshot ? model : null;
         var options = new CleanupOptions(
-            s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard, describer, s.Language);
+            s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard, SpokenLanguage: s.Language);
         return new(s.Cleanup, new AiCleanup(models, cooldowns, options), budget, snippets, s.PressEnterCommand);
     }
 

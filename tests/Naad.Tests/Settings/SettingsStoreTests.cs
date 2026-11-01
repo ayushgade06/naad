@@ -423,6 +423,24 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_ContextModelPromptAndTitle_ReturnsThem()
+    {
+        var result = LoadFrom("""
+            { "version": 5, "contextWindowTitle": true, "contextModelName": "synthetic-vision",
+              "contextPrompt": "Say what is going on.", "contextPromptVersion": "2026-11-01" }
+            """);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.True(result.Settings.ContextWindowTitle);
+        Assert.Equal("synthetic-vision", result.Settings.ContextModelName);
+        Assert.Equal("Say what is going on.", result.Settings.ContextPrompt);
+        Assert.Equal("2026-11-01", result.Settings.ContextPromptVersion);
+    }
+
+    [Fact]
+    public void Load_Defaults_KeepTheWindowTitleOff() => Assert.False(AppSettings.Defaults.ContextWindowTitle);
+
+    [Fact]
     public void Load_ToggleOnly_KeepsHoldOff()
     {
         var result = LoadFrom("""{ "version": 5, "holdShortcut": null, "toggleShortcut": "F9" }""");

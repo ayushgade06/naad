@@ -186,6 +186,24 @@ internal sealed record AppSettings
     /// <summary>Capture the whole desktop when the window can't be captured on its own.</summary>
     public bool ScreenshotWholeDesktop { get; init; }
 
+    /// <summary>
+    /// Send the window's title with the context. Off by default: titles often hold names, subjects
+    /// and file names. Never logged.
+    /// </summary>
+    public bool ContextWindowTitle { get; init; }
+
+    /// <summary>
+    /// The cloud model that sums up what the user is doing; null for the service's suggestion. On
+    /// this PC, the model there does it.
+    /// </summary>
+    public string? ContextModelName { get; init; }
+
+    /// <summary>The user's own context prompt; null for the default.</summary>
+    public string? ContextPrompt { get; init; }
+
+    /// <summary>The default context prompt's version a custom one was based on.</summary>
+    public string? ContextPromptVersion { get; init; }
+
     /// <summary>When a dictation over selected text is an instruction to rewrite it.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter<EditMode>))]
     public EditMode EditMode { get; init; } = EditMode.Automatic;

@@ -12,6 +12,7 @@ namespace Naad.Settings;
 /// (a typed one, or null for the stored one).</param>
 /// <param name="TestPrompt">Sends cleanup instructions and a sample to the saved language model.</param>
 /// <param name="TestModels">Sends them to each saved model in turn: the model and its fallback.</param>
+/// <param name="TestContextPrompt">Sends context instructions and sample text to the saved context model.</param>
 /// <param name="CooldownFor">A cloud model's running rate limit, if any.</param>
 /// <param name="Save">Saves and applies the change. Returns what went wrong, or null.</param>
 /// <param name="BeginCapture">Starts capturing a shortcut; false if a dictation is running.</param>
@@ -23,6 +24,7 @@ internal sealed record SettingsWindowActions(
     Func<AppSettings, string?, CancellationToken, Task<TranscriptionTest>> TestTranscription,
     Func<string?, string, CancellationToken, Task<PromptTest>> TestPrompt,
     Func<string?, string, CancellationToken, Task<IReadOnlyList<ModelTest>>> TestModels,
+    Func<string?, string, CancellationToken, Task<PromptTest>> TestContextPrompt,
     Func<string, Cooldown?> CooldownFor,
     Func<SettingsChange, string?> Save,
     Func<bool> BeginCapture,

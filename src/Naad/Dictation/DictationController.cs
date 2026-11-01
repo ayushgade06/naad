@@ -42,6 +42,13 @@ internal sealed partial class DictationController(
     private ITranscriptCleanup? _cleanup;
     private Func<WindowTarget, Task<DictationContext>>? _readContext;
     private Task<DictationContext> _context = Task.FromResult(DictationContext.None);
+    private Func<Task<DictationContext>, CancellationToken, Task<ContextSummary>>? _summarize;
+    private Task<ContextSummary> _summary = Task.FromResult(ContextSummary.None);
+    private CancellationTokenSource? _summaryCancel;
+
+    // The summary runs while the user speaks; after release it gets this much longer at most, so it
+    // never holds up the paste for long.
+    private static readonly TimeSpan SummaryWait = TimeSpan.FromSeconds(1);
     private CancellationTokenSource? _jobCancel;
     private bool _latched;
 
@@ -203,12 +210,13 @@ internal sealed partial class DictationController(
         switch (step.Action)
         {
             case DictationAction.StartRecording:
-                _target = captureTarget();
+                _target = _prereadTarget ?? captureTarget();
                 _latched = false;
 
                 // Read while the user speaks; the reader keeps its own time limit.
-                _context = _readContext?.Invoke(_target) ?? Task.FromResult(DictationContext.None);
+                _context = _preread ?? _readContext?.Invoke(_target) ?? Task.FromResult(DictationContext.None);
                 _ = ReportEditAsync(_context, step.Job);
+                StartSummary();
                 _cleanup?.Prepare();
                 StartLive();
                 _starting = StartRecordingAsync(step.Job, _stopped, time.GetTimestamp());
@@ -216,6 +224,10 @@ internal sealed partial class DictationController(
                 break;
             case DictationAction.Discard:
                 TakeLive()?.Dispose();
+
+                // What was read and summed up goes with the recording thrown away.
+                _context = Task.FromResult(DictationContext.None);
+                StopSummary();
                 _ = DiscardAsync(e, step.Held);
                 break;
             case DictationAction.Transcribe:
@@ -224,81 +236,6 @@ internal sealed partial class DictationController(
         }
 
         return step;
-    }
-
-    // Opening the microphone can take long enough that the keyboard hook, which shares
-    // this thread, misses the key release of a quick tap. So it opens on the thread pool.
-    private async Task<bool> StartRecordingAsync(long job, Task previousStop, long pressedAt)
-    {
-        // The previous recording's own task reports how its stop went.
-        await previousStop.ConfigureAwait(
-            ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
-        MicrophoneFailure? failure;
-        try
-        {
-            failure = await Task.Run(recorder.Start);
-        }
-        catch (ObjectDisposedException)
-        {
-            // Naad is shutting down: the recorder was disposed while this press was queued.
-            return false;
-        }
-
-        if (failure is { } f)
-        {
-            DictationLog.Microphone(f);
-            Apply(DictationEvent.RecordingFailed, job);
-            MicrophoneFailed?.Invoke(f.Error);
-            return false;
-        }
-
-        Log.Info(LogEvent.RecordingStarted, ("mic_open_ms", Milliseconds(time.GetElapsedTime(pressedAt))));
-        MicrophoneOpened?.Invoke();
-        return true;
-    }
-
-    // Returns the recorded PCM, or null if the microphone never opened.
-    private Task<byte[]?> StopRecording()
-    {
-        var stop = StopAfterStartAsync(_starting);
-        _stopped = stop;
-        return stop;
-    }
-
-    private async Task<byte[]?> StopAfterStartAsync(Task<bool> starting)
-    {
-        if (!await starting)
-        {
-            return null;
-        }
-
-        try
-        {
-            return await recorder.StopAsync();
-        }
-        finally
-        {
-            MicrophoneClosed?.Invoke();
-        }
-    }
-
-    // ponytail: every recording leaves a five-minute timer behind, ignored by job id once the
-    // recording ends; cancel it per job if many short dictations ever show up in memory use.
-    private async Task StopAtMaxDurationAsync(long job, CancellationToken shutdown)
-    {
-        try
-        {
-            await Task.Delay(DictationSession.MaxRecording, time, shutdown);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        if (Apply(DictationEvent.MaxDurationReached, job).Action == DictationAction.Transcribe)
-        {
-            Log.Info(LogEvent.RecordingMaxDurationReached);
-        }
     }
 
     private async Task DiscardAsync(DictationEvent cause, TimeSpan held)
@@ -327,6 +264,7 @@ internal sealed partial class DictationController(
         var service = _transcriber;
         var cleanup = _cleanup;
         var contextTask = _context;
+        var summaryTask = _summary;
         using var live = TakeLive();
 
         // The window the user was in when they pressed the shortcut, never whatever has focus now.
@@ -392,7 +330,6 @@ internal sealed partial class DictationController(
             }
 
             var context = await ContextOrNoneAsync(contextTask);
-
             // Without a selection to edit, or a model to edit it, the selection stays as it was.
             if (context.NeedsSelection || (context.IsEdit && cleanup is null))
             {
@@ -417,6 +354,8 @@ internal sealed partial class DictationController(
 
             if (raw.Length > 0 && cleanup is not null)
             {
+                // Only now: a dictation pasted as said, or typed live, has no use for it.
+                context = await WithSummaryAsync(context, summaryTask, cancel);
                 var cleanStart = time.GetTimestamp();
                 var cleaned = await CleanAsync(cleanup, raw, context, cancel);
                 report = report with { CleanupMilliseconds = Milliseconds(time.GetElapsedTime(cleanStart)) };
@@ -464,6 +403,7 @@ internal sealed partial class DictationController(
                 Raw = raw,
                 Text = text,
                 Selection = context.Selection,
+                Invocation = context.Invocation,
                 Outcome = pasted ? HistoryOutcome.Pasted : HistoryOutcome.Kept,
                 Wav = wav,
             });
@@ -482,6 +422,13 @@ internal sealed partial class DictationController(
         finally
         {
             _jobCancel = null;
+
+            // What was read and summed up belongs to this dictation only; a screenshot isn't kept.
+            if (_context == contextTask)
+            {
+                _context = Task.FromResult(DictationContext.None);
+                StopSummary();
+            }
 
             // Every path ends the job, so the next press is accepted. Events for a job that
             // already ended are ignored by the session.

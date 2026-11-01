@@ -128,6 +128,22 @@ internal static class CloudServices
     };
 
     /// <summary>
+    /// Suggested context models, the default first: fast ones that read images, since the context
+    /// model may get a screenshot. Empty for Custom, whose models Naad can't know.
+    /// </summary>
+    public static IReadOnlyList<string> ContextModels(CloudService service) => service switch
+    {
+        CloudService.Groq =>
+            ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"],
+        CloudService.OpenAI => ["gpt-4.1-nano", "gpt-4.1-mini"],
+        CloudService.Gemini => ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
+        CloudService.XAI => ["grok-4-fast-non-reasoning"],
+        CloudService.Anthropic => ["claude-haiku-4-5"],
+        CloudService.Cerebras => ["llama-4-scout-17b-16e-instruct"],
+        _ => [],
+    };
+
+    /// <summary>
     /// The service a base URL belongs to, for settings written before services were chosen by
     /// name: a known host picks its service, anything else is Custom.
     /// </summary>

@@ -257,13 +257,19 @@ internal sealed partial class TrayIcon : IDisposable
         clicked: null);
 
     /// <summary>Says an edit couldn't be made, and why, leaving the selection as it was.</summary>
-    public void ShowEditFailed(bool needsSelection) => Notify(
+    /// <param name="needsSelection">Nothing was selected for a Manual edit.</param>
+    /// <param name="editKey">The key held with the shortcut for a Manual edit, such as Shift.</param>
+    public void ShowEditFailed(bool needsSelection, string editKey) => Notify(
         "Naad couldn't edit",
         needsSelection
-            ? "Select text first, then hold Shift with the shortcut to edit it."
+            ? $"Select text first, then hold {editKey} with the shortcut to edit it."
             : "The edit didn't work, so your text was left as it was. Try again, or check the AI settings.",
         ToolTipIcon.Warning,
         clicked: null);
+
+    /// <summary>Says why the context summary failed; dictation goes on without it.</summary>
+    public void ShowContextFailed(Context.ContextFailure failure) =>
+        Notify("Naad context", Context.ContextFailures.Message(failure), ToolTipIcon.Info, clicked: null);
 
     // A menu item shows one short line of the text.
     private static string Preview(string text, int length)

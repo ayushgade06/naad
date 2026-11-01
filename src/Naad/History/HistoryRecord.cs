@@ -28,6 +28,8 @@ internal enum HistoryOutcome
 /// <param name="Outcome">How it ended.</param>
 /// <param name="HasAudio">Whether the recording is kept with it.</param>
 /// <param name="Selection">For an Edit Mode dictation, the text it rewrote; null for a dictation.</param>
+/// <param name="Invocation">How that edit was asked for: Automatic or Manual. Null for a dictation, and for
+/// edits recorded before Naad kept it.</param>
 internal sealed record HistoryRecord(
     Guid Id,
     DateTimeOffset Time,
@@ -39,7 +41,8 @@ internal sealed record HistoryRecord(
     long CleanupMilliseconds,
     HistoryOutcome Outcome,
     bool HasAudio,
-    string? Selection = null)
+    string? Selection = null,
+    Naad.Context.EditInvocation? Invocation = null)
 {
     // The generated ToString would print what was said.
     public override string ToString() => $"HistoryRecord {{ Id = {Id}, Outcome = {Outcome}, Chars = {Text.Length} }}";
