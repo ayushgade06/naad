@@ -21,4 +21,13 @@ internal static class UpdatePolicy
     /// <param name="manual">The user chose Check for updates.</param>
     public static bool Offer(UpdateState state, string version, DateTimeOffset now, bool manual) =>
         manual || (state.Skipped != version && now - state.FirstSeen >= Wait);
+
+    /// <summary>
+    /// Whether the overlay should say "Update available" after a dictation: once per offered
+    /// version, never for a skipped one, so it is a reminder and not a nag.
+    /// </summary>
+    /// <param name="state">What is remembered.</param>
+    /// <param name="offered">The version on offer now, or null.</param>
+    public static bool Mark(UpdateState state, string? offered) =>
+        offered is not null && state.Marked != offered && state.Skipped != offered;
 }

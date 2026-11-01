@@ -34,9 +34,6 @@ internal sealed partial class TrayIcon : IDisposable
     private const string UpdateFailedMessage = "Naad couldn't check for or download the update. Check your " +
         "internet connection and try again from the Naad menu.";
 
-    private const string UpdateWaitsMessage = "Naad will update once your dictation is finished. Click the " +
-        "notification again then.";
-
     /// <summary>Title of the notification shown when the shortcut is pressed before setup is finished.</summary>
     public const string ApiKeyNeededTitle = "Naad isn't set up yet";
 
@@ -280,10 +277,6 @@ internal sealed partial class TrayIcon : IDisposable
 
     /// <summary>Tells the user an update check or download failed.</summary>
     public void ShowUpdateFailed() => Notify(UpdateTitle, UpdateFailedMessage, ToolTipIcon.Warning, clicked: null);
-
-    /// <summary>The update was accepted during a dictation; clicking again later installs it.</summary>
-    public void ShowUpdateWaits(Action install) =>
-        Notify(UpdateTitle, UpdateWaitsMessage, ToolTipIcon.Info, clicked: install);
 
     /// <summary>Tells the user to add an API key; clicking the notification opens Settings.</summary>
     public void ShowApiKeyNeeded() =>

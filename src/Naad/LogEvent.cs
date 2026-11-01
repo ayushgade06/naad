@@ -171,6 +171,8 @@ internal enum LogEvent
     UpdateReadyToApply,
     UpdateWaiting,
     UpdateSkipped,
+    UpdateDownloadCancelled,
+    UpdateMarked,
     UpdateStateUnreadable,
     UpdateStateUnsaved,
     DiagnosticsCopyFailed,

@@ -47,14 +47,24 @@ public sealed class UpdatePolicyTests
     }
 
     [Fact]
+    public void Mark_OncePerOfferedVersionAndNeverWhenSkipped()
+    {
+        Assert.False(UpdatePolicy.Mark(new(), null));
+        Assert.True(UpdatePolicy.Mark(new(), "2.0.1"));
+        Assert.False(UpdatePolicy.Mark(new(Marked: "2.0.1"), "2.0.1"));
+        Assert.True(UpdatePolicy.Mark(new(Marked: "2.0.1"), "2.0.2"));
+        Assert.False(UpdatePolicy.Mark(new(Skipped: "2.0.2"), "2.0.2"));
+    }
+
+    [Fact]
     public void LoadAndSave_RoundTrip_AndAMissingOrBrokenFileRemembersNothing()
     {
         var path = Path.Combine(Path.GetTempPath(), $"naad-update-{Guid.NewGuid():N}.json");
         try
         {
             Assert.Equal(new UpdateState(), UpdateState.Load(path));
-            new UpdateState("2.0.1", Day0, "2.0.0").Save(path);
-            Assert.Equal(new UpdateState("2.0.1", Day0, "2.0.0"), UpdateState.Load(path));
+            new UpdateState("2.0.1", Day0, "2.0.0", "2.0.1").Save(path);
+            Assert.Equal(new UpdateState("2.0.1", Day0, "2.0.0", "2.0.1"), UpdateState.Load(path));
             File.WriteAllText(path, "not json");
             Assert.Equal(new UpdateState(), UpdateState.Load(path));
         }

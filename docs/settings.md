@@ -516,4 +516,9 @@ three days (counted from when this PC first saw it), so a broken release can
 be replaced first; **Check for updates** in the tray offers it at once. While
 an update is offered, **Skip version X** in the tray stops the daily check
 offering that version; a newer one is offered as usual. Nothing is downloaded
-until you click the notification, and never during a dictation.
+until you click the notification, which opens a window with what's new in
+every release since yours, from the changelog (so skipped versions are
+included). **Install and
+restart** downloads it with a progress bar and **Cancel**; a failed download
+offers **Retry**. Naad never restarts during a dictation or meeting notes.
+After a dictation, the overlay says **Update available** once per version.

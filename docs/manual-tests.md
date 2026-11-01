@@ -1094,15 +1094,18 @@ Deepgram key is needed.
 
 **Status after P39:** M-MS1 to M-MS4 have **not been run** by a person.
 
-## Updates, diagnostics and the recording flag (P40): M-RL1 to M-RL3
+## Updates, diagnostics and the recording flag (P40): M-RL1 to M-RL6
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
 | M-RL1 | Update wait and skip | In an installed copy, publish a test release; wait for the daily check, then choose **Check for updates**; then **Skip version X**. | The daily check stays quiet for three days; **Check for updates** offers it at once; after **Skip**, the daily check never offers that version. | **No.** The policy is unit tested. |
 | M-RL2 | Diagnostics | Open **Diagnostics** in Naad's window and click **Copy**. | The version, Windows version and choices are copied; no key, device name, dictionary word or dictation is in them. | **No.** Unit tested for user content. |
 | M-RL3 | Recording flag | Set `recordingFlagFile` to `true`, hold the shortcut, and look in `%LOCALAPPDATA%\Naad`. | `is-recording` exists while recording, holding a Unix time, and is gone after release. | **No.** Unit tested. |
+| M-RL4 | Update window | With an update offered, click the notification; click **Install and restart**, then **Cancel** part way; then **Install and restart** again with Wi-Fi off, then on, using **Retry**. | The window lists the changelog sections of each newer release, newest first; the bar moves; Cancel installs nothing; Retry completes and Naad restarts on the new version. | **No.** Notes merging is unit tested. |
+| M-RL5 | Overlay reminder | With an update offered, dictate twice. | The overlay says **Update available** after the first dictation only; never for a skipped version. | **No.** Unit tested. |
+| M-RL6 | Meeting in progress | During meeting notes, click **Install and restart**. | The window says Naad updates once the meeting is finished; nothing restarts. | **No.** |
 
-**Status after P40:** M-RL1 to M-RL3 have **not been run** by a person.
+**Status after P40:** M-RL1 to M-RL6 have **not been run** by a person.
 
 ## v2.0.0: the automated pass, 2026-11-01
 
@@ -1129,14 +1132,12 @@ Groq) to M-PV5, M-HB1 to M-HB5, M-HY1 to
 M-HY6, M-SN1 to M-SN4, M-PL1 to M-PL4, M-CX1 to M-CX5, M-ED1 to M-ED5,
 M-LV1 to M-LV4, M-LY1 to M-LY5 (M-LY3 and M-LY4 also need an OpenAI or
 Deepgram key), M-MR1 to M-MR6, M-MD1 to M-MD5, M-MS1 to M-MS4 and M-RL1 to
-M-RL3. Tag `v2.0.0` only after they pass.
+M-RL6. Tag `v2.0.0` only after they pass.
 
 ### Known limits left open
 
 - Updates are not signature-checked: Naad isn't code-signed yet, so there is
   no publisher to compare against. Releases come only from this repository's
   GitHub Releases over HTTPS.
-- Release notes merged across skipped versions, download progress with
-  Cancel, and the "Update available" mark on the overlay are not built.
 - Gemini Live, xAI and custom realtime endpoints for live transcription,
   a global meeting shortcut and microphone echo cancellation are not built.

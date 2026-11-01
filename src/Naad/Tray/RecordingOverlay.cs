@@ -171,7 +171,12 @@ internal sealed class RecordingOverlay : Form
     /// </summary>
     public void ShowCleanupFellBack() => ShowNotice("Pasted as said");
 
-    /// <summary>Says <paramref name="text"/> (two or three words) for a moment, even after the dictation.</summary>
+    /// <summary>Whether a notice such as "Pasted as said" is on screen now.</summary>
+    public bool ShowingNotice => _notice.Enabled;
+
+    /// <summary>
+    /// Says <paramref name="text"/> (two or three words) for a moment, even after the dictation.
+    /// </summary>
     public void ShowNotice(string text)
     {
         ShowLabel(text);
@@ -311,7 +316,10 @@ internal sealed class RecordingOverlay : Form
     private void DrawLiveText(Graphics graphics)
     {
         var line = new RectangleF(
-            Scale(LogicalTextPadding), Scale(LogicalLiveTextTop), Width - Scale(LogicalTextPadding * 2), Scale(LogicalLiveTextHeight));
+            Scale(LogicalTextPadding),
+            Scale(LogicalLiveTextTop),
+            Width - Scale(LogicalTextPadding * 2),
+            Scale(LogicalLiveTextHeight));
         var words = _liveText;
         var cut = false;
         while (graphics.MeasureString((cut ? Ellipsis : "") + words, Font).Width > line.Width

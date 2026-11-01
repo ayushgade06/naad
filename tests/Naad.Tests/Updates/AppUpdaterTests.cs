@@ -27,6 +27,7 @@ public sealed class AppUpdaterTests
     [Fact]
     public async Task DownloadAndApplyOnExitAsync_NothingFound_DoesNothing()
     {
-        Assert.False(await new AppUpdater().DownloadAndApplyOnExitAsync());
+        Assert.False(await new AppUpdater().DownloadAsync(
+            cancellationToken: TestContext.Current.CancellationToken));
     }
 }

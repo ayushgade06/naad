@@ -312,7 +312,12 @@ internal static class Program
 
             // Only an installed copy updates, and only when the user clicks the offer.
             using var updates = new UpdatePrompt(
-                new AppUpdater(), tray, () => controller.State == DictationState.Idle, Application.ExitThread);
+                new AppUpdater(),
+                tray,
+                () => controller.State == DictationState.Idle && meetings?.Recorder.IsBusy != true,
+                Application.ExitThread);
+            controller.Finished += report => updates.MarkAfterDictation(
+                report.Outcome == HistoryOutcome.Pasted && !overlay.ShowingNotice, overlay.ShowNotice);
 
             Log.Info(LogEvent.AppStarted);
 

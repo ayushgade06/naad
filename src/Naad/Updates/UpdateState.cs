@@ -4,13 +4,15 @@ namespace Naad.Updates;
 
 /// <summary>
 /// What Naad remembers about updates between runs, in %LOCALAPPDATA%\Naad\update-state.json: the
-/// newest version seen, when it was first seen, and a version the user chose to skip. No user
-/// content.
+/// newest version seen, when it was first seen, a version the user chose to skip, and the one the
+/// overlay last mentioned. No user content.
 /// </summary>
 /// <param name="Seen">The newest version a check found, such as "2.0.1"; null for none.</param>
 /// <param name="FirstSeen">When <paramref name="Seen"/> was first found.</param>
 /// <param name="Skipped">A version the user skipped; null for none.</param>
-internal sealed record UpdateState(string? Seen = null, DateTimeOffset FirstSeen = default, string? Skipped = null)
+/// <param name="Marked">The version the overlay already said is available, so it says so once.</param>
+internal sealed record UpdateState(
+    string? Seen = null, DateTimeOffset FirstSeen = default, string? Skipped = null, string? Marked = null)
 {
     public static string DefaultPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Naad", "update-state.json");

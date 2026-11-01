@@ -23,7 +23,7 @@ internal sealed partial class TrayIcon
 
     /// <summary>Asks before updating. Windows cuts notification text at 255 characters.</summary>
     public static string UpdateAvailableMessage(string version) =>
-        $"Naad {version} is available. Click here to download and install it; Naad restarts by itself.";
+        $"Naad {version} is available. Click here to see what's new and install it; Naad restarts by itself.";
 
     /// <summary>What to tell the user. Windows cuts notification text at 255 characters.</summary>
     public static string MicrophoneErrorMessage(MicrophoneError error) => error switch

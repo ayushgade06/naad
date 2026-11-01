@@ -81,6 +81,10 @@ All notable changes to Naad are listed here. The format follows
 
 ### Changed
 
+- Clicking an update offer opens a window with the notes of every newer
+  release, and installs with a progress bar, **Cancel** and **Retry**. The
+  overlay mentions an available update once after a dictation, and Naad
+  never restarts for an update during meeting notes.
 - The daily update check waits three days after it first sees a release,
   and **Skip version** in the tray stops it offering that version.
 - Settings is split into **Dictation**, **AI** and **General** tabs, and
