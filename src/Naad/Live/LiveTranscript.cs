@@ -27,6 +27,9 @@ internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chu
     /// <summary>Raised with <see cref="TextChanged"/>: a transcribed piece never changes.</summary>
     public event Action<string>? StableChanged;
 
+    /// <inheritdoc/>
+    public bool FellBack { get; private set; }
+
     public void Add(byte[] pcm)
     {
         lock (_gate)
@@ -67,6 +70,7 @@ internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chu
         if (_failed || start > pcm.Length)
         {
             Log.Warn(LogEvent.LiveFellBack, ("pieces", _pieces.Count));
+            FellBack = true;
             return await transcriber.TranscribeAsync(Wav.Encode(pcm, AudioRecorder.Format), cancellationToken);
         }
 

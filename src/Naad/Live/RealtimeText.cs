@@ -74,7 +74,11 @@ internal sealed class RealtimeText
                 _final[item] = e.Text;
                 _partial.Remove(e.Item ?? Speaking);
                 return true;
-            case RealtimeEventKind.Done or RealtimeEventKind.NothingToCommit:
+            // Gemini says its turn is complete at every pause too: only after the end does it count.
+            case RealtimeEventKind.Done:
+                _endAcknowledged |= _finishSent;
+                return false;
+            case RealtimeEventKind.NothingToCommit:
                 _endAcknowledged = true;
                 return false;
             case RealtimeEventKind.Error:

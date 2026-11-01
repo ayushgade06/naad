@@ -46,6 +46,13 @@ public sealed class DictationControllerTests : IDisposable
     {
         await _h.DictateAsync(TimeSpan.FromMilliseconds(holdMs));
 
+        // A short hold is discarded: Idle comes at once, and the microphone closes just after.
+        var deadline = DateTime.UtcNow + Wait;
+        while (_h.Recorder.Calls.Count < 4 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
         Assert.Equal(["start", "opened", "stop", "closed"], _h.Recorder.Calls);
     }
 

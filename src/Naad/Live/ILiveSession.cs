@@ -17,6 +17,12 @@ internal interface ILiveSession : IDisposable
     /// </summary>
     event Action<string>? StableChanged;
 
+    /// <summary>
+    /// After <see cref="FinishAsync"/>: the live text couldn't be used, so the recording was
+    /// transcribed in one pass instead.
+    /// </summary>
+    bool FellBack { get; }
+
     /// <summary>The next audio from the microphone. Called on the capture thread.</summary>
     void Add(byte[] pcm);
 

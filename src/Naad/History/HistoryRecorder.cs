@@ -66,7 +66,8 @@ internal sealed class HistoryRecorder : IDisposable
             report.Outcome,
             HasAudio: false,
             report.Selection,
-            report.Invocation);
+            report.Invocation,
+            report.LiveFellBack);
         _ = Task.Run(() =>
         {
             if (_store.Add(record, report.Wav))

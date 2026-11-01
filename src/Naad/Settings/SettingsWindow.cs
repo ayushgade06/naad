@@ -103,7 +103,7 @@ internal sealed partial class SettingsWindow : Form
 
         FillFields(microphones);
         _general = new(current, startsAtLogin);
-        _live = new(current);
+        _live = new(current, service => actions.KeyFor(service).Key, _closing.Token);
         _languageModel = new(
             current,
             actions.KeyFor,

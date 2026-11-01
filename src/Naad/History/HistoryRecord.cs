@@ -30,6 +30,7 @@ internal enum HistoryOutcome
 /// <param name="Selection">For an Edit Mode dictation, the text it rewrote; null for a dictation.</param>
 /// <param name="Invocation">How that edit was asked for: Automatic or Manual. Null for a dictation, and for
 /// edits recorded before Naad kept it.</param>
+/// <param name="LiveFellBack">Live transcription failed and the recording was transcribed in one pass.</param>
 internal sealed record HistoryRecord(
     Guid Id,
     DateTimeOffset Time,
@@ -42,7 +43,8 @@ internal sealed record HistoryRecord(
     HistoryOutcome Outcome,
     bool HasAudio,
     string? Selection = null,
-    Naad.Context.EditInvocation? Invocation = null)
+    Naad.Context.EditInvocation? Invocation = null,
+    bool LiveFellBack = false)
 {
     // The generated ToString would print what was said.
     public override string ToString() => $"HistoryRecord {{ Id = {Id}, Outcome = {Outcome}, Chars = {Text.Length} }}";

@@ -307,6 +307,12 @@ internal sealed partial class DictationController(
             var result = await TranscribeAsync(
                 service ?? throw new InvalidOperationException("No transcriber."), live, pcm, wav, cancel);
             report = report with { TranscribeMilliseconds = Milliseconds(time.GetElapsedTime(requestStart)) };
+            if (live?.Session.FellBack == true)
+            {
+                report = report with { LiveFellBack = true };
+                LiveFellBack?.Invoke();
+            }
+
             if (result.Failure is { } failure)
             {
                 DictationLog.Transcription(failure);

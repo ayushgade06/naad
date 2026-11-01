@@ -42,6 +42,7 @@ public sealed class RealtimeTextTests
         Assert.Equal("Synthetic one. two", text.Preview);
 
         text.Apply(new(RealtimeEventKind.Final, null, "Two."));
+        text.FinishSent();
         text.Apply(new(RealtimeEventKind.Done));
         Assert.Equal("Synthetic one. Two.", text.Stable);
         Assert.True(text.Complete);

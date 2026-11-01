@@ -6,6 +6,21 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **More live services**: Gemini Live, xAI streaming, and any
+  OpenAI-compatible realtime server at the custom base URL, beside OpenAI
+  and Deepgram. OpenAI's address is built from its base URL. The Live tab
+  has a model field with suggestions and **Reset**, and **Test
+  connection**.
+
+### Changed
+
+- When streaming fails and the recording is transcribed instead, the
+  overlay says so and the history marks the dictation. Live preview on
+  this PC is greyed out, with the reason, when Whisper runs without a
+  graphics card.
+
 ## [2.1.0] - 2026-11-01
 
 Naad on this PC can now clean up and edit with a language model, keep a

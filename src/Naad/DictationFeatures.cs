@@ -184,6 +184,8 @@ internal static class DictationFeatures
     {
         Live.ILiveSession? current = null;
 
+        controller.LiveFellBack += () => overlay.ShowNotice("Live failed: transcribed after");
+
         // Raised on the capture thread; a recording without a live transcript ignores it.
         recorder.PcmRecorded += pcm => Volatile.Read(ref current)?.Add(pcm);
         controller.UseLiveTranscript(target =>
@@ -231,16 +233,13 @@ internal static class DictationFeatures
                 : null;
         }
 
-        var service = s.LiveService == Live.LiveService.OpenAI
-            ? Providers.CloudService.OpenAI
-            : Providers.CloudService.Deepgram;
-        if (upload is null || keyFor(service) is not { } key)
+        if (upload is null || Live.LiveSetup.Stream(s, keyFor) is not { } chosen)
         {
             return null;
         }
 
         var stream = new Live.RealtimeTranscript(
-            s.LiveService, key, s.LiveModel ?? Live.RealtimeProtocol.DefaultModel(s.LiveService), s.Language, upload);
+            s.LiveService, chosen.Endpoint, chosen.Key, chosen.Model, s.Language, upload);
         stream.Start();
         return stream;
     }

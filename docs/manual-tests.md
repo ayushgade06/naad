@@ -1157,6 +1157,20 @@ Since P42, `dictationShortcut` and `handsFree` in the older checks above are
 
 **Status after P44:** M-CM1 to M-CM5 have **not been run** by a person.
 
+## Cloud live providers (P45): M-LP1 to M-LP4
+
+Run each check with every service that has a key: OpenAI, Deepgram, Gemini, xAI, and a custom
+OpenAI-compatible realtime server if one is at hand.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-LP1 | Stream and type | On **Live**, choose the service, tick Preview and Typing, **Test connection**, save; hold the shortcut and say three sentences. | The test says **Connected**; words appear while you speak and are typed; the log shows `LiveFinished` with a count only. | **No.** Each protocol's messages are unit tested. |
+| M-LP2 | Model field | Type a made-up model, **Test connection**; then **Reset** and test again. | The made-up model is refused with a reason; after Reset the test connects. | **No.** |
+| M-LP3 | Fallback notice | Start a streamed dictation, turn Wi-Fi off mid-way and on again before release; open History. | The overlay says **Live failed: transcribed after**; the text still arrives; the record says "live failed, transcribed after". | **No.** The fallback is unit tested offline. |
+| M-LP4 | No graphics card | On a PC whose Whisper runs on the processor, dictate once, then open **Live** with **This PC** chosen. | Preview and Typing are greyed out with the reason; choosing a cloud service enables them. | **No.** The rule is unit tested. |
+
+**Status after P45:** M-LP1 to M-LP4 have **not been run** by a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical

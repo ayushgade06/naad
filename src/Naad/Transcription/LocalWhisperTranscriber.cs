@@ -38,6 +38,12 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
     /// </summary>
     public bool OnGraphicsCard { get; private set; }
 
+    /// <summary>
+    /// Whether the model last loaded ran on a graphics card; null until one has loaded. Settings
+    /// uses it to say why live preview on this PC can't work.
+    /// </summary>
+    public static bool? LastOnGraphicsCard { get; private set; }
+
     public async Task<TranscriptionResult> TranscribeAsync(byte[] wav, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -78,6 +84,7 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
         var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { GpuDevice = device });
         OnGraphicsCard = RuntimeOptions.LoadedLibrary == RuntimeLibrary.Vulkan
             && devices.Any(d => d is GgmlDeviceType.Gpu or GgmlDeviceType.IntegratedGpu);
+        LastOnGraphicsCard = OnGraphicsCard;
         Log.Info(
             LogEvent.LocalModelLoaded,
             ("vulkan", RuntimeOptions.LoadedLibrary == RuntimeLibrary.Vulkan ? 1 : 0),

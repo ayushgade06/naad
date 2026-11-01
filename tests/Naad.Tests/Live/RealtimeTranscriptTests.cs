@@ -15,7 +15,8 @@ public sealed class RealtimeTranscriptTests
         {
             Respond = _ => Task.FromResult(new TranscriptionResult("synthetic upload")),
         };
-        using var stream = new RealtimeTranscript(LiveService.Deepgram, "synthetic-key", "nova-3", null, upload);
+        using var stream = new RealtimeTranscript(
+            LiveService.Deepgram, new("ws://127.0.0.1:9/v1/listen"), "synthetic-key", "nova-3", null, upload);
         var audio = SyntheticAudio.Loud(1);
 
         stream.Add(audio);
@@ -23,5 +24,6 @@ public sealed class RealtimeTranscriptTests
 
         Assert.Equal("synthetic upload", result.Text);
         Assert.Equal(audio.Length + 44, Assert.Single(upload.Uploads).Length);
+        Assert.True(stream.FellBack);
     }
 }

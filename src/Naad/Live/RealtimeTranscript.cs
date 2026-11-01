@@ -7,20 +7,22 @@ using Naad.Transcription;
 namespace Naad.Live;
 
 /// <summary>
-/// Streams a dictation to OpenAI's or Deepgram's realtime transcription while it is recorded, so
+/// Streams a dictation to a cloud service's realtime transcription while it is recorded, so
 /// the words arrive as the user speaks. Unless the stream ends with every word accounted for
 /// (see <see cref="RealtimeText.Complete"/>), the whole recording is uploaded through
 /// <paramref name="upload"/> instead, so no words are lost. <see cref="Add"/> runs on the capture
 /// thread; the socket on the thread pool. Sends the audio and the API key to the chosen service
 /// only; logs event names, counts and exception types, never text.
 /// </summary>
-/// <param name="service">OpenAI or Deepgram.</param>
-/// <param name="key">The service's API key.</param>
-/// <param name="model">The service's streaming model.</param>
+/// <param name="service">The streaming service.</param>
+/// <param name="endpoint">Its WebSocket address, from <see cref="RealtimeProtocol.Endpoint"/>.</param>
+/// <param name="key">The service's API key; null for a custom server that needs none.</param>
+/// <param name="model">The service's streaming model; empty for a custom server's own.</param>
 /// <param name="language">An ISO 639-1 code, or null to detect it.</param>
 /// <param name="upload">The regular transcriber, used when streaming fails.</param>
 internal sealed class RealtimeTranscript(
-    LiveService service, string key, string model, string? language, ITranscriber upload) : ILiveSession
+    LiveService service, Uri endpoint, string? key, string model, string? language, ITranscriber upload)
+    : ILiveSession
 {
     // Connecting takes a few hundred milliseconds; past this the network is too slow to stream.
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
@@ -28,6 +30,9 @@ internal sealed class RealtimeTranscript(
     // After the audio ends, the server's last words normally follow within a second or two;
     // past this the recording is uploaded instead.
     private static readonly TimeSpan LongestFinish = TimeSpan.FromSeconds(8);
+
+    // A server that refuses the model does so within this long of the first audio.
+    private static readonly TimeSpan TestSettle = TimeSpan.FromSeconds(1.5);
 
     // How often the end is checked while waiting for it.
     private static readonly TimeSpan EndPoll = TimeSpan.FromMilliseconds(100);
@@ -40,7 +45,12 @@ internal sealed class RealtimeTranscript(
     private readonly RealtimeText _text = new();
     private readonly Lock _gate = new();
     private readonly ClientWebSocket _socket = new();
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _run;
+    private string _shownPreview = "";
+
+    /// <inheritdoc/>
+    public bool FellBack { get; private set; }
 
     public event Action<string>? TextChanged;
 
@@ -65,7 +75,9 @@ internal sealed class RealtimeTranscript(
         {
             if (_run is { } run)
             {
-                await run.WaitAsync(LongestFinish + ConnectTimeout, cancellationToken);
+                // A service that says when it is ready may take a second connect timeout to say so.
+                var connecting = RealtimeProtocol.NeedsReady(service) ? ConnectTimeout * 2 : ConnectTimeout;
+                await run.WaitAsync(LongestFinish + connecting, cancellationToken);
             }
         }
         catch (TimeoutException)
@@ -74,9 +86,11 @@ internal sealed class RealtimeTranscript(
 
         // Only when the stream ended with every utterance final: anything less could drop words.
         string text;
+        bool complete;
         lock (_gate)
         {
-            text = _text.Complete ? _text.Stable : "";
+            complete = _text.Complete;
+            text = complete ? _text.Stable : "";
         }
 
         if (text.Length > 0)
@@ -86,6 +100,9 @@ internal sealed class RealtimeTranscript(
         }
 
         Log.Warn(LogEvent.LiveFellBack);
+
+        // A stream that ended well but heard nothing didn't fail; the upload only double-checks it.
+        FellBack = !complete;
         return await upload.TranscribeAsync(Wav.Encode(pcm, AudioRecorder.Format), cancellationToken);
     }
 
@@ -111,19 +128,7 @@ internal sealed class RealtimeTranscript(
     {
         try
         {
-            _socket.Options.SetRequestHeader("Authorization", RealtimeProtocol.Authorization(service, key));
-            using (var connect = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token))
-            {
-                connect.CancelAfter(ConnectTimeout);
-                await _socket.ConnectAsync(RealtimeProtocol.Endpoint(service, model, language), connect.Token);
-            }
-
-            if (RealtimeProtocol.Setup(service, model, language) is { } setup)
-            {
-                await SendTextAsync(setup);
-            }
-
-            var receiving = ReceiveAsync();
+            var receiving = await ConnectAsync();
             await foreach (var pcm in _audio.Reader.ReadAllAsync(_stop.Token))
             {
                 if (Failed)
@@ -131,14 +136,13 @@ internal sealed class RealtimeTranscript(
                     break;
                 }
 
-                if (service == LiveService.OpenAI)
-                {
-                    await SendTextAsync(RealtimeProtocol.AppendAudio(Resample.To24k(pcm)));
-                }
-                else
-                {
-                    await _socket.SendAsync(pcm, WebSocketMessageType.Binary, true, _stop.Token);
-                }
+                await SendAudioAsync(pcm);
+            }
+
+            // The server already broke off: telling it the audio ended would only fail again.
+            if (Failed)
+            {
+                return;
             }
 
             lock (_gate)
@@ -165,6 +169,76 @@ internal sealed class RealtimeTranscript(
         {
             _socket.Abort();
         }
+    }
+
+    /// <summary>
+    /// Whether the service accepts a stream with these choices: it connects, takes the setup and
+    /// a fifth of a second of silence, and is still there a moment later, as some refuse a model
+    /// only once audio arrives. Returns null when it does, or why not, in a sentence.
+    /// </summary>
+    public async Task<string?> TestAsync(CancellationToken cancellationToken)
+    {
+        using var stop = cancellationToken.Register(Dispose);
+        try
+        {
+            await ConnectAsync();
+            await SendAudioAsync(new byte[AudioRecorder.Format.AverageBytesPerSecond / 5]);
+            await Task.Delay(TestSettle, _stop.Token);
+            return Failed || _socket.State != WebSocketState.Open
+                ? "The service refused the stream. Check the key and the live model."
+                : null;
+        }
+        catch (Exception e) when (e is WebSocketException or OperationCanceledException or TimeoutException
+            && !cancellationToken.IsCancellationRequested)
+        {
+            Log.Error(LogEvent.LiveStreamFailed, e);
+            return _socket.HttpStatusCode is var status and not 0 and not System.Net.HttpStatusCode.SwitchingProtocols
+                ? $"The service refused the connection (HTTP {(int)status}). Check the key and the address."
+                : "Naad couldn't connect to the live service.";
+        }
+        finally
+        {
+            Dispose();
+        }
+    }
+
+    // Connects, sets the session up and, for a service that says when it is ready, waits for that.
+    // Returns the task receiving the server's messages.
+    private async Task<Task> ConnectAsync()
+    {
+        _socket.Options.CollectHttpResponseDetails = true;
+        if (RealtimeProtocol.KeyHeader(service, key) is var (name, value))
+        {
+            _socket.Options.SetRequestHeader(name, value);
+        }
+
+        using (var connect = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token))
+        {
+            connect.CancelAfter(ConnectTimeout);
+            await _socket.ConnectAsync(endpoint, connect.Token);
+        }
+
+        var receiving = ReceiveAsync();
+        if (RealtimeProtocol.Setup(service, model, language) is { } setup)
+        {
+            await SendTextAsync(setup);
+        }
+
+        // Audio sent sooner is refused; it waits in the queue meanwhile.
+        if (RealtimeProtocol.NeedsReady(service))
+        {
+            await _ready.Task.WaitAsync(ConnectTimeout, _stop.Token);
+        }
+
+        return receiving;
+    }
+
+    private Task SendAudioAsync(byte[] pcm)
+    {
+        var audio = RealtimeProtocol.SampleRate(service) == 24000 ? Resample.To24k(pcm) : pcm;
+        return RealtimeProtocol.AppendAudio(service, audio) is { } json
+            ? SendTextAsync(json)
+            : _socket.SendAsync(audio, WebSocketMessageType.Binary, true, _stop.Token);
     }
 
     // Until the stream is complete, has failed, the receiver stopped, or time is up.
@@ -209,6 +283,16 @@ internal sealed class RealtimeTranscript(
                 var e = RealtimeProtocol.Parse(service, Encoding.UTF8.GetString(message.GetBuffer(), 0,
                     (int)message.Length));
                 message.SetLength(0);
+                if (e.Kind is RealtimeEventKind.Ready or RealtimeEventKind.Error)
+                {
+                    _ready.TrySetResult();
+                }
+
+                if (e.Kind == RealtimeEventKind.Ready)
+                {
+                    continue;
+                }
+
                 string stable;
                 string preview;
                 bool changed;
@@ -218,7 +302,13 @@ internal sealed class RealtimeTranscript(
                     (stable, preview) = (_text.Stable, _text.Preview);
                 }
 
-                TextChanged?.Invoke(preview);
+                // Only a new preview is redrawn; most of a server's messages change nothing shown.
+                if (preview != _shownPreview)
+                {
+                    _shownPreview = preview;
+                    TextChanged?.Invoke(preview);
+                }
+
                 if (changed)
                 {
                     StableChanged?.Invoke(stable);
@@ -234,6 +324,9 @@ internal sealed class RealtimeTranscript(
         {
             _text.Closed();
         }
+
+        // A server that closes, or refuses the setup, before saying it is ready never will.
+        _ready.TrySetResult();
     }
 
     private void Fail()

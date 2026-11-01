@@ -119,6 +119,7 @@ internal sealed class HistoryPage : DockPanel, IDisposable
             + (record.Selection is null ? ""
                 : record.Invocation is { } invocation ? $" · edit ({invocation})"
                 : " · edit")
+            + (record.LiveFellBack ? " · live failed, transcribed after" : "")
             + (record.Outcome == HistoryOutcome.Kept ? " · not pasted" : ""));
         var buttons = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         if (!failed)
