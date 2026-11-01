@@ -6,6 +6,13 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-01
+
+Naad on this PC can now clean up and edit with a language model, keep a
+history, type while you speak, take meeting notes and update itself, and
+each shortcut has its own job. The 2.0.0 milestone was never released on
+its own; its work is part of this release.
+
 ### Added
 
 - **A language model on this PC**, for the AI steps that follow. Settings
