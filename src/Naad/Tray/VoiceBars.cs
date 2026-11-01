@@ -10,6 +10,12 @@ internal sealed class VoiceBars
     // How much shorter the outermost bars are than the centre one at the same level.
     private const double EdgeDrop = 0.6;
 
+    // While the microphone is quiet the bars swell gently, a tenth of their room, about once
+    // every breath, rippling outward, so a silent overlay still looks alive. Speech drowns it out.
+    private const double BreathDepth = 0.10;
+    private const double BreathSeconds = 1.6;
+    private const double BreathRippleSeconds = 0.1;
+
     // Levels newest first; index i drives the two bars i places from the centre.
     private readonly double[] _recent;
 
@@ -46,5 +52,17 @@ internal sealed class VoiceBars
         var distance = Math.Abs(index - (Count / 2));
         var edge = (double)distance / Math.Max(1, Count / 2);
         return _recent[distance] * (1 - (EdgeDrop * edge * edge));
+    }
+
+    /// <summary>
+    /// <see cref="Height(int)"/> with the breath added, <paramref name="seconds"/> into the
+    /// recording: none at a level of 1, the full swell at silence.
+    /// </summary>
+    public double Breathing(int index, double seconds)
+    {
+        var height = Height(index);
+        var distance = Math.Abs(index - (Count / 2));
+        var phase = 2 * Math.PI * (seconds - (distance * BreathRippleSeconds)) / BreathSeconds;
+        return height + ((1 - height) * BreathDepth * (0.5 - (0.5 * Math.Cos(phase))));
     }
 }

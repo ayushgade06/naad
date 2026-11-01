@@ -50,6 +50,22 @@ internal sealed class GeneralPanel : TableLayoutPanel
     };
 
     private readonly CheckBox _timer = new() { Text = "Show a timer while recording", AutoSize = true };
+    private readonly ComboBox _overlayStyle = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
+    private readonly ComboBox _overlayMonitor = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
+    private readonly List<string?> _monitors = [null, OverlayLayout.PrimaryMonitor];
+    private readonly CheckBox _mute = new()
+    {
+        Text = "Mute other sound while dictating (put back afterwards)",
+        AutoSize = true,
+    };
+
+    private readonly Label _previewWarning = new()
+    {
+        Text = "The speakers are muted or nearly silent, so the tone may not be heard.",
+        AutoSize = true,
+        Visible = false,
+        MaximumSize = new Size(420, 0),
+    };
     private readonly CheckBox _detectMeetings = new()
     {
         Text = "Offer meeting notes when a call starts (nothing records until you click)",
@@ -82,6 +98,10 @@ internal sealed class GeneralPanel : TableLayoutPanel
         _history.SelectedIndex = (int)current.HistoryRetention;
         _pressEnter.Checked = current.PressEnterCommand;
         _timer.Checked = current.OverlayTimer;
+        _overlayStyle.Items.AddRange(["Pill with words", "Compact: bars only"]);
+        _overlayStyle.SelectedIndex = (int)current.OverlayStyle;
+        FillMonitors(current.OverlayMonitor);
+        _mute.Checked = current.MuteWhileDictating;
         _keepMeetingAudio.Checked = current.KeepMeetingAudio;
         _detectMeetings.Checked = current.MeetingDetection == Naad.Meetings.MeetingDetection.Notify;
 
@@ -92,6 +112,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "Sounds", _playSounds);
         Row(this, "", _errorSound);
         Row(this, "Volume", Flow(_volume, _preview));
+        Row(this, "", _previewWarning);
         Row(this, "History", _history);
         Row(this, "", Note("Dictations are kept encrypted for your Windows account, and can be deleted on the " +
             "History page. Off deletes them all."));
@@ -101,6 +122,9 @@ internal sealed class GeneralPanel : TableLayoutPanel
             "Without this, each piece of audio is dropped once it is transcribed."));
         Row(this, "", _pressEnter);
         Row(this, "", _timer);
+        Row(this, "Overlay", _overlayStyle);
+        Row(this, "Show it on", _overlayMonitor);
+        Row(this, "", _mute);
         Row(this, "", Note("Esc cancels a dictation. Pressing Space while holding the hold-to-talk shortcut " +
             "keeps recording after you let go; press a shortcut again to stop."));
         Row(this, "", new Label
@@ -117,6 +141,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
             _previewCues?.Dispose();
             _previewCues = new SoundCues(_volume.Value);
             _previewCues.PlayStart();
+            _previewWarning.Visible = Audio.SystemMute.LooksSilent(new Audio.WindowsOutput().Default());
         };
     }
 
@@ -132,6 +157,9 @@ internal sealed class GeneralPanel : TableLayoutPanel
             HistoryRetention = (Naad.History.HistoryRetention)_history.SelectedIndex,
             PressEnterCommand = _pressEnter.Checked,
             OverlayTimer = _timer.Checked,
+            OverlayStyle = (OverlayStyle)_overlayStyle.SelectedIndex,
+            OverlayMonitor = _monitors[_overlayMonitor.SelectedIndex],
+            MuteWhileDictating = _mute.Checked,
             KeepMeetingAudio = _keepMeetingAudio.Checked,
             MeetingDetection = _detectMeetings.Checked
                 ? Naad.Meetings.MeetingDetection.Notify
@@ -148,6 +176,27 @@ internal sealed class GeneralPanel : TableLayoutPanel
         ErrorSound = _errorSound.Checked,
         SoundVolume = _volume.Value,
     };
+
+    // The active window's monitor, the primary one, then each connected monitor; a chosen one
+    // that isn't connected now stays listed, so saving doesn't lose it.
+    private void FillMonitors(string? chosen)
+    {
+        _overlayMonitor.Items.AddRange(["The active window's monitor", "The primary monitor"]);
+        var screens = Screen.AllScreens;
+        for (var i = 0; i < screens.Length; i++)
+        {
+            _monitors.Add(screens[i].DeviceName);
+            _overlayMonitor.Items.Add($"Monitor {i + 1}{(screens[i].Primary ? " (primary)" : "")}");
+        }
+
+        if (!_monitors.Contains(chosen))
+        {
+            _monitors.Add(chosen);
+            _overlayMonitor.Items.Add("A monitor that isn't connected");
+        }
+
+        _overlayMonitor.SelectedIndex = _monitors.IndexOf(chosen);
+    }
 
     protected override void Dispose(bool disposing)
     {

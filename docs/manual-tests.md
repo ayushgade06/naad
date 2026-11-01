@@ -1133,6 +1133,18 @@ Since P42, `dictationShortcut` and `handsFree` in the older checks above are
 
 **Status after P42:** M-SH1 to M-SH4 have **not been run** by a person.
 
+## Overlay and system audio (P43): M-OV1 to M-OV5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-OV1 | Stop button | Start a hands-free dictation in Notepad, speak, then click the red stop button; then start one and click elsewhere on the pill. | The first click stops and pastes into Notepad, which keeps the focus and caret. A click on the rest of the pill reaches the window under it. | **No.** The button's place is unit tested. |
+| M-OV2 | Monitor and style | With two monitors, choose **The primary monitor**, dictate into a window on the other one; then **Monitor 2**; then **Compact**. | The overlay shows on the chosen monitor each time; Compact shows a small capsule of bars, and **Transcribing** still appears in the pill. | **No.** The choice is unit tested. |
+| M-OV3 | Edit look, hum and breathing | Select text with Edit Mode Automatic and dictate; then dictate next to a running fan and stay quiet for three seconds. | The edit's bars are amber with a pencil. Over the fan the bars settle to dots that swell gently; speaking moves them. | **No.** The floor and breathing are unit tested. |
+| M-OV4 | Mute and crash | Tick **Mute other sound while dictating**; play music and dictate; mute the speakers yourself and dictate; play music, start a dictation and end Naad in Task Manager, then start Naad. | The music stops during the dictation (after the start tone) and comes back after; already-muted speakers stay muted; after the crash the music is audible again once Naad starts. | **No.** Restoring only what changed is unit tested. |
+| M-OV5 | Preview and update click | Turn the volume to 5% and click **Preview**; with an update offered, dictate and click **Update available**. | A note says the speakers are muted or nearly silent; the click opens the update window, and focus returns as before. | **No.** |
+
+**Status after P43:** M-OV1 to M-OV5 have **not been run** by a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical

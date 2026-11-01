@@ -17,6 +17,8 @@ internal static partial class User32
     public const int WmMouseWheel = 0x020A;
     public const int WmXButtonDown = 0x020B;
     public const int WmMouseHWheel = 0x020E;
+    public const int WmMouseActivate = 0x0021;
+    public const nint MaNoActivate = 3;
 
     // Set on events produced by SendInput, including Naad's own Ctrl+V.
     public const uint LlkhfInjected = 0x10;

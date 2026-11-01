@@ -78,6 +78,9 @@ internal sealed record AppSettings
     /// <summary>The longest start delay: longer feels like the shortcut didn't work.</summary>
     public const int MaxStartDelayMilliseconds = 500;
 
+    // Windows' device names are like \\.\DISPLAY12; anything far longer was typed by mistake.
+    private const int MaxMonitorNameLength = 64;
+
     public static bool IsValidStartDelay(int milliseconds) => milliseconds is >= 0 and <= MaxStartDelayMilliseconds;
 
     /// <summary>
@@ -151,6 +154,19 @@ internal sealed record AppSettings
 
     /// <summary>Show how long the recording has run in the overlay.</summary>
     public bool OverlayTimer { get; init; }
+
+    /// <summary>The overlay's look: the pill, or a compact capsule of bars.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<Naad.Tray.OverlayStyle>))]
+    public Naad.Tray.OverlayStyle OverlayStyle { get; init; }
+
+    /// <summary>
+    /// Where the overlay shows: null on the active window's monitor, "Primary", or a monitor's
+    /// device name such as \\.\DISPLAY2.
+    /// </summary>
+    public string? OverlayMonitor { get; init; }
+
+    /// <summary>Mute the speakers while a dictation records; only what Naad muted is unmuted.</summary>
+    public bool MuteWhileDictating { get; init; }
 
     /// <summary>
     /// Read the app's name and the text around the cursor when a dictation starts, as spelling
@@ -371,6 +387,10 @@ internal sealed record AppSettings
     public static bool IsValidOutputLanguage(string? language) =>
         language is { Length: > 0 and <= MaxLanguageNameLength }
         && language.All(c => char.IsLetter(c) || c is ' ' or '-' or '(' or ')');
+
+    /// <summary>A monitor's device name, or "Primary": short, one line.</summary>
+    public static bool IsValidMonitor(string? name) =>
+        name is { Length: > 0 and <= MaxMonitorNameLength } && !name.Any(char.IsControl);
 
     /// <summary>A name WinMM could report: 1 to 31 characters, no control characters.</summary>
     public static bool IsValidMicrophone(string? name) =>

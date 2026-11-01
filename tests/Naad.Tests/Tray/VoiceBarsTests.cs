@@ -80,4 +80,31 @@ public sealed class VoiceBarsTests
     {
         Assert.Throws<ArgumentException>(() => new VoiceBars(4));
     }
+
+    [Fact]
+    public void Height_SilenceMidBreath_SwellsATenth()
+    {
+        var bars = new VoiceBars(5);
+
+        Assert.Equal(0, bars.Breathing(2, seconds: 0), precision: 6);
+        Assert.Equal(0.1, bars.Breathing(2, seconds: 0.8), precision: 6);
+    }
+
+    [Fact]
+    public void Height_FullLevel_DoesNotBreathe()
+    {
+        var bars = new VoiceBars(5);
+        bars.Push(1);
+
+        Assert.Equal(1, bars.Breathing(2, seconds: 0.8), precision: 6);
+    }
+
+    [Fact]
+    public void Height_Breath_RipplesOutward()
+    {
+        var bars = new VoiceBars(5);
+
+        // The bar next to the centre reaches its peak a tenth of a second later.
+        Assert.Equal(0.1, bars.Breathing(1, seconds: 0.9), precision: 6);
+    }
 }

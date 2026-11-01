@@ -179,4 +179,8 @@ internal enum LogEvent
     UpdateStateUnsaved,
     DiagnosticsCopyFailed,
     RecordingFlagFailed,
+    OutputMuted,
+    OutputRestored,
+    OutputMuteFailed,
+    OutputMuteFileFailed,
 }

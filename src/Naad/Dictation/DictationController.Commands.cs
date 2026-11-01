@@ -14,6 +14,15 @@ internal sealed partial class DictationController
     /// <summary>A press was refused because meeting notes are recording. Raised on the UI thread.</summary>
     public event Action? RefusedWhileBusy;
 
+    /// <summary>
+    /// The recording runs hands-free: letting go of the shortcut no longer stops it. Raised on the
+    /// UI thread.
+    /// </summary>
+    public event Action? WentHandsFree;
+
+    /// <summary>The recording is an Edit Mode instruction, not a dictation. Raised on the UI thread.</summary>
+    public event Action? EditRecording;
+
     /// <summary>Esc cancelled a recording or a transcription in flight. Raised on the UI thread.</summary>
     public event Action? Cancelled;
 
@@ -125,6 +134,7 @@ internal sealed partial class DictationController
         else if (!_disposed && _session.State == DictationState.Recording)
         {
             _latched = true;
+            WentHandsFree?.Invoke();
             Log.Info(LogEvent.DictationLatched);
         }
     }
@@ -193,6 +203,23 @@ internal sealed partial class DictationController
         {
             Log.Error(LogEvent.ContextReadFailed, e);
             return DictationContext.None;
+        }
+    }
+
+    // Says so as soon as the context read shows the recording edits a selection, while it records.
+    private async Task ReportEditAsync(Task<DictationContext> context, long job)
+    {
+        try
+        {
+            if ((await context).IsEdit && _session.Job == job && _session.State == DictationState.Recording)
+            {
+                EditRecording?.Invoke();
+            }
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // The dictation reads it again and goes on without it.
+            Log.Error(LogEvent.ContextReadFailed, e);
         }
     }
 }

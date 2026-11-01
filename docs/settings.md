@@ -39,6 +39,9 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "pressEnterCommand": false,
   "pasteAgainShortcut": null,
   "overlayTimer": false,
+  "overlayStyle": "Pill",
+  "overlayMonitor": null,
+  "muteWhileDictating": false,
   "context": true,
   "contextExcludedApps": [],
   "contextScreenshot": false,
@@ -94,6 +97,9 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `pressEnterCommand` | `true` or `false` | `false` | Saying "press enter" at the end of a dictation presses Enter after the text, for chat boxes. Only if the same window is still in front. |
 | `pasteAgainShortcut` | text or `null` | `null` | Keys, written like `holdShortcut` (for example `"RightAlt+V"`), that paste the last dictation again. `null` has none. It needs a key besides Ctrl, Shift, Alt or Windows. |
 | `overlayTimer` | `true` or `false` | `false` | Show the recording time on the overlay. |
+| `overlayStyle` | `"Pill"` or `"Compact"` | `"Pill"` | The overlay's look: the pill with words such as **Transcribing**, or a smaller capsule of bars only. Notices and live words always use the pill, so they stay readable. |
+| `overlayMonitor` | text or `null` | `null` | Where the overlay shows: `null` on the monitor of the window you dictate into, `"Primary"` on the primary monitor, or a monitor's device name such as `"\\\\.\\DISPLAY2"` (`\\.\DISPLAY2`, escaped for JSON); Settings lists the connected ones. A monitor that isn't connected falls back to the primary one. |
+| `muteWhileDictating` | `true` or `false` | `false` | Mute the speakers while a dictation records, just after the start tone. Naad unmutes only speakers it muted itself, and only if they are still muted; it notes the device in `%LOCALAPPDATA%\Naad\muted-output.json` first, so a crash mid-dictation is put right when Naad next starts. |
 | `context` | `true` or `false` | `true` | Read the app's name and up to 2,000 characters around the cursor when you dictate, so the language model can spell names you can see. Never from a password field. See [Context and Edit Mode](#context-and-edit-mode). |
 | `contextExcludedApps` | list of text | `[]` | App names (the program's file name without `.exe`, such as `"keepass"`) Naad never reads context from. |
 | `contextScreenshot` | `true` or `false` | `false` | With `context` on, AI cleanup and a **Cloud** language model, also send a screenshot of the window you dictate into, so the model can see what you're replying to. |
@@ -417,6 +423,14 @@ not in settings.json, because they often hold personal details.
   before the delay ends records nothing.
 - The overlay shows **Starting** only when the microphone takes more than
   0.2 seconds to open, and the timer counts from when recording began.
+- In a hands-free dictation the overlay has a red stop button: clicking it
+  stops and transcribes, without taking the focus from your app. The rest
+  of the overlay still lets clicks through.
+- An Edit Mode instruction shows amber bars and a pencil while it records.
+- The bars settle to still dots over a steady hum, such as a fan, and
+  breathe gently while you are quiet.
+- **Update available** on the overlay can be clicked, for a few seconds, to
+  open the update.
 
 ## Context and Edit Mode
 

@@ -5,8 +5,10 @@ namespace Naad.Audio;
 /// <summary>
 /// Turns microphone loudness into the 0 to 1 level the recording overlay draws. Loudness is
 /// mapped on a decibel scale, which matches how loud speech sounds, and a falling level decays
-/// smoothly instead of jumping, so the bar doesn't flicker between syllables. Pure: it reads
-/// numbers and 16-bit mono PCM and nothing else.
+/// smoothly instead of jumping, so the bar doesn't flicker between syllables. The zero follows the
+/// room's noise: it drops at once to a quieter sound and creeps up to a steady hum, so a fan or a
+/// noisy microphone shows still bars while speech, well above it, still moves them. Pure: it
+/// reads numbers and 16-bit mono PCM and nothing else.
 /// </summary>
 internal sealed class LevelMeter
 {
@@ -23,6 +25,22 @@ internal sealed class LevelMeter
 
     // Full scale for 16-bit samples.
     private const double FullScale = 32768;
+
+    // A sound this close above the noise floor still counts as noise, not as a voice.
+    private const double NoiseMarginDb = 3;
+
+    // Sounds up to this far above the floor may be the room getting louder; speech is further up.
+    private const double NoiseBandDb = 20;
+
+    // The floor creeps up this fast toward a steady hum, so a pause in speech never lifts it much,
+    // and falls this share of the way to a quieter sound at each buffer.
+    private const double FloorRiseDbPerSecond = 3;
+    private const double FloorFall = 0.12;
+
+    // A room is never this loud; a floor above it would hide quiet speech.
+    private const double LoudestFloorDbfs = -30;
+
+    private double _floorDbfs = FloorDbfs - NoiseMarginDb;
 
     /// <summary>The level to draw, 0 (silence) to 1 (full scale).</summary>
     public double Level { get; private set; }
@@ -68,10 +86,27 @@ internal sealed class LevelMeter
     /// </summary>
     public double Add(double rms, TimeSpan duration)
     {
-        Level = Math.Max(Normalize(rms), Level - (DecayPerSecond * duration.TotalSeconds));
+        var dbfs = rms > 0 ? 20 * Math.Log10(rms / FullScale) : double.NegativeInfinity;
+        if (dbfs <= _floorDbfs)
+        {
+            _floorDbfs = Math.Max(FloorDbfs - NoiseMarginDb, _floorDbfs + ((dbfs - _floorDbfs) * FloorFall));
+        }
+        else if (dbfs - _floorDbfs < NoiseBandDb)
+        {
+            var rise = Math.Min(dbfs - _floorDbfs, FloorRiseDbPerSecond * duration.TotalSeconds);
+            _floorDbfs = Math.Min(LoudestFloorDbfs, _floorDbfs + rise);
+        }
+
+        var zero = _floorDbfs + NoiseMarginDb;
+        var level = Math.Clamp((dbfs - zero) / -zero, 0, 1);
+        Level = Math.Max(level, Level - (DecayPerSecond * duration.TotalSeconds));
         return Level;
     }
 
-    /// <summary>Back to silence, for the next recording.</summary>
-    public void Reset() => Level = 0;
+    /// <summary>Back to silence and the default floor, for the next recording.</summary>
+    public void Reset()
+    {
+        Level = 0;
+        _floorDbfs = FloorDbfs - NoiseMarginDb;
+    }
 }

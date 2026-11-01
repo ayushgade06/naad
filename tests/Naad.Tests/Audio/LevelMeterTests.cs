@@ -94,4 +94,43 @@ public sealed class LevelMeterTests
 
         Assert.Equal(0, meter.Level);
     }
+
+    [Fact]
+    public void Add_SteadyHum_SettlesToStillBars()
+    {
+        var meter = new LevelMeter();
+
+        // Ten seconds of a fan at -45 dBFS.
+        for (var i = 0; i < 200; i++)
+        {
+            meter.Add(184.3, Buffer);
+        }
+
+        Assert.Equal(0, meter.Level, precision: 3);
+    }
+
+    [Fact]
+    public void Add_SpeechOverAHum_StillMovesTheBars()
+    {
+        var meter = new LevelMeter();
+        for (var i = 0; i < 200; i++)
+        {
+            meter.Add(184.3, Buffer);
+        }
+
+        // -20 dBFS speech, 25 dB over the hum.
+        Assert.True(meter.Add(3276.8, Buffer) > 0.4);
+    }
+
+    [Fact]
+    public void Add_LongSpeech_DoesNotRaiseTheFloor()
+    {
+        var meter = new LevelMeter();
+        for (var i = 0; i < 200; i++)
+        {
+            meter.Add(3276.8, Buffer);
+        }
+
+        Assert.Equal(meter.Add(3276.8, Buffer), LevelMeter.Normalize(3276.8), precision: 3);
+    }
 }

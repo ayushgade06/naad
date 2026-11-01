@@ -529,4 +529,51 @@ public sealed class DictationControllerTests : IDisposable
         Assert.Equal(DictationState.Idle, _h.Controller.State);
         Assert.Equal(0, _h.Recorder.Starts);
     }
+
+    [Fact]
+    public async Task Toggle_Starts_SaysItIsHandsFree()
+    {
+        var handsFree = 0;
+        _h.Controller.WentHandsFree += () => handsFree++;
+
+        await _h.Ui.RunAsync(_h.Controller.PressToggle);
+
+        Assert.Equal(1, handsFree);
+    }
+
+    [Fact]
+    public async Task Latch_WhileHolding_SaysItIsHandsFree()
+    {
+        var handsFree = 0;
+        _h.Controller.WentHandsFree += () => handsFree++;
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await _h.Ui.RunAsync(_h.Controller.Latch);
+
+        Assert.Equal(1, handsFree);
+    }
+
+    [Fact]
+    public async Task Hold_Starts_IsNotHandsFree()
+    {
+        var handsFree = 0;
+        _h.Controller.WentHandsFree += () => handsFree++;
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+
+        Assert.Equal(0, handsFree);
+    }
+
+    [Fact]
+    public async Task Press_OverASelection_SaysItIsAnEditWhileRecording()
+    {
+        var edit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Controller.EditRecording += () => edit.TrySetResult();
+        _h.Controller.UseContextReader(
+            _ => Task.FromResult(new Naad.Context.DictationContext("app", null, "selected", null)));
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+
+        await edit.Task.WaitAsync(Wait, TestContext.Current.CancellationToken);
+    }
 }

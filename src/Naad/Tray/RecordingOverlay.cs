@@ -12,10 +12,11 @@ namespace Naad.Tray;
 /// bars that rise and fall with the microphone level, or transcribing. It must never become the
 /// foreground window: the focus guard refuses to paste once the foreground window changes, so an
 /// overlay that took focus would block every dictation it shows. It never activates, takes no
-/// keyboard input, lets clicks through, and stays out of Alt+Tab and the taskbar. Create, use and
-/// dispose it on the UI thread.
+/// keyboard input, lets clicks through, and stays out of Alt+Tab and the taskbar; only its stop
+/// button, and an update notice, take clicks, through an <see cref="OverlayClickTarget"/> that
+/// never activates either. Create, use and dispose it on the UI thread.
 /// </summary>
-internal sealed class RecordingOverlay : Form
+internal sealed partial class RecordingOverlay : Form
 {
     /// <summary>
     /// Never activated (WS_EX_NOACTIVATE), above other windows (WS_EX_TOPMOST), not in Alt+Tab or
@@ -26,8 +27,7 @@ internal sealed class RecordingOverlay : Form
     public const int ExtendedStyles = User32.WsExNoActivate | User32.WsExTopmost | User32.WsExToolWindow
         | User32.WsExTransparent | User32.WsExLayered;
 
-    // Sizes at 96 DPI: big enough to read at a glance, small enough to cover little.
-    private const int LogicalWidth = 132;
+    // Sizes at 96 DPI; the overlay's own size comes from OverlayLayout.
     private const int LogicalHeight = 36;
     private const int LogicalBottomMargin = 72;
     private const int LogicalBarWidth = 3;
@@ -35,8 +35,7 @@ internal sealed class RecordingOverlay : Form
     private const int LogicalMaxBarHeight = 20;
     private const int BarCount = 15;
 
-    // With live preview the pill widens to a line of about ten words above the bars.
-    private const int LogicalLiveWidth = 380;
+    // With live preview a line of about ten words shows above the bars.
     private const int LogicalLiveTextHeight = 24;
     private const int LogicalTextPadding = 14;
 
@@ -46,6 +45,9 @@ internal sealed class RecordingOverlay : Form
 
     // Long enough to read two words at a glance, short enough not to linger over the text.
     private const int FallbackNoticeMilliseconds = 2500;
+
+    // A notice that can be clicked stays long enough to reach it with the mouse.
+    private const int ClickableNoticeMilliseconds = 7000;
 
     // A microphone that opens sooner than this shows the bars straight away: a "Starting" that
     // flashes for a moment reads as a glitch.
@@ -66,9 +68,17 @@ internal sealed class RecordingOverlay : Form
     private bool _microphoneOpen;
     private long _recordingStarted;
 
+    private readonly OverlayClickTarget _click = new();
     private bool _showTimer;
+    private OverlayStyle _style;
+    private string? _monitor;
     private string _liveText = "";
     private Rectangle _area;
+
+    // Hands-free: the stop button shows. Editing: the recording is an Edit Mode instruction.
+    private bool _handsFree;
+    private bool _editing;
+    private Action? _stop;
 
     public RecordingOverlay()
     {
@@ -86,9 +96,14 @@ internal sealed class RecordingOverlay : Form
         _notice.Tick += (_, _) =>
         {
             _notice.Stop();
+            _click.Clear();
             if (_state == DictationState.Idle)
             {
                 Hide();
+            }
+            else if (Visible)
+            {
+                Render();
             }
         };
     }
@@ -113,12 +128,26 @@ internal sealed class RecordingOverlay : Form
     {
         _state = state;
         _starting.Stop();
+        if (state != DictationState.Recording && _handsFree)
+        {
+            _handsFree = false;
+            _click.Clear();
+        }
+
         if (state == DictationState.Idle)
         {
+            // The words were this dictation's: a notice shown next must not show them again.
+            _liveText = "";
+            _editing = false;
+
             // A notice that cleanup fell back stays up for its time.
             if (!_notice.Enabled)
             {
                 Hide();
+            }
+            else if (Visible)
+            {
+                Render();
             }
 
             return;
@@ -127,6 +156,9 @@ internal sealed class RecordingOverlay : Form
         if (state == DictationState.Recording)
         {
             _notice.Stop();
+            _click.Clear();
+            _handsFree = false;
+            _editing = false;
             _label = "Transcribing";
             _microphoneOpen = false;
             _recordingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -163,18 +195,39 @@ internal sealed class RecordingOverlay : Form
             return;
         }
 
-        var grow = _liveText.Length == 0;
         _liveText = text;
-        if (grow)
-        {
-            Fit();
-        }
-
         Render();
     }
 
-    /// <summary>Shows, or stops showing, how long the recording has run at the pill's right end.</summary>
-    public void UseTimer(bool show) => _showTimer = show;
+    /// <summary>
+    /// Uses these choices from the next recording on: a timer at the pill's right end, the style,
+    /// and the monitor (null follows the active window; see <see cref="OverlayLayout.PickArea"/>).
+    /// </summary>
+    public void UseOptions(bool timer, OverlayStyle style, string? monitor) =>
+        (_showTimer, _style, _monitor) = (timer, style, monitor);
+
+    /// <summary>What the stop button does: stop the hands-free dictation.</summary>
+    public void UseStop(Action stop) => _stop = stop;
+
+    /// <summary>The recording runs hands-free: the stop button shows and takes clicks.</summary>
+    public void ShowHandsFree()
+    {
+        _handsFree = true;
+        if (Visible)
+        {
+            Render();
+        }
+    }
+
+    /// <summary>The recording is an Edit Mode instruction: it gets the editing look.</summary>
+    public void ShowEditing()
+    {
+        _editing = true;
+        if (Visible)
+        {
+            Render();
+        }
+    }
 
     /// <summary>The language model is tidying the transcript, or rewriting the selection.</summary>
     public void ShowCleaningUp(bool editing) => ShowLabel(editing ? "Editing" : "Cleaning up");
@@ -204,9 +257,15 @@ internal sealed class RecordingOverlay : Form
 
     /// <summary>
     /// Says <paramref name="text"/> (two or three words) for a moment, even after the dictation.
+    /// With <paramref name="clicked"/>, it stays longer and clicking it calls that.
     /// </summary>
-    public void ShowNotice(string text)
+    public void ShowNotice(string text, Action? clicked = null)
     {
+        // Started first: the size and the drawing both depend on whether a notice shows.
+        _notice.Stop();
+        _notice.Interval = clicked is null ? FallbackNoticeMilliseconds : ClickableNoticeMilliseconds;
+        _notice.Start();
+        _click.Clear();
         ShowLabel(text);
         if (!Visible)
         {
@@ -214,7 +273,10 @@ internal sealed class RecordingOverlay : Form
             Render();
         }
 
-        _notice.Start();
+        if (clicked is not null)
+        {
+            _click.ShowAt(Bounds, clicked);
+        }
     }
 
     /// <summary>Adds a microphone level from <see cref="AudioRecorder.LevelMeasured"/>, marshalled here.</summary>
@@ -222,6 +284,7 @@ internal sealed class RecordingOverlay : Form
     {
         if (_state == DictationState.Recording && Visible)
         {
+            // Quiet buffers keep coming too, so the bars breathe at the buffers' pace.
             _bars.Push(_meter.Add(rms, duration));
             Render();
         }
@@ -231,6 +294,7 @@ internal sealed class RecordingOverlay : Form
     // each change draws the whole pill into a bitmap and hands that over.
     private void Render()
     {
+        Fit();
         using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
         using (var graphics = Graphics.FromImage(bitmap))
         {
@@ -239,12 +303,14 @@ internal sealed class RecordingOverlay : Form
             Draw(graphics);
         }
 
-        var screen = User32.GetDC(0);
-        var memory = Gdi32.CreateCompatibleDC(screen);
-        var handle = bitmap.GetHbitmap(Color.FromArgb(0));
-        var previous = Gdi32.SelectObject(memory, handle);
+        // Each handle is taken inside the try, so one that fails never leaks the ones before it.
+        nint screen = 0, memory = 0, handle = 0, previous = 0;
         try
         {
+            screen = User32.GetDC(0);
+            memory = Gdi32.CreateCompatibleDC(screen);
+            handle = bitmap.GetHbitmap(Color.FromArgb(0));
+            previous = Gdi32.SelectObject(memory, handle);
             User32.UpdateLayeredWindow(
                 Handle,
                 screen,
@@ -258,113 +324,33 @@ internal sealed class RecordingOverlay : Form
         }
         finally
         {
-            Gdi32.SelectObject(memory, previous);
-            Gdi32.DeleteObject(handle);
-            Gdi32.DeleteDC(memory);
-            _ = User32.ReleaseDC(0, screen);
-        }
-    }
-
-    private void Draw(Graphics graphics)
-    {
-        using (var pill = Capsule(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1)))
-        using (var fill = new SolidBrush(Background))
-        using (var edge = new Pen(Border, 1))
-        {
-            graphics.FillPath(fill, pill);
-            graphics.DrawPath(edge, pill);
-        }
-
-        // Live words on top; the bars or the label in the band below, where they always are.
-        var band = new RectangleF(0, Height - Scale(LogicalHeight), Width, Scale(LogicalHeight));
-        if (_liveText.Length > 0)
-        {
-            DrawLiveText(graphics);
-        }
-
-        // The microphone can take a moment to open; until then there are no levels to show.
-        if (_state == DictationState.Recording && !_microphoneOpen)
-        {
-            DrawLabel(graphics, "Starting", band);
-            return;
-        }
-
-        if (_state != DictationState.Recording)
-        {
-            DrawLabel(graphics, _label, band);
-            return;
-        }
-
-        // Each bar is a capsule never shorter than it is wide, so silence shows a row of dots.
-        float barWidth = Scale(LogicalBarWidth);
-        float step = barWidth + Scale(LogicalBarGap);
-        var left = (Width - ((BarCount * step) - Scale(LogicalBarGap))) / 2f;
-        using var brush = new SolidBrush(BarColor);
-        for (var i = 0; i < BarCount; i++)
-        {
-            // Halfway to the new level at each buffer, so the bars glide instead of jumping.
-            _shown[i] += ((float)_bars.Height(i) - _shown[i]) * 0.5f;
-            var height = Math.Max(barWidth, _shown[i] * Scale(LogicalMaxBarHeight));
-            using var bar = Capsule(
-                new RectangleF(left + (i * step), band.Top + ((band.Height - height) / 2f), barWidth, height));
-            graphics.FillPath(brush, bar);
-        }
-
-        if (_showTimer)
-        {
-            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(_recordingStarted);
-            using var text = new SolidBrush(TextColor);
-            using var small = new Font(Font.FontFamily, Font.Size * 0.85f);
-            using var format = new StringFormat
+            if (previous != 0)
             {
-                Alignment = StringAlignment.Far,
-                LineAlignment = StringAlignment.Center
-            };
-            graphics.DrawString(
-                $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}",
-                small,
-                text,
-                band with { Width = Width - Scale(LogicalBarGap * 4) },
-                format);
-        }
-    }
+                Gdi32.SelectObject(memory, previous);
+            }
 
-    private void DrawLabel(Graphics graphics, string label, RectangleF band)
-    {
-        using var text = new SolidBrush(TextColor);
-        using var format = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
-        graphics.DrawString(label, Font, text, band, format);
-    }
+            if (handle != 0)
+            {
+                Gdi32.DeleteObject(handle);
+            }
 
-    // The newest words that fit on one line, cut at a word with an ellipsis in front.
-    private void DrawLiveText(Graphics graphics)
-    {
-        var line = new RectangleF(
-            Scale(LogicalTextPadding),
-            Scale(LogicalLiveTextTop),
-            Width - Scale(LogicalTextPadding * 2),
-            Scale(LogicalLiveTextHeight));
-        var words = _liveText;
-        var cut = false;
-        while (graphics.MeasureString((cut ? Ellipsis : "") + words, Font).Width > line.Width
-            && words.IndexOf(' ', StringComparison.Ordinal) is var space and > 0)
-        {
-            words = words[(space + 1)..];
-            cut = true;
+            if (memory != 0)
+            {
+                Gdi32.DeleteDC(memory);
+            }
+
+            if (screen != 0)
+            {
+                _ = User32.ReleaseDC(0, screen);
+            }
         }
 
-        using var brush = new SolidBrush(BarColor);
-        using var format = new StringFormat
+        // The button sits over the drawn stop glyph, which needs the size just fitted.
+        if (_handsFree && _state == DictationState.Recording && _microphoneOpen && !_notice.Enabled
+            && _stop is { } stop)
         {
-            LineAlignment = StringAlignment.Center,
-            FormatFlags = StringFormatFlags.NoWrap,
-            Trimming = StringTrimming.None,
-        };
-        graphics.DrawString((cut ? Ellipsis : "") + words, Font, brush, line, format);
+            _click.ShowAt(OverlayLayout.StopButton(Bounds, DeviceDpi / 96.0), stop);
+        }
     }
 
     private void ShowLabel(string label)
@@ -382,22 +368,10 @@ internal sealed class RecordingOverlay : Form
         {
             _notice.Dispose();
             _starting.Dispose();
+            _click.Dispose();
         }
 
         base.Dispose(disposing);
-    }
-
-    // A rectangle with fully rounded ends: a pill when wide, a dot when square.
-    private static GraphicsPath Capsule(RectangleF bounds)
-    {
-        var diameter = Math.Min(bounds.Width, bounds.Height);
-        var path = new GraphicsPath();
-        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
-        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
-        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-        path.CloseFigure();
-        return path;
     }
 
     // Centred near the bottom of the target's monitor, where it is seen without covering the
@@ -406,23 +380,26 @@ internal sealed class RecordingOverlay : Form
     // scale it may look a little large or small. Per-monitor sizing via DpiChanged if users notice.
     private void Place(nint target)
     {
-        var screen = target == 0 ? Screen.PrimaryScreen! : Screen.FromHandle(target);
-        _area = screen.WorkingArea;
-        Fit();
+        var screens = Screen.AllScreens.Select(s => new OverlayScreen(s.DeviceName, s.WorkingArea, s.Primary)).ToList();
+        _area = OverlayLayout.PickArea(screens, target == 0 ? null : Screen.FromHandle(target).DeviceName, _monitor);
     }
 
-    // The pill's size for what it shows, centred on the bottom of the area chosen by Place.
+    // The size for what it shows now, centred on the bottom of the area chosen by Place.
     private void Fit()
     {
-        var live = _liveText.Length > 0;
-        var size = new Size(
-            Scale(live ? LogicalLiveWidth : LogicalWidth),
-            Scale(live ? LogicalHeight + LogicalLiveTextHeight : LogicalHeight));
-        Bounds = new Rectangle(
+        var words = _notice.Enabled || _state != DictationState.Recording || !_microphoneOpen;
+        var logical = OverlayLayout.Size(
+            _style, words, _liveText.Length > 0, _handsFree && _state == DictationState.Recording);
+        var size = new Size(Scale(logical.Width), Scale(logical.Height));
+        var bounds = new Rectangle(
             _area.Left + ((_area.Width - size.Width) / 2),
             _area.Bottom - size.Height - Scale(LogicalBottomMargin),
             size.Width,
             size.Height);
+        if (Bounds != bounds)
+        {
+            Bounds = bounds;
+        }
     }
 
     private int Scale(int logical) => (int)Math.Round(logical * DeviceDpi / 96.0);

@@ -15,6 +15,10 @@ namespace Naad;
 /// </summary>
 internal static class DictationFeatures
 {
+    // Long enough for the 40 ms start tone to have played through the speakers.
+    // ponytail: assumes wired output; Bluetooth speakers lag more and may clip the tone's end.
+    private static readonly TimeSpan ToneRoom = TimeSpan.FromMilliseconds(150);
+
     // Long enough for Windows to hand focus back from the closing tray menu to the app before it.
     private static readonly TimeSpan MenuCloseDelay = TimeSpan.FromMilliseconds(400);
 
@@ -45,8 +49,27 @@ internal static class DictationFeatures
         RecordingFlag.Update(false, RecordingFlag.DefaultPath, DateTimeOffset.UtcNow);
         Application.ThreadExit += (_, _) =>
             RecordingFlag.Update(false, RecordingFlag.DefaultPath, DateTimeOffset.UtcNow);
+        // Speakers a crash left muted come back first; then they are muted only while recording.
+        var mute = new Audio.SystemMute(new Audio.WindowsOutput(), Audio.SystemMute.DefaultPath);
+        mute.Restore();
+        Application.ThreadExit += (_, _) => mute.Restore();
+        var recordings = 0;
+        controller.MicrophoneOpened += () =>
+        {
+            var recording = ++recordings;
+            if (settings().MuteWhileDictating)
+            {
+                _ = MuteAfterToneAsync(
+                    () => recording == recordings && controller.State == DictationState.Recording, mute);
+            }
+        };
         controller.StateChanged += state =>
         {
+            if (state != DictationState.Recording)
+            {
+                mute.Restore();
+            }
+
             if (settings().RecordingFlagFile || File.Exists(RecordingFlag.DefaultPath))
             {
                 RecordingFlag.Update(
@@ -69,7 +92,10 @@ internal static class DictationFeatures
         hook.EscapePressed += controller.Escape;
         hook.Latched += controller.Latch;
         hook.PasteAgainPressed += () => _ = controller.PasteAgainAsync();
-        overlay.UseTimer(settings().OverlayTimer);
+        overlay.UseOptions(settings().OverlayTimer, settings().OverlayStyle, settings().OverlayMonitor);
+        overlay.UseStop(controller.Toggle);
+        controller.WentHandsFree += overlay.ShowHandsFree;
+        controller.EditRecording += overlay.ShowEditing;
 
         controller.MicrophoneOpened += overlay.ShowMicrophoneOpen;
         controller.CleaningUp += overlay.ShowCleaningUp;
@@ -259,5 +285,16 @@ internal static class DictationFeatures
         }
 
         tray.ShowWordsAdded(fresh.Count);
+    }
+
+    // The start tone plays as the microphone opens; muting at once would cut it off. Only the
+    // recording that opened it is muted: one that ended meanwhile was already put back.
+    private static async Task MuteAfterToneAsync(Func<bool> stillRecording, Audio.SystemMute mute)
+    {
+        await Task.Delay(ToneRoom);
+        if (stillRecording())
+        {
+            mute.Mute();
+        }
     }
 }

@@ -113,6 +113,17 @@ All notable changes to Naad are listed here. The format follows
   shows **Starting** only when the microphone is slow to open, and its
   timer counts from when recording began.
 
+- **The overlay**: a stop button in hands-free dictations (the only part
+  that takes clicks, and it never takes the focus), a choice of monitor
+  (the active window's, the primary, or a named one), a compact style of
+  bars only, amber bars and a pencil for Edit Mode, bars that settle over a
+  steady hum and breathe while you're quiet, and a clickable **Update
+  available**.
+- **Mute other sound while dictating** (off by default): the speakers are
+  muted after the start tone and unmuted afterwards, only if Naad muted
+  them, even after a crash. **Preview** warns when the speakers are muted
+  or nearly silent.
+
 ### Fixed
 
 - Live typing types while the shortcut is held: the shortcut's Ctrl or
@@ -129,6 +140,8 @@ All notable changes to Naad are listed here. The format follows
   that dictation's words, never the previous one's.
 - A request that times out because the PC went offline says there is no
   internet and falls back to this PC, as does a dropped connection.
+- The overlay no longer shows the last dictation's live words again under
+  a later notice.
 - Esc says **Cancelled** on the overlay. A context read that fails no
   longer loses the dictation, and tray notifications show even when the
   icon is hidden.

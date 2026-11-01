@@ -450,7 +450,7 @@ internal static class Program
                 }
 
                 tray.SetVisible(next.ShowTrayIcon);
-                overlay.UseTimer(next.OverlayTimer);
+                overlay.UseOptions(next.OverlayTimer, next.OverlayStyle, next.OverlayMonitor);
                 if (next.HistoryRetention != settings.HistoryRetention)
                 {
                     var retention = next.HistoryRetention;

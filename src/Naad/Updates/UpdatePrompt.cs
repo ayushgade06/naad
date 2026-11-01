@@ -109,8 +109,8 @@ internal sealed class UpdatePrompt : IDisposable
     /// </summary>
     /// <param name="pasted">The dictation was pasted and the overlay shows no other notice, which
     /// the reminder must not cover.</param>
-    /// <param name="show">Shows a short notice on the overlay.</param>
-    public void MarkAfterDictation(bool pasted, Action<string> show)
+    /// <param name="show">Shows a short notice on the overlay; clicking it calls the action.</param>
+    public void MarkAfterDictation(bool pasted, Action<string, Action?> show)
     {
         if (!pasted || _offered is null)
         {
@@ -125,7 +125,8 @@ internal sealed class UpdatePrompt : IDisposable
 
         (state with { Marked = _offered }).Save(UpdateState.DefaultPath);
         Log.Info(LogEvent.UpdateMarked);
-        show("Update available");
+        var version = _offered;
+        show("Update available", () => OpenWindow(version));
     }
 
     // Only from the user's click: the window shows what's new, and downloads only on Install.

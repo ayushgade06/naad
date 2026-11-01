@@ -121,6 +121,7 @@ internal sealed partial class DictationController
         if (latch && _session.State == DictationState.Recording)
         {
             _latched = true;
+            WentHandsFree?.Invoke();
         }
     }
 

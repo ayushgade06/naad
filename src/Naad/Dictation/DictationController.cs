@@ -208,6 +208,7 @@ internal sealed partial class DictationController(
 
                 // Read while the user speaks; the reader keeps its own time limit.
                 _context = _readContext?.Invoke(_target) ?? Task.FromResult(DictationContext.None);
+                _ = ReportEditAsync(_context, step.Job);
                 _cleanup?.Prepare();
                 StartLive();
                 _starting = StartRecordingAsync(step.Job, _stopped, time.GetTimestamp());

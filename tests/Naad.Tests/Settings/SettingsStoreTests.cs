@@ -396,6 +396,33 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OverlayAndMute_ReturnsThem()
+    {
+        var result = LoadFrom("""
+            { "version": 5, "overlayStyle": "Compact", "overlayMonitor": "Primary", "muteWhileDictating": true }
+            """);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        Assert.Equal(Naad.Tray.OverlayStyle.Compact, result.Settings.OverlayStyle);
+        Assert.Equal("Primary", result.Settings.OverlayMonitor);
+        Assert.True(result.Settings.MuteWhileDictating);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 5, "overlayStyle": "Huge" }""")]
+    [InlineData("""{ "version": 5, "overlayMonitor": 5 }""")]
+    [InlineData("""{ "version": 5, "muteWhileDictating": "yes" }""")]
+    public void Load_InvalidOverlayOrMute_FallsBackAsRepaired(string json)
+    {
+        var result = LoadFrom(json);
+
+        Assert.Equal(SettingsStatus.Repaired, result.Status);
+        Assert.Equal(AppSettings.Defaults.OverlayStyle, result.Settings.OverlayStyle);
+        Assert.Null(result.Settings.OverlayMonitor);
+        Assert.False(result.Settings.MuteWhileDictating);
+    }
+
+    [Fact]
     public void Load_ToggleOnly_KeepsHoldOff()
     {
         var result = LoadFrom("""{ "version": 5, "holdShortcut": null, "toggleShortcut": "F9" }""");
