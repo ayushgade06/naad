@@ -47,6 +47,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "keepMeetingAudio": false,
   "meetingDetection": "Notify",
   "meetingIgnoredApps": [],
+  "recordingFlagFile": false,
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
@@ -98,6 +99,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `keepMeetingAudio` | `true` or `false` | `false` | Keep each meeting's recording, encrypted, with its notes. With `false`, each piece of a meeting's audio is dropped as soon as it is transcribed. See [Meeting notes](#meeting-notes). |
 | `meetingDetection` | `"Notify"` or `"Off"` | `"Notify"` | When a call app (Teams, Zoom, Slack, Discord, Webex, WhatsApp, Skype, Signal, Telegram) or a browser has used the microphone for 3 seconds, offer meeting notes in a notification. Nothing records unless you click it; one offer per call. |
 | `meetingIgnoredApps` | list of text | `[]` | Apps that never get the offer, by the program's file name without `.exe` (such as `"chrome"`) or a Store app's package name without its publisher (such as `"msteams"`); case and `.exe` don't matter. |
+| `recordingFlagFile` | `true` or `false` | `false` | While a dictation records, keep a file `%LOCALAPPDATA%\Naad\is-recording` holding the Unix time it started, for other tools (a stream overlay, a script that pauses music) to check. It is removed when recording stops or Naad quits, and at the next start after a crash. |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
@@ -505,3 +507,13 @@ summary is being written dictation cleanup waits for it; leaving the meeting's v
 
 Tell the people on the call that you are taking notes; recording others may need their consent
 where you live.
+
+## Updates
+
+An installed copy checks GitHub Releases a minute after it starts and then
+daily. The daily check offers a new release only once it has been out for
+three days (counted from when this PC first saw it), so a broken release can
+be replaced first; **Check for updates** in the tray offers it at once. While
+an update is offered, **Skip version X** in the tray stops the daily check
+offering that version; a newer one is offered as usual. Nothing is downloaded
+until you click the notification, and never during a dictation.

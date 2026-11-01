@@ -180,6 +180,12 @@ internal sealed record AppSettings
     /// <summary>Apps, such as "chrome", that never get a meeting notes offer.</summary>
     public IReadOnlyList<string> MeetingIgnoredApps { get; init; } = [];
 
+    /// <summary>
+    /// Keep %LOCALAPPDATA%\Naad\is-recording while a dictation records, for other tools to see.
+    /// Off by default.
+    /// </summary>
+    public bool RecordingFlagFile { get; init; }
+
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
 

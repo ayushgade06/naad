@@ -61,8 +61,28 @@ All notable changes to Naad are listed here. The format follows
   rewrites it. Automatic, Manual (hold Shift) or Off. A failed edit leaves
   the text alone.
 
+- **Live preview**: with Whisper on a graphics card, each phrase is
+  transcribed while you speak and shown in the overlay, so the text is
+  ready sooner after you let go.
+- **Live typing** (off by default) types each finished phrase into the app
+  as you speak, and stops, keeping the full text, if the window changes.
+  Live preview and typing can also stream to OpenAI's realtime
+  transcription or Deepgram, falling back to an upload if streaming fails.
+- **Meeting notes**: your microphone (You) and the PC's sound (Others),
+  transcribed in pieces on your PC while the meeting runs, saved encrypted
+  and copied when you stop. Naad offers notes when a call app starts using
+  the microphone, and never records without your click. A watchdog reopens
+  a microphone that goes silent or is unplugged.
+- **Meetings page**: meetings by day with search, rename, Markdown export,
+  delete, and a summary with decisions and action items from the language
+  model.
+- **Diagnostics page** with build details to copy into a bug report.
+- An optional `is-recording` flag file for other tools.
+
 ### Changed
 
+- The daily update check waits three days after it first sees a release,
+  and **Skip version** in the tray stops it offering that version.
 - Settings is split into **Dictation**, **AI** and **General** tabs, and
   opens inside Naad's window.
 - API keys move to one encrypted file per service; Naad 1.0's key moves

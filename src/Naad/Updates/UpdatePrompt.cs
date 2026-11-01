@@ -4,9 +4,10 @@ namespace Naad.Updates;
 
 /// <summary>
 /// Offers updates in the tray: a minute after start, once a day, and from Check for updates.
-/// An update is only downloaded when the user clicks its notification, and never during a
-/// dictation. Does nothing in a copy that wasn't installed. Create, use and dispose it on the
-/// UI thread.
+/// The daily check offers a release only three days after Naad first sees it, and never one the
+/// user skipped (<see cref="UpdatePolicy"/>). An update is only downloaded when the user clicks
+/// its notification, and never during a dictation. Does nothing in a copy that wasn't
+/// installed. Create, use and dispose it on the UI thread.
 /// </summary>
 internal sealed class UpdatePrompt : IDisposable
 {
@@ -56,7 +57,25 @@ internal sealed class UpdatePrompt : IDisposable
             var (failed, version) = await _updater.CheckAsync();
             if (version is not null)
             {
+                var now = DateTimeOffset.UtcNow;
+                var state = UpdatePolicy.Saw(UpdateState.Load(UpdateState.DefaultPath), version, now);
+                state.Save(UpdateState.DefaultPath);
+                if (!UpdatePolicy.Offer(state, version, now, manual))
+                {
+                    // An older version's Skip item would be stale.
+                    _tray.ShowSkipUpdate(null, null);
+                    Log.Info(LogEvent.UpdateWaiting);
+                    return;
+                }
+
                 _tray.ShowUpdateAvailable(version, install: () => _ = InstallAsync());
+                _tray.ShowSkipUpdate(version, () =>
+                {
+                    var skipped = UpdateState.Load(UpdateState.DefaultPath) with { Skipped = version };
+                    skipped.Save(UpdateState.DefaultPath);
+                    _tray.ShowSkipUpdate(null, null);
+                    Log.Info(LogEvent.UpdateSkipped);
+                });
             }
             else if (manual && failed)
             {

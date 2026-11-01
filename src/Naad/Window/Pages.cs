@@ -16,6 +16,7 @@ internal static class Pages
     public const string Dictionary = "Dictionary";
     public const string Snippets = "Snippets";
     public const string Meetings = "Meetings";
+    public const string Diagnostics = "Diagnostics";
     public const string Settings = "Settings";
 
     /// <summary>
@@ -81,6 +82,46 @@ internal static class Pages
     /// <summary>A page whose content arrives in a later version.</summary>
     public static UIElement Placeholder(string title, string text, Palette palette) =>
         Stack(palette, Heading(title), Muted(text));
+
+    /// <summary>
+    /// The build and setup details for a bug report, with Copy. Nothing the user said or typed is
+    /// in them (see <see cref="Window.Diagnostics"/>).
+    /// </summary>
+    public static UIElement DiagnosticsPage(string details, Func<string, Task<bool>> copy, Palette palette)
+    {
+        var text = new System.Windows.Controls.TextBox
+        {
+            Text = details,
+            IsReadOnly = true,
+            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12),
+            Padding = new Thickness(8),
+        };
+        var status = Muted("");
+        var button = Button("Copy", () => _ = CopyAsync());
+        async Task CopyAsync()
+        {
+            try
+            {
+                status.Text = await copy(details) ? "Copied." : "The clipboard is busy; try again.";
+            }
+            catch (Exception e)
+            {
+                // From a click: anything not caught here would vanish silently.
+                Log.Error(LogEvent.DiagnosticsCopyFailed, e);
+            }
+        }
+
+        return Stack(
+            palette,
+            Heading("Diagnostics"),
+            Text("Paste these details into a bug report. They name your choices, never what you said, " +
+                "your keys or your devices."),
+            text,
+            button,
+            status);
+    }
 
     /// <summary>
     /// The settings window, embedded: its fields, checks and saving are the same as the

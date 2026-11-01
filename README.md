@@ -29,6 +29,12 @@ appear wherever your cursor is.
   phrase, and "press enter" to send.
 - **Edit by voice.** Select text and say "make this shorter". Naad reads
   the text near the cursor (never a password field) to spell names right.
+- **Live.** See the words while you speak, or have them typed as you go,
+  on your PC or streamed to OpenAI or Deepgram.
+- **Meeting notes.** Record your microphone and the call's sound, get a
+  transcript labelled You and Others, and a summary with decisions and
+  action items. Naad can offer to take notes when a call starts, and never
+  records without your click.
 - **Configurable.** Any shortcut, hands-free mode, Esc to cancel, the
   language and the microphone.
 

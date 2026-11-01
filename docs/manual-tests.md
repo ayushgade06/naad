@@ -1058,7 +1058,7 @@ Deepgram key is needed.
 
 **Status after P36:** M-LY1 to M-LY5 have **not been run** by a person.
 
-## Meeting recorder (P37): M-MR1 to M-MR5
+## Meeting recorder (P37): M-MR1 to M-MR6
 
 | ID | Check | Steps | Expected | Automated? |
 |---|---|---|---|---|
@@ -1093,3 +1093,50 @@ Deepgram key is needed.
 | M-MS4 | Export and delete | **Export Markdown...** to a file, open it; then **Delete**. | The file has the title, summary and timestamped turns; the meeting disappears from the list and its file from `%LOCALAPPDATA%\Naad\meetings`. | **No.** Markdown is unit tested. |
 
 **Status after P39:** M-MS1 to M-MS4 have **not been run** by a person.
+
+## Updates, diagnostics and the recording flag (P40): M-RL1 to M-RL3
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-RL1 | Update wait and skip | In an installed copy, publish a test release; wait for the daily check, then choose **Check for updates**; then **Skip version X**. | The daily check stays quiet for three days; **Check for updates** offers it at once; after **Skip**, the daily check never offers that version. | **No.** The policy is unit tested. |
+| M-RL2 | Diagnostics | Open **Diagnostics** in Naad's window and click **Copy**. | The version, Windows version and choices are copied; no key, device name, dictionary word or dictation is in them. | **No.** Unit tested for user content. |
+| M-RL3 | Recording flag | Set `recordingFlagFile` to `true`, hold the shortcut, and look in `%LOCALAPPDATA%\Naad`. | `is-recording` exists while recording, holding a Unix time, and is gone after release. | **No.** Unit tested. |
+
+**Status after P40:** M-RL1 to M-RL3 have **not been run** by a person.
+
+## v2.0.0: the automated pass, 2026-11-01
+
+Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical
+processors) while it was in use. No key or mouse input was injected, the
+microphone was never opened, and the tray was not driven, so no check that
+needs a person was run.
+
+| Check | Result |
+|---|---|
+| `dotnet build` (warnings as errors), `dotnet format --verify-no-changes` | Pass |
+| `dotnet test` | Pass: 1,188 tests, 0 failed, 8 explicit tests not run by default |
+| `LiveTranscriptAccuracyTests` (Turbo, 21-second text-to-speech clip) | Pass: 0% of words differ from one pass. Release to text: 1,657 to 1,083 ms on the first run (P35); 1,642 to 1,692 ms on this rerun, made while the PC was short of memory, so the gain isn't guaranteed under load |
+| `LocalWhisperTranscriberTests` (Turbo, same clip) | Pass: 2,852 ms with the model load, 784 ms after |
+| `MeetingSummarizerTests` real model (Small, synthetic chat; P39) | Pass: "None." for decisions and action items, no invented speakers; one remark credited to the wrong side |
+| `LocalLanguageModelTests` real model | **Not finished**: the run was stopped because the PC ran low on memory |
+| `MeetingSummarizerTests` with the Large model | **Not run**, for the same reason |
+| `WindowsClipboardTests`, `FocusGuardTests`, `RecordingOverlayTests` (explicit) | **Not run**: they use the real clipboard, focus and screen of a PC in use |
+
+The manual checks added since 1.0 are **not fully run** by a person, because
+each needs a microphone, physical keys, the tray or a second app:
+M-AI1 and M-AI4, M-AI3 on a PC without Vulkan, M-CU1 to M-CU5, M-PV1 (except
+Groq) to M-PV5, M-HB1 to M-HB5, M-HY1 to
+M-HY6, M-SN1 to M-SN4, M-PL1 to M-PL4, M-CX1 to M-CX5, M-ED1 to M-ED5,
+M-LV1 to M-LV4, M-LY1 to M-LY5 (M-LY3 and M-LY4 also need an OpenAI or
+Deepgram key), M-MR1 to M-MR6, M-MD1 to M-MD5, M-MS1 to M-MS4 and M-RL1 to
+M-RL3. Tag `v2.0.0` only after they pass.
+
+### Known limits left open
+
+- Updates are not signature-checked: Naad isn't code-signed yet, so there is
+  no publisher to compare against. Releases come only from this repository's
+  GitHub Releases over HTTPS.
+- Release notes merged across skipped versions, download progress with
+  Cancel, and the "Update available" mark on the overlay are not built.
+- Gemini Live, xAI and custom realtime endpoints for live transcription,
+  a global meeting shortcut and microphone echo cancellation are not built.

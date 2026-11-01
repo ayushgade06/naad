@@ -392,6 +392,7 @@ internal sealed class SettingsStore(string path)
             KeepMeetingAudio = ReadBool(root, "keepMeetingAudio", defaults.KeepMeetingAudio, ref repaired),
             MeetingDetection = ReadName(root, "meetingDetection", defaults.MeetingDetection, ref repaired),
             MeetingIgnoredApps = ReadList(root, "meetingIgnoredApps", AppSettings.IsValidWord, ref repaired),
+            RecordingFlagFile = ReadBool(root, "recordingFlagFile", defaults.RecordingFlagFile, ref repaired),
         };
         return (settings, repaired);
     }

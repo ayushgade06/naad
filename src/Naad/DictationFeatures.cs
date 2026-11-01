@@ -39,8 +39,22 @@ internal static class DictationFeatures
     {
         // Esc only means "cancel" while a dictation runs; otherwise it belongs to the app.
         hook.LatchArmed = false;
+
+        // A flag left by a crash goes, and so does one still there when Naad quits mid-recording;
+        // with the setting off, none is ever written.
+        RecordingFlag.Update(false, RecordingFlag.DefaultPath, DateTimeOffset.UtcNow);
+        Application.ThreadExit += (_, _) =>
+            RecordingFlag.Update(false, RecordingFlag.DefaultPath, DateTimeOffset.UtcNow);
         controller.StateChanged += state =>
         {
+            if (settings().RecordingFlagFile || File.Exists(RecordingFlag.DefaultPath))
+            {
+                RecordingFlag.Update(
+                    state == DictationState.Recording && settings().RecordingFlagFile,
+                    RecordingFlag.DefaultPath,
+                    DateTimeOffset.UtcNow);
+            }
+
             hook.EscapeArmed = state != DictationState.Idle;
             hook.LatchArmed = state == DictationState.Recording && !settings().HandsFree;
         };

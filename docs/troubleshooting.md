@@ -103,6 +103,29 @@ opened at all, Naad types the text key by key instead (`InsertedByTyping`).
 Windows 11 Notepad drops or mangles text typed that fast. It only happens
 while another app holds the clipboard; dictate again once it lets go.
 
+## Live preview, live typing and meetings
+
+- **No words appear while I speak.** Live preview on this PC needs Whisper
+  on a graphics card, and starts from the second dictation after Naad
+  starts or settings are saved. With OpenAI or Deepgram chosen, that
+  service's key must be set; without it, Naad transcribes as usual.
+- **Live typing typed nothing until I let go.** While a key of the shortcut
+  is held, nothing is typed (an app could read the letters as shortcuts);
+  use hands-free mode to type as you speak.
+- **"Live typing stopped early".** You switched windows or the service
+  revised words already typed. The full text is kept: **Copy last
+  transcript**.
+- **Meeting notes have no Others lines.** The PC's sound is captured from
+  the default speakers; check the call's sound plays there. On Windows 10
+  before version 2004, Naad's own tones may appear in it.
+- **"Microphone blocked" during a meeting.** The microphone is muted,
+  silenced by another app, or unplugged. Naad keeps recording the PC's
+  sound and reopens the microphone every few seconds.
+- **No offer when a call starts.** **Offer meeting notes** must be ticked
+  on the General tab, and the app must be a known call app or browser not
+  in `meetingIgnoredApps`. One offer per call.
+- **Write summary is greyed out.** Set up a language model on the AI tab.
+
 ## Settings and the key
 
 - **settings.json was damaged.** Naad keeps the broken file as
@@ -116,5 +139,6 @@ while another app holds the clipboard; dictate again once it lets go.
 ## Reporting a bug
 
 Open an issue on GitHub with what you did, what you expected, what
-happened, your Windows version (`winver`), and the relevant lines of
-`naad.log`. Never paste a transcript or an API key.
+happened, the details from **Diagnostics** in Naad's window (**Copy**),
+and the relevant lines of `naad.log`. Never paste a transcript or an API
+key.

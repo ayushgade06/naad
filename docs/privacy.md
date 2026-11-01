@@ -50,6 +50,8 @@ offline, which keeps your audio and text on the PC.
 | Meeting notes | `%LOCALAPPDATA%\Naad\meetings`, a `.meeting` file per meeting, and `.audio` files only with **Keep meeting recordings** ticked | Only for meetings you start: the title, start time, length, and what was said by **You** (your microphone) and **Others** (the sound your PC plays), and the summary if you asked for one, encrypted with DPAPI for your account. Kept until you delete them on the Meetings page, one at a time or with **Delete all meetings**. **Export Markdown** writes a plain-text copy only to the file you choose. Without **Keep meeting recordings**, each piece of audio is dropped from memory once it is transcribed |
 | Rate limits | `%LOCALAPPDATA%\Naad\rate-limits.json` | Cloud model ids whose daily quota ran out, and when it resets. Nothing you said |
 | Models that refuse a temperature | `%LOCALAPPDATA%\Naad\temperature-refused.json` | The cloud base URL and model id, and a date a week ahead. Nothing you said |
+| Update state | `%LOCALAPPDATA%\Naad\update-state.json` | The newest release seen, when it was first seen, and a version you skipped. Nothing about you |
+| Recording flag | `%LOCALAPPDATA%\Naad\is-recording` | Only with `recordingFlagFile` on, and only while a dictation records: the time it started. Nothing else |
 | Start at sign-in | A `Naad` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Only if you tick **Start Naad when I sign in** |
 | The installed app | `%LOCALAPPDATA%\Naad.App` | Removed when you uninstall |
 
@@ -64,6 +66,11 @@ reads a password field or an app you excluded.
 With **Live preview** on, the words heard so far are shown in the overlay
 while you speak, kept in memory for that dictation only, and never logged.
 They are transcribed on this PC unless you chose a streaming service.
+
+The **Diagnostics** page shows Naad's version, Windows' version and the
+names of your choices (such as "this PC, Whisper Base"), for you to copy
+into a bug report. It never includes keys, device names, your dictionary
+or anything you said.
 
 If a transcript can't be pasted, for example because you switched windows,
 Naad keeps the latest one in memory so you can choose **Copy last

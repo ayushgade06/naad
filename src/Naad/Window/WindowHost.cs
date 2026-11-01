@@ -44,6 +44,8 @@ internal sealed class WindowHost(
                     new(Pages.Dictionary, () => DictionaryPage.Words(pages, palette)),
                     new(Pages.Snippets, () => DictionaryPage.Snippets(pages, palette)),
                     new(Pages.Meetings, () => new MeetingsPage(pages.Meetings, palette)),
+                    new(Pages.Diagnostics, () => Pages.DiagnosticsPage(
+                        Diagnostics.Describe(settings()), pages.Copy, palette)),
                     new(Pages.Settings, () => Pages.SettingsPage(SettingsForm = SettingsPage(dark ? palette : null))),
                 ],
                 palette,

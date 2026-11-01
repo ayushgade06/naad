@@ -14,7 +14,7 @@ Code is organised by feature (`src/Naad/`), and the tests mirror it
 | Folder | Holds |
 |---|---|
 | `Hotkey/` | `KeyboardHook` (the low-level keyboard hook, plus a mouse hook while the shortcut is held), `ChordMatcher` (pure: which key events are a press, a release or a cancel), `Chord` and `ChordCapture` (the shortcut and capturing a new one) |
-| `Dictation/` | `DictationSession` (pure state machine: Idle, Recording, Transcribing, Inserting) and `DictationController`, which carries out what the session decides |
+| `Dictation/` | `RecordingFlag` (the optional is-recording file), `DictationSession` (pure state machine: Idle, Recording, Transcribing, Inserting) and `DictationController`, which carries out what the session decides |
 | `Audio/` | `AudioRecorder` (WinMM capture through NAudio, 16 kHz mono 16-bit, in memory), `SilenceGate` and `Wav` (pure), `LevelMeter` (for the overlay) |
 | `Transcription/` | `ITranscriber` with two implementations: `LocalWhisperTranscriber` (Whisper.net, on the graphics card through Vulkan when there is one; `GpuChoice` picks a discrete card) and `OpenAiCompatibleTranscriber` (HTTP, with `RetryPolicy`). Also `LocalModel` (download and SHA-256 check), `ProviderSelection`, `FillerFilter` |
 | `Live/` | `ILiveSession` with two implementations: `LiveTranscript` (phrases split by `SpeechChunker`, pure, and transcribed on this PC while the user speaks) and `RealtimeTranscript` (a WebSocket stream to OpenAI or Deepgram, whose messages `RealtimeProtocol` and `RealtimeText` read, both pure). `LiveTyper` types stable text into the window, checking focus before each phrase |
@@ -22,9 +22,16 @@ Code is organised by feature (`src/Naad/`), and the tests mirror it
 | `Insertion/` | `FocusGuard` (may the original window receive text?), `TextInserter` (paste through the clipboard, then restore it), `WindowsClipboard`, `UnicodeTyping` (the fallback when the clipboard can't be used) |
 | `Tray/` | `TrayIcon` (icon, menu, notifications), `RecordingOverlay` (a layered window that never activates) with `VoiceBars` (pure: bar heights from recent levels), `SoundCues` |
 | `Settings/` | `AppSettings`, `SettingsStore` (versioned JSON with migration, repair and atomic writes), `SecretStore` (the DPAPI key), `SettingsWindow` and `SettingsInput`, `StartupEntry` (the Run key) |
-| `Updates/` | `AppUpdater` (Velopack and GitHub Releases) and `UpdatePrompt` |
+| `Updates/` | `AppUpdater` (Velopack and GitHub Releases), `UpdatePrompt`, and `UpdatePolicy` (pure: the three-day wait and skipped versions) with `UpdateState` |
+| `Cleanup/` | `TranscriptCleanup` (Basic rules, or the language model with `CleanupPrompt` and `CleanupReplyCheck`, falling back to the words as said), `RateLimitCooldowns` |
+| `LanguageModel/` | `ILanguageModel` with `LocalLanguageModel` (LLamaSharp), `OpenAiChatLanguageModel` and `OfflineFallbackLanguageModel` |
+| `Providers/` | `CloudService` presets, `ServiceKeys` (one DPAPI key per service) and the key check |
+| `Context/` | `ContextReader` (UI Automation text near the cursor, the selection for Edit Mode) and `EditModeDecision` (pure) |
+| `History/` | `HistoryStore` (DPAPI files), `HistoryRecorder` and `DictationStats` (pure) |
+| `Snippets/` | `SnippetStore` (DPAPI) and `TranscriptCommands` (pure: snippets and "press enter") |
+| `Window/` | The WPF main window and its pages (Home, History, Dictionary, Snippets, Meetings, Diagnostics, Settings), the setup guide, and `Diagnostics` (pure: build details without user content) |
 | `Native/` | Every P/Invoke declaration, and nothing else |
-| top level | `Program`, `Log` and `LogEvent`, `SingleInstanceGuard` |
+| top level | `Program`, `Log` and `LogEvent`, `SingleInstanceGuard`, and `DictationFeatures` and `MeetingFeatures`, which wire the extras to the controller, tray and window |
 
 ## One dictation
 

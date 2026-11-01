@@ -169,4 +169,10 @@ internal enum LogEvent
     UpdateCheckFailed,
     UpdateDownloadFailed,
     UpdateReadyToApply,
+    UpdateWaiting,
+    UpdateSkipped,
+    UpdateStateUnreadable,
+    UpdateStateUnsaved,
+    DiagnosticsCopyFailed,
+    RecordingFlagFailed,
 }
