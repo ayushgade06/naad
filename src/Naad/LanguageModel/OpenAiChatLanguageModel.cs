@@ -143,7 +143,7 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
             ["model"] = _model,
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = prompt.Instructions },
-                new JsonObject { ["role"] = "user", ["content"] = prompt.Text }),
+                new JsonObject { ["role"] = "user", ["content"] = UserContent(prompt) }),
             [ModelOptions.UsesMaxCompletionTokens(_model) ? "max_completion_tokens" : "max_tokens"] =
                 prompt.MaxTokens,
             ["stream"] = false,
@@ -169,6 +169,17 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
 
         return request;
     }
+
+    // Text alone, or with an image in OpenAI's content-parts form, which vision models read.
+    private static JsonNode UserContent(ChatPrompt prompt) => prompt.Image is not { } png
+        ? JsonValue.Create(prompt.Text)
+        : new JsonArray(
+            new JsonObject { ["type"] = "text", ["text"] = prompt.Text },
+            new JsonObject
+            {
+                ["type"] = "image_url",
+                ["image_url"] = new JsonObject { ["url"] = "data:image/png;base64," + Convert.ToBase64String(png) },
+            });
 
     // OpenAI's shape: { "error": { "param": "temperature", ... } }. Only that field is read; the
     // message may quote the request.

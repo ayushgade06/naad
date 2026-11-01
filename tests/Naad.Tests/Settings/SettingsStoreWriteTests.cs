@@ -29,7 +29,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.True(result.Saved);
         Assert.Equal("""
             {
-              "version": 3,
+              "version": 4,
               "fileLogging": true,
               "playSounds": false,
               "errorSound": false,
@@ -45,7 +45,17 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "transcriptionModel": "whisper-large-v3-turbo",
               "language": null,
               "microphone": null,
-              "vocabulary": null,
+              "vocabulary": [],
+              "historyRetention": "Month",
+              "pressEnterCommand": false,
+              "pasteAgainShortcut": null,
+              "overlayTimer": false,
+              "context": true,
+              "contextExcludedApps": [],
+              "contextScreenshot": false,
+              "screenshotSize": 1024,
+              "screenshotWholeDesktop": false,
+              "editMode": "Automatic",
               "handsFree": false,
               "languageModelProvider": "Local",
               "localLanguageModel": "Small",
@@ -88,7 +98,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
 
     [Theory]
     [InlineData("""{ "fileLogging": false }""", "v0")]
-    [InlineData("""{ "version": 3, "fileLogging": "no" }""", "invalid")]
+    [InlineData("""{ "version": 4, "fileLogging": "no" }""", "invalid")]
     [InlineData("{ not json", "corrupt")]
     public void Load_FileNeedingRewrite_BacksUpOriginalThenRewrites(string original, string reason)
     {
@@ -105,7 +115,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Load_ValidCurrentFile_IsNotRewritten()
     {
-        const string Original = """{ "version": 3, "fileLogging": false, "unknownKept": true }""";
+        const string Original = """{ "version": 4, "fileLogging": false, "unknownKept": true }""";
         File.WriteAllText(SettingsPath, Original);
 
         var result = new SettingsStore(SettingsPath).Load();
@@ -188,7 +198,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
     [Fact]
     public void Save_WriteFails_ReturnsErrorAndKeepsPreviousFile()
     {
-        const string Original = """{ "version": 3, "fileLogging": false }""";
+        const string Original = """{ "version": 4, "fileLogging": false }""";
         File.WriteAllText(SettingsPath, Original);
         BlockWrites();
 
@@ -213,11 +223,14 @@ public sealed class SettingsStoreWriteTests : IDisposable
         Assert.DoesNotContain("dictated text", written, StringComparison.Ordinal);
         Assert.Equal(
             [
-                "cleanup", "cleanupPrompt", "cleanupPromptVersion", "dictationShortcut", "errorSound", "fileLogging",
-                "handsFree", "instructionGuard", "language", "languageModelBaseUrl", "languageModelFallbackName",
+                "cleanup", "cleanupPrompt", "cleanupPromptVersion", "context", "contextExcludedApps",
+                "contextScreenshot", "dictationShortcut", "editMode", "errorSound", "fileLogging",
+                "handsFree", "historyRetention", "instructionGuard", "language", "languageModelBaseUrl",
+                "languageModelFallbackName",
                 "languageModelName", "languageModelProvider", "languageModelService", "languageModelTimeoutSeconds",
-                "localLanguageModel", "localModel", "microphone", "outputLanguage", "playSounds", "showTrayIcon",
-                "soundVolume", "theme",
+                "localLanguageModel", "localModel", "microphone", "outputLanguage", "overlayTimer",
+                "pasteAgainShortcut", "playSounds", "pressEnterCommand", "screenshotSize", "screenshotWholeDesktop",
+                "showTrayIcon", "soundVolume", "theme",
                 "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "transcriptionService",
                 "transcriptionTimeoutSeconds", "version", "vocabulary",
             ],

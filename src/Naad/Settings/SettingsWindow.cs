@@ -49,7 +49,6 @@ internal sealed class SettingsWindow : Form
     private readonly Button _changeShortcut = new() { Text = "Change...", AutoSize = true };
     private readonly ComboBox _microphone = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly TextBox _language = new() { Width = 60 };
-    private readonly TextBox _vocabulary = new() { Width = FieldWidth };
     private readonly CheckBox _handsFree = new()
     {
         Text = "Hands-free: press the shortcut to start, and again to stop",
@@ -197,7 +196,6 @@ internal sealed class SettingsWindow : Form
         ShowModelStatus();
         _shortcutText.Text = _shortcut.Describe();
         _language.Text = _current.Language ?? "";
-        _vocabulary.Text = _current.Vocabulary ?? "";
         _handsFree.Checked = _current.HandsFree;
         _timeout.Value = _current.TranscriptionTimeoutSeconds;
     }
@@ -241,8 +239,7 @@ internal sealed class SettingsWindow : Form
         Row(dictation, "", _handsFree);
         Row(dictation, "Microphone", _microphone);
         Row(dictation, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
-        Row(dictation, "Vocabulary", _vocabulary);
-        Row(dictation, "", Note("Names and terms you use, separated by commas. Sent with each recording."));
+        Row(dictation, "Vocabulary", Note("Names and terms to spell right are on the Dictionary page."));
         _cloud.AddRows((label, control) => Row(dictation, label, control));
         Row(dictation, "Wait up to", Flow(_timeout, Note("seconds for the cloud service")));
         Row(dictation, "Transcription", Flow(_testTranscriptionButton, _testTranscriptionResult));
@@ -327,7 +324,7 @@ internal sealed class SettingsWindow : Form
             return;
         }
 
-        if (!SettingsInput.TryBuild(chosen, _language.Text, _vocabulary.Text, out var settings, out var error)
+        if (!SettingsInput.TryBuild(chosen, _language.Text, null, out var settings, out var error)
             || !_cloud.TryRead(out var transcription, out error)
             || !_languageModel.TryApply(settings, out settings, out var languageModel, out error))
         {
@@ -380,7 +377,13 @@ internal sealed class SettingsWindow : Form
             }
         }
 
-        settings = _general.Apply(settings);
+        if (_general.Apply(settings, out error) is not { } general)
+        {
+            _error.Text = error;
+            return;
+        }
+
+        settings = general;
         if (!IsDisposed && _actions.Save(new(settings, newKeys, _general.StartAtLogin)) is { } problem)
         {
             _error.Text = problem;
@@ -455,7 +458,7 @@ internal sealed class SettingsWindow : Form
         _testTranscriptionResult.Text = "Sending a second of silence...";
         try
         {
-            if (!SettingsInput.TryBuild(_current, _language.Text, _vocabulary.Text, out var settings, out var error)
+            if (!SettingsInput.TryBuild(_current, _language.Text, null, out var settings, out var error)
                 || !_cloud.TryRead(out var cloud, out error))
             {
                 _testTranscriptionResult.Text = error;

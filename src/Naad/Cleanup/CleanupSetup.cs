@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Naad.LanguageModel;
 using Naad.Providers;
 using Naad.Settings;
+using Naad.Snippets;
 using Naad.Transcription;
 
 namespace Naad.Cleanup;
@@ -70,12 +71,13 @@ internal static class CleanupSetup
         Func<CloudService, string?> keyFor,
         AppSettings s,
         TemperatureSupport temperature,
-        RateLimitCooldowns cooldowns)
+        RateLimitCooldowns cooldowns,
+        IReadOnlyList<Snippet>? snippets = null)
     {
         var budget = TimeSpan.FromSeconds(s.LanguageModelTimeoutSeconds);
         if (model is null)
         {
-            return new(s.Cleanup, ai: null, budget);
+            return new(s.Cleanup, ai: null, budget, snippets, s.PressEnterCommand);
         }
 
         // Rate limits are per cloud model; a model on this PC has none.
@@ -88,8 +90,11 @@ internal static class CleanupSetup
                 http, keyFor(s.LanguageModelService), url, fallback, temperature, budget)));
         }
 
-        var options = new CleanupOptions(s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard);
-        return new(s.Cleanup, new AiCleanup(models, cooldowns, options), budget);
+        // The screenshot goes only to a cloud model the user chose, and only when they opted in.
+        var describer = cloud && s.ContextScreenshot ? model : null;
+        var options = new CleanupOptions(
+            s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard, describer);
+        return new(s.Cleanup, new AiCleanup(models, cooldowns, options), budget, snippets, s.PressEnterCommand);
     }
 
     /// <summary>

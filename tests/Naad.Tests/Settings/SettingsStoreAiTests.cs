@@ -12,7 +12,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_LanguageModelSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 3, "languageModelProvider": "cloud", "localLanguageModel": "Large",
+            { "version": 4, "languageModelProvider": "cloud", "localLanguageModel": "Large",
               "languageModelBaseUrl": "http://localhost:11434/v1", "languageModelName": "qwen2.5:1.5b",
               "languageModelFallbackName": "llama-3.3-70b-versatile" }
             """);
@@ -29,7 +29,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_CleanupSettings_ReturnsThem()
     {
         var result = SettingsStore.Parse("""
-            { "version": 3, "cleanup": "basic", "cleanupPrompt": "Tidy it.\nKeep it short.",
+            { "version": 4, "cleanup": "basic", "cleanupPrompt": "Tidy it.\nKeep it short.",
               "cleanupPromptVersion": "2026-10-01", "instructionGuard": false, "outputLanguage": "Portuguese (Brazil)" }
             """);
 
@@ -45,7 +45,7 @@ public sealed class SettingsStoreAiTests
     public void Parse_InvalidAiSettings_FallBackToDefaultsAsRepaired()
     {
         var result = SettingsStore.Parse("""
-            { "version": 3, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
+            { "version": 4, "languageModelProvider": "Elsewhere", "localLanguageModel": 1,
               "languageModelBaseUrl": "http://llm.example.test/v1", "languageModelName": "two words",
               "languageModelFallbackName": "", "cleanup": "Max", "cleanupPrompt": "bell\u0007",
               "cleanupPromptVersion": "yesterday", "instructionGuard": "yes", "outputLanguage": "<b>" }
@@ -72,6 +72,47 @@ public sealed class SettingsStoreAiTests
     }
 
     [Fact]
+    public void Parse_Version3Vocabulary_BecomesTheDictionary()
+    {
+        var result = SettingsStore.Parse("""{ "version": 3, "vocabulary": "Naad, Groq;\nnaad, Priya" }""");
+
+        Assert.Equal(SettingsStatus.Migrated, result.Status);
+        Assert.Equal(["Naad", "Groq", "Priya"], result.Settings.Words);
+        Assert.Equal("Naad, Groq, Priya", result.Settings.Vocabulary);
+    }
+
+    [Fact]
+    public void Parse_Version3LongVocabularyWithoutCommas_KeepsEveryWord()
+    {
+        var words = string.Join(' ', Enumerable.Range(0, 30).Select(i => $"Word{i}"));
+
+        var result = SettingsStore.Parse($$"""{ "version": 3, "vocabulary": "{{words}}" }""");
+
+        Assert.Equal(30, result.Settings.Words.Count);
+    }
+
+    [Fact]
+    public void Parse_NewFeatureSettings_ReturnThem()
+    {
+        var result = SettingsStore.Parse("""
+            { "version": 4, "historyRetention": "Week", "pressEnterCommand": true,
+              "pasteAgainShortcut": "RightAlt+V", "overlayTimer": true, "context": false,
+              "contextExcludedApps": ["keepass"], "contextScreenshot": true, "screenshotSize": 640,
+              "screenshotWholeDesktop": true, "editMode": "Manual" }
+            """);
+
+        Assert.Equal(SettingsStatus.Loaded, result.Status);
+        var s = result.Settings;
+        Assert.Equal(Naad.History.HistoryRetention.Week, s.HistoryRetention);
+        Assert.True(s.PressEnterCommand && s.OverlayTimer && s.ContextScreenshot && s.ScreenshotWholeDesktop);
+        Assert.False(s.Context);
+        Assert.Equal("Right Alt+V", s.PasteAgainShortcut?.Describe());
+        Assert.Equal(["keepass"], s.ContextExcludedApps);
+        Assert.Equal(640, s.ScreenshotSize);
+        Assert.Equal(Naad.Context.EditMode.Manual, s.EditMode);
+    }
+
+    [Fact]
     public void Parse_Version2WithoutUrls_UsesGroq()
     {
         var result = SettingsStore.Parse("""{ "version": 2 }""");
@@ -86,7 +127,7 @@ public sealed class SettingsStoreAiTests
     [InlineData("\"20\"")]
     public void Parse_InvalidTimeout_FallsBackAsRepaired(string value)
     {
-        var result = SettingsStore.Parse($$"""{ "version": 3, "transcriptionTimeoutSeconds": {{value}} }""");
+        var result = SettingsStore.Parse($$"""{ "version": 4, "transcriptionTimeoutSeconds": {{value}} }""");
 
         Assert.Equal(SettingsStatus.Repaired, result.Status);
         Assert.Equal(20, result.Settings.TranscriptionTimeoutSeconds);

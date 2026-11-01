@@ -42,6 +42,28 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         Width = 60,
     };
 
+    private readonly CheckBox _context = new()
+    {
+        Text = "Read the app\u2019s name and the text near the cursor, to spell names right (never passwords)",
+        AutoSize = true,
+        MaximumSize = new Size(FieldWidth + 120, 0),
+    };
+
+    private readonly TextBox _excluded = new() { Width = FieldWidth };
+    private readonly ComboBox _edit = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
+    private readonly CheckBox _screenshot = new()
+    {
+        Text = "Cloud only: also send a screenshot of the window to the cloud model",
+        AutoSize = true,
+    };
+
+    private readonly ComboBox _screenshotSize = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
+    private readonly CheckBox _wholeDesktop = new()
+    {
+        Text = "Capture the whole desktop when the window can\u2019t be captured",
+        AutoSize = true,
+    };
+
     private string? _customPrompt;
     private string? _promptVersion;
 
@@ -98,6 +120,23 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         Row(this, "", _testModelResult);
         Row(this, "Write in", Flow(_outputLanguage, Note("A language such as German; blank keeps yours.")));
         Row(this, "", _guard);
+        _context.Checked = current.Context;
+        _excluded.Text = string.Join(", ", current.ContextExcludedApps);
+        _edit.Items.AddRange(["Off: dictation replaces a selection", "Automatic: speech over a selection edits it",
+            "Manual: hold Shift with the shortcut to edit"]);
+        _edit.SelectedIndex = (int)current.EditMode;
+        _screenshot.Checked = current.ContextScreenshot;
+        _screenshotSize.Items.AddRange(["1024", "768", "640", "512"]);
+        _screenshotSize.SelectedItem =
+            current.ScreenshotSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _wholeDesktop.Checked = current.ScreenshotWholeDesktop;
+        Row(this, "Edit Mode", _edit);
+        Row(this, "", Note("Select text, hold the shortcut and say how to change it (\u201cmake this shorter\u201d). " +
+            "If the edit fails, your text is left as it was."));
+        Row(this, "Context", _context);
+        Row(this, "Never read", Flow(_excluded, Note("App names, such as keepass")));
+        Row(this, "", _screenshot);
+        Row(this, "Screenshot", Flow(_screenshotSize, _wholeDesktop));
         Row(this, "Wait up to", Flow(_timeout, Note("seconds for the AI, then paste as said")));
         Row(this, "AI runs on", _provider);
         Row(this, "Model on this PC", _localModel);
@@ -153,6 +192,13 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
             CleanupPrompt = _customPrompt,
             CleanupPromptVersion = _promptVersion,
             InstructionGuard = _guard.Checked,
+            Context = _context.Checked,
+            ContextExcludedApps = AppSettings.SplitWords(_excluded.Text),
+            EditMode = (Naad.Context.EditMode)_edit.SelectedIndex,
+            ContextScreenshot = _screenshot.Checked,
+            ScreenshotSize = int.Parse((string)_screenshotSize.SelectedItem!,
+                System.Globalization.CultureInfo.InvariantCulture),
+            ScreenshotWholeDesktop = _wholeDesktop.Checked,
         };
         return true;
     }

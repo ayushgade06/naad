@@ -40,7 +40,7 @@ internal static partial class User32
     public const ushort VkLWin = 0x5B;
     public const ushort VkRWin = 0x5C;
     public const ushort VkV = 0x56;
-
+    public const ushort VkC = 0x43;
     public const ushort VkReturn = 0x0D;
 
     public const uint InputKeyboard = 1;
@@ -66,6 +66,20 @@ internal static partial class User32
 
     [LibraryImport("user32.dll")]
     public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetWindowRect(nint hWnd, out Rect lpRect);
+
+    /// <summary>A window's edges in screen coordinates.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

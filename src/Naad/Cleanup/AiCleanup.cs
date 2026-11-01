@@ -1,3 +1,4 @@
+using Naad.Context;
 using Naad.LanguageModel;
 
 namespace Naad.Cleanup;
@@ -16,7 +17,9 @@ internal enum FallbackReason
 /// <param name="Vocabulary">Names and terms to spell exactly, or null.</param>
 /// <param name="OutputLanguage">A language to write the result in, or null to keep the speaker's.</param>
 /// <param name="Guard">Whether to refuse replies that answer the dictation instead of tidying it.</param>
-internal sealed record CleanupOptions(string? Instructions, string? Vocabulary, string? OutputLanguage, bool Guard)
+/// <param name="ContextModel">A cloud model that describes a screenshot of the app, or null.</param>
+internal sealed record CleanupOptions(
+    string? Instructions, string? Vocabulary, string? OutputLanguage, bool Guard, ILanguageModel? ContextModel = null)
 {
     // The generated ToString would print the instructions and vocabulary.
     public override string ToString() => $"CleanupOptions {{ Guard = {Guard} }}";
@@ -57,7 +60,7 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
     /// a small model may invent text for an empty request.
     /// </summary>
     public async Task<(CleanupResult Result, FallbackReason Reason)> CleanAsync(
-        string transcript, CancellationToken token)
+        string transcript, DictationContext context, CancellationToken token)
     {
         var basic = BasicCleanup.Clean(transcript);
         if (basic.Length == 0)
@@ -65,10 +68,60 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
             return (new("", CleanupOutcome.Empty), FallbackReason.None);
         }
 
+        var summary = await DescribeAsync(context, token);
         return await RunAsync(
-            CleanupPrompt.Clean(options.Instructions, options.Vocabulary, options.OutputLanguage, basic),
+            CleanupPrompt.Clean(
+                options.Instructions, options.Vocabulary, options.OutputLanguage, basic, context, summary),
             transcript,
             token);
+    }
+
+    /// <summary>
+    /// Rewrites <paramref name="selection"/> as <paramref name="instruction"/> asks. A failure or
+    /// an unusable reply comes back as EditFailed, so the selection is left alone.
+    /// </summary>
+    public async Task<(CleanupResult Result, FallbackReason Reason)> EditAsync(
+        string selection, string instruction, CancellationToken token)
+    {
+        var (result, reason) = await RunAsync(
+            CleanupPrompt.Edit(selection, instruction, options.Vocabulary), selection, token, editing: true);
+        return result.Outcome == CleanupOutcome.Cleaned
+            ? (result with { Outcome = CleanupOutcome.Edited }, reason)
+            : (new("", CleanupOutcome.EditFailed), reason == FallbackReason.None ? FallbackReason.Rejected : reason);
+    }
+
+    // A cloud context model's two-sentence account of a screenshot, or null. Its failure leaves the
+    // prompt without it; it never costs the dictation.
+    // Cleanup without the summary beats a cleanup that runs out of time.
+    private static readonly TimeSpan DescribeBudget = TimeSpan.FromSeconds(3);
+
+    private async Task<string?> DescribeAsync(DictationContext context, CancellationToken token)
+    {
+        if (context.Screenshot is not { } image || options.ContextModel is not { } model)
+        {
+            return null;
+        }
+
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(token);
+        wait.CancelAfter(DescribeBudget);
+        CompletionResult reply;
+        try
+        {
+            reply = await model.CompleteAsync(CleanupPrompt.DescribeScreenshot(image), wait.Token);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            Log.Warn(LogEvent.ContextSummaryFailed, ("error", -2));
+            return null;
+        }
+
+        if (reply.Failure is not null || reply.Text.Length == 0)
+        {
+            Log.Warn(LogEvent.ContextSummaryFailed, ("error", reply.Failure is { } f ? (int)f.Error : -1));
+            return null;
+        }
+
+        return reply.Text;
     }
 
     /// <summary>Translates without tidying, for when cleanup is off. Needs <see cref="Translates"/>.</summary>
@@ -77,7 +130,7 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
         RunAsync(CleanupPrompt.Translate(options.OutputLanguage!, transcript), transcript, token);
 
     private async Task<(CleanupResult, FallbackReason)> RunAsync(
-        ChatPrompt prompt, string transcript, CancellationToken token)
+        ChatPrompt prompt, string transcript, CancellationToken token, bool editing = false)
     {
         var reason = FallbackReason.CoolingDown;
         for (var i = 0; i < models.Count; i++)
@@ -108,15 +161,17 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
                 continue;
             }
 
-            var check = CleanupReplyCheck.Check(transcript, result.Text, Translates, options.Guard);
+            // An edit may rewrite every word and change the length, so only chat answers are refused.
+            var check = CleanupReplyCheck.Check(
+                transcript, result.Text, translating: Translates || editing, guard: options.Guard && !editing);
             switch (check.Verdict)
             {
                 case ReplyVerdict.Accepted:
                     // Small models sometimes leave the first letter small or the last stop off; a
                     // translation is left as the model wrote it.
-                    var text = Translates ? check.Text : BasicCleanup.Finish(check.Text);
+                    var text = Translates || editing ? check.Text : BasicCleanup.Finish(check.Text);
                     return (new(text, CleanupOutcome.Cleaned), FallbackReason.None);
-                case ReplyVerdict.Empty:
+                case ReplyVerdict.Empty when !editing:
                     return (new("", CleanupOutcome.Empty), FallbackReason.None);
                 default:
                     Log.Warn(LogEvent.CleanupReplyRefused, ("verdict", (int)check.Verdict));

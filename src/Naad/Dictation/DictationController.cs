@@ -1,5 +1,7 @@
 using Naad.Audio;
 using Naad.Cleanup;
+using Naad.Context;
+using Naad.History;
 using Naad.Hotkey;
 using Naad.Insertion;
 using Naad.Transcription;
@@ -19,13 +21,15 @@ namespace Naad.Dictation;
 /// <param name="captureTarget">The window that has focus, read when the shortcut is pressed.</param>
 /// <param name="checkTarget">Whether that window may receive text now.</param>
 /// <param name="time">Measures holds and durations; tests replace it.</param>
-internal sealed class DictationController(
+/// <param name="pressEnter">Presses Enter in the foreground window, for the "press enter" command.</param>
+internal sealed partial class DictationController(
     IAudioRecorder recorder,
     ITranscriber? transcriber,
     TextInserter inserter,
     Func<WindowTarget> captureTarget,
     Func<WindowTarget, InsertionDecision> checkTarget,
-    TimeProvider time) : IDisposable
+    TimeProvider time,
+    Func<bool>? pressEnter = null) : IDisposable
 {
     // At the time limit the user learns from the stop tone or the icon that recording ended, then
     // lets go of the shortcut. Held longer than this, the transcript is kept instead.
@@ -34,8 +38,16 @@ internal sealed class DictationController(
     private readonly DictationSession _session = new();
     private readonly CancellationTokenSource _shutdown = new();
     private ITranscriber? _transcriber = transcriber;
+    private readonly TranscriptDelivery _delivery = new(inserter, checkTarget, pressEnter ?? (() => false), time);
     private ITranscriptCleanup? _cleanup;
+    private Func<WindowTarget, Task<DictationContext>>? _readContext;
+    private Task<DictationContext> _context = Task.FromResult(DictationContext.None);
+    private CancellationTokenSource? _jobCancel;
     private bool _handsFree;
+    private bool _latched;
+
+    // The last text a dictation produced, for Paste again. Memory only.
+    private string? _lastText;
     private Task<bool> _starting = Task.FromResult(false);
 
     // Completes once the last recording has fully stopped. A new recording waits for it, so a
@@ -44,9 +56,6 @@ internal sealed class DictationController(
     private WindowTarget _target = WindowTarget.None;
     private bool _disposed;
 
-    // The last transcript that couldn't be inserted, for the user to copy. Memory only, one at a
-    // time: a newer kept transcript replaces it, and it is gone when Naad exits.
-    private string? _keptTranscript;
 
     /// <summary>The dictation state changed. Raised on the UI thread.</summary>
     public event Action<DictationState>? StateChanged;
@@ -69,8 +78,11 @@ internal sealed class DictationController(
     /// </summary>
     public event Action? TranscriberMissing;
 
-    /// <summary>The transcript is being cleaned up by the language model. Raised on the UI thread.</summary>
-    public event Action? CleaningUp;
+    /// <summary>
+    /// The language model is cleaning up the transcript, or rewriting the selection when the
+    /// argument is true. Raised on the UI thread.
+    /// </summary>
+    public event Action<bool>? CleaningUp;
 
     /// <summary>
     /// Cleanup failed, ran out of time or gave an unusable reply, so the transcript is pasted as
@@ -85,7 +97,20 @@ internal sealed class DictationController(
     /// A transcript wasn't inserted and is kept for <see cref="CopyKeptTranscriptAsync"/>. Raised
     /// on the UI thread.
     /// </summary>
-    public event Action<TranscriptKeptReason>? TranscriptKept;
+    public event Action<TranscriptKeptReason>? TranscriptKept
+    {
+        add => _delivery.Kept += value;
+        remove => _delivery.Kept -= value;
+    }
+
+    /// <summary>
+    /// A dictation ended with text, or with a failed transcription, for the history. Raised on the
+    /// UI thread. The report holds what was said: never log it.
+    /// </summary>
+    public event Action<DictationReport>? Finished;
+
+    /// <summary>An edit couldn't be made: the selection is left as it was. Raised on the UI thread.</summary>
+    public event Action<bool>? EditFailed;
 
     public DictationState State => _session.State;
 
@@ -112,34 +137,12 @@ internal sealed class DictationController(
     /// </summary>
     public void UseCleanup(ITranscriptCleanup? replacement) => _cleanup = replacement;
 
+
     /// <summary>
     /// Hands-free: a press starts recording and the next press stops it; releasing the shortcut
     /// does nothing. Otherwise the shortcut is held while speaking. Call on the UI thread.
     /// </summary>
     public void UseHandsFree(bool handsFree) => _handsFree = handsFree;
-
-    /// <summary>
-    /// Puts the kept transcript on the clipboard, out of clipboard history, for the user to
-    /// paste themselves. Naad never pastes it: the user may be anywhere by then, and the tray
-    /// menu itself takes focus. Returns false if there is none or the clipboard is busy.
-    /// Call on the UI thread.
-    /// </summary>
-    public async Task<bool> CopyKeptTranscriptAsync()
-    {
-        if (_keptTranscript is not { } text)
-        {
-            return false;
-        }
-
-        if (!await inserter.CopyAsync(text))
-        {
-            Log.Warn(LogEvent.TranscriptCopyFailed);
-            return false;
-        }
-
-        Log.Info(LogEvent.TranscriptCopied, ("chars", text.Length));
-        return true;
-    }
 
     /// <summary>
     /// Stops accepting new dictations and cancels a transcription or paste in flight, so nothing
@@ -165,9 +168,10 @@ internal sealed class DictationController(
             return;
         }
 
-        // Hands-free maps its second press onto the release that ends a held dictation, so the
-        // session's rules (short-hold check, time limit, cancels) stay the same in both modes.
-        if (_handsFree)
+        // Hands-free (and a latched recording) maps its second press onto the release that ends a
+        // held dictation, so the session's rules (short-hold check, time limit, cancels) stay the
+        // same in every mode.
+        if (_handsFree || _latched)
         {
             if (e == DictationEvent.Released)
             {
@@ -207,6 +211,10 @@ internal sealed class DictationController(
         {
             case DictationAction.StartRecording:
                 _target = captureTarget();
+                _latched = false;
+
+                // Read while the user speaks; the reader keeps its own time limit.
+                _context = _readContext?.Invoke(_target) ?? Task.FromResult(DictationContext.None);
                 _cleanup?.Prepare();
                 _starting = StartRecordingAsync(step.Job, _stopped, time.GetTimestamp());
                 _ = StopAtMaxDurationAsync(step.Job, _shutdown.Token);
@@ -317,13 +325,17 @@ internal sealed class DictationController(
     {
         // Read before the first await: Dispose may dispose the source later, and a transcriber
         // swapped in meanwhile is for the next dictation.
-        var shutdown = _shutdown.Token;
+        using var job = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        _jobCancel = job;
+        var cancel = job.Token;
         var service = _transcriber;
         var cleanup = _cleanup;
-        var job = step.Job;
+        var contextTask = _context;
 
         // The window the user was in when they pressed the shortcut, never whatever has focus now.
         var target = _target;
+        byte[]? wav = null;
+        var report = new DictationReport(target.ProcessId);
         try
         {
             // Null: the microphone never opened, and the session already ended the job.
@@ -346,7 +358,8 @@ internal sealed class DictationController(
                 return;
             }
 
-            var wav = Wav.Encode(pcm, AudioRecorder.Format);
+            wav = Wav.Encode(pcm, AudioRecorder.Format);
+            report = report with { AudioMilliseconds = Milliseconds(check.Duration) };
             Log.Info(
                 LogEvent.RecordingStopped,
                 ("held_ms", Milliseconds(step.Held)),
@@ -357,34 +370,61 @@ internal sealed class DictationController(
             var requestStart = time.GetTimestamp();
             // A recording only starts with a transcriber, and one is never removed mid-dictation.
             var result = await (service ?? throw new InvalidOperationException("No transcriber."))
-                .TranscribeAsync(wav, shutdown);
+                .TranscribeAsync(wav, cancel);
+            report = report with { TranscribeMilliseconds = Milliseconds(time.GetElapsedTime(requestStart)) };
             if (result.Failure is { } failure)
             {
                 DictationLog.Transcription(failure);
                 TranscriptionFailed?.Invoke(failure.Error);
+                Finished?.Invoke(report with { Outcome = HistoryOutcome.Failed, Wav = wav });
                 return;
             }
 
-            var text = result.Text;
+            var raw = result.Text;
+            var text = raw;
+            var thenEnter = false;
             Log.Info(
-                LogEvent.TranscriptionCompleted,
-                ("request_ms", Milliseconds(time.GetElapsedTime(requestStart))),
-                ("chars", text.Length));
-            if (text.Length > 0 && cleanup is not null)
+                LogEvent.TranscriptionCompleted, ("request_ms", report.TranscribeMilliseconds), ("chars", raw.Length));
+            var context = await contextTask;
+
+            // Without a selection to edit, or a model to edit it, the selection stays as it was.
+            if (context.NeedsSelection || (context.IsEdit && cleanup is null))
             {
-                text = await CleanAsync(cleanup, text, shutdown);
+                Log.Warn(LogEvent.EditNeedsSelection);
+                EditFailed?.Invoke(context.NeedsSelection);
+                return;
+            }
+
+            if (raw.Length > 0 && cleanup is not null)
+            {
+                var cleanStart = time.GetTimestamp();
+                var cleaned = await CleanAsync(cleanup, raw, context, cancel);
+                report = report with { CleanupMilliseconds = Milliseconds(time.GetElapsedTime(cleanStart)) };
+                if (cleaned.Outcome == CleanupOutcome.EditFailed)
+                {
+                    EditFailed?.Invoke(false);
+                    return;
+                }
+
+                (text, thenEnter) = (cleaned.Text, cleaned.PressEnter);
             }
 
             if (text.Length == 0)
             {
+                // Only "press enter" was said.
+                if (thenEnter)
+                {
+                    _delivery.PressEnter(target);
+                }
+
                 Log.Info(LogEvent.TranscriptionEmpty);
-                Apply(DictationEvent.TranscribedEmpty, job);
+                Apply(DictationEvent.TranscribedEmpty, step.Job);
                 return;
             }
 
             // A late or repeated result for an ended job is refused here, so nothing is
             // inserted twice.
-            if (Apply(DictationEvent.Transcribed, job).Action != DictationAction.Insert)
+            if (Apply(DictationEvent.Transcribed, step.Job).Action != DictationAction.Insert)
             {
                 return;
             }
@@ -393,14 +433,25 @@ internal sealed class DictationController(
             // Ctrl would make the paste give up at once; so it waits for the user to let go.
             if (atTimeLimit)
             {
-                await inserter.WaitForModifiersReleasedAsync(TimeLimitReleaseTimeout, shutdown);
+                await inserter.WaitForModifiersReleasedAsync(TimeLimitReleaseTimeout, cancel);
             }
 
-            await InsertAsync(text, target, releasedAt, shutdown);
+            _lastText = text;
+            var pasted = await _delivery.DeliverAsync(text, target, releasedAt, thenEnter, cancel);
+            Finished?.Invoke(report with
+            {
+                Raw = raw,
+                Text = text,
+                Selection = context.Selection,
+                Outcome = pasted ? HistoryOutcome.Pasted : HistoryOutcome.Kept,
+                Wav = wav,
+            });
         }
-        catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
-            Log.Info(LogEvent.DictationCancelledByShutdown);
+            Log.Info(_shutdown.IsCancellationRequested
+                ? LogEvent.DictationCancelledByShutdown
+                : LogEvent.DictationCancelledByEscape);
         }
         catch (Exception e)
         {
@@ -409,88 +460,15 @@ internal sealed class DictationController(
         }
         finally
         {
+            _jobCancel = null;
+
             // Every path ends the job, so the next press is accepted. Events for a job that
             // already ended are ignored by the session.
             var end = _session.State == DictationState.Inserting
                 ? DictationEvent.Inserted
                 : DictationEvent.TranscriptionFailed;
-            Apply(end, job);
+            Apply(end, step.Job);
         }
-    }
-
-    // Never loses the transcript: a cleanup that throws is treated like one that fell back.
-    private async Task<string> CleanAsync(ITranscriptCleanup cleanup, string text, CancellationToken shutdown)
-    {
-        if (cleanup.UsesModel)
-        {
-            CleaningUp?.Invoke();
-        }
-
-        try
-        {
-            var cleaned = await cleanup.CleanAsync(text, shutdown);
-            if (cleaned.Outcome == CleanupOutcome.FellBack)
-            {
-                CleanupFellBack?.Invoke();
-            }
-
-            return cleaned.Text;
-        }
-        catch (Exception e) when (e is not OperationCanceledException || !shutdown.IsCancellationRequested)
-        {
-            Log.Error(LogEvent.CleanupFellBack, e);
-            CleanupFellBack?.Invoke();
-            return text;
-        }
-    }
-
-    // Text goes only into the window the user dictated into, and only if it can take input.
-    // Otherwise the transcript is kept and the user is told; focus is never switched.
-    private async Task InsertAsync(string text, WindowTarget target, long releasedAt, CancellationToken shutdown)
-    {
-        var decision = checkTarget(target);
-        if (decision != InsertionDecision.Insert)
-        {
-            Keep(text, InsertionOutcomes.ForDecision(decision));
-            return;
-        }
-
-        var outcome = await inserter.PasteAsync(
-            text,
-            canInsert: () => checkTarget(target) == InsertionDecision.Insert,
-            pasted: () => Log.Info(
-                LogEvent.Pasted, ("release_to_text_ms", Milliseconds(time.GetElapsedTime(releasedAt)))),
-            shutdown);
-        if (inserter.LastSkippedFormats > 0 && outcome is InsertionOutcome.Pasted)
-        {
-            Log.Warn(LogEvent.ClipboardFormatsSkipped, ("formats", inserter.LastSkippedFormats));
-        }
-
-        DictationLog.Inserted(outcome, text.Length);
-        switch (outcome)
-        {
-            case InsertionOutcome.TargetChanged:
-                // Focus moved while waiting for the modifiers; say why as precisely as possible.
-                var now = checkTarget(target);
-                Keep(text, InsertionOutcomes.ForDecision(now == InsertionDecision.Insert
-                    ? InsertionDecision.FocusChanged
-                    : now));
-                break;
-            default:
-                if (InsertionOutcomes.ForFailure(outcome) is { } kept)
-                {
-                    Keep(text, kept);
-                }
-
-                break;
-        }
-    }
-
-    private void Keep(string text, KeptFor kept)
-    {
-        _keptTranscript = text;
-        Log.Warn(kept.Event);
-        TranscriptKept?.Invoke(kept.Reason);
     }
 
     private static long Milliseconds(TimeSpan duration) => DictationLog.Milliseconds(duration);

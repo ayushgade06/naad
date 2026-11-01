@@ -1,4 +1,5 @@
 using Naad.Cleanup;
+using Naad.Context;
 using Naad.LanguageModel;
 using Naad.Settings;
 
@@ -74,7 +75,7 @@ public sealed class CleanupSetupTests : IDisposable
         var cleanup = CleanupSetup.Create(
             new Reply("Sure! Here you go."), http, _ => FakeKey, s, Temperature(), Cooldowns());
 
-        var result = await cleanup.CleanAsync("hello there", CancellationToken.None);
+        var result = await cleanup.CleanAsync("hello there", DictationContext.None, CancellationToken.None);
 
         Assert.Equal(new CleanupResult("hello there", CleanupOutcome.FellBack), result);
     }
@@ -85,7 +86,8 @@ public sealed class CleanupSetupTests : IDisposable
         using var http = new HttpClient();
         var cleanup = CleanupSetup.Create(null, http, _ => null, AppSettings.Defaults, Temperature(), Cooldowns());
 
-        Assert.Equal(CleanupOutcome.Basic, (await cleanup.CleanAsync("um hi", CancellationToken.None)).Outcome);
+        Assert.Equal(CleanupOutcome.Basic, (await cleanup.CleanAsync("um hi", DictationContext.None,
+            CancellationToken.None)).Outcome);
     }
 
     private TemperatureSupport Temperature() => new(Path.Combine(_folder, "t.json"), TimeProvider.System);

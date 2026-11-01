@@ -30,7 +30,7 @@ internal static class TranscriberSetup
                 Reachability.IsOnline,
                 offline),
             TranscriptionProvider.Cloud => Cloud(http, service, key, s),
-            TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.Vocabulary),
+            TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.TranscriptionPrompt),
             _ => null,
         };
     }
@@ -46,7 +46,7 @@ internal static class TranscriberSetup
         return ProviderSelection.Choose(s.TranscriptionProvider, key is not null || keyless, model.IsReady()) switch
         {
             TranscriptionProvider.Cloud => Cloud(http, s.TranscriptionService, key, s),
-            TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.Vocabulary),
+            TranscriptionProvider.Local => new LocalWhisperTranscriber(model.Path, s.Language, s.TranscriptionPrompt),
             _ => null,
         };
     }
@@ -58,18 +58,18 @@ internal static class TranscriberSetup
         return service switch
         {
             CloudService.Deepgram => new DeepgramTranscriber(
-                http, key!, s.TranscriptionModel, s.Language, s.Vocabulary, timeout),
+                http, key!, s.TranscriptionModel, s.Language, s.TranscriptionPrompt, timeout),
             CloudService.Gemini => new GeminiTranscriber(
-                http, key!, s.TranscriptionModel, s.Language, s.Vocabulary, timeout),
+                http, key!, s.TranscriptionModel, s.Language, s.TranscriptionPrompt, timeout),
 
             // xAI's speech-to-text takes the OpenAI form at its own path.
             CloudService.XAI => new OpenAiCompatibleTranscriber(
-                http, key, url, s.TranscriptionModel, s.Language, s.Vocabulary, timeout, path: "stt"),
+                http, key, url, s.TranscriptionModel, s.Language, s.TranscriptionPrompt, timeout, path: "stt"),
             _ => new OpenAiCompatibleTranscriber(
-                http, key, url, s.TranscriptionModel, s.Language, s.Vocabulary, timeout),
+                http, key, url, s.TranscriptionModel, s.Language, s.TranscriptionPrompt, timeout),
         };
     }
 
     private static Func<ITranscriber?> Local(LocalModel model, AppSettings s) =>
-        () => model.IsReady() ? new LocalWhisperTranscriber(model.Path, s.Language, s.Vocabulary) : null;
+        () => model.IsReady() ? new LocalWhisperTranscriber(model.Path, s.Language, s.TranscriptionPrompt) : null;
 }

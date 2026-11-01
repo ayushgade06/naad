@@ -1,11 +1,13 @@
 using Naad.Audio;
 using Naad.Cleanup;
 using Naad.Dictation;
+using Naad.History;
 using Naad.Hotkey;
 using Naad.Insertion;
 using Naad.LanguageModel;
 using Naad.Providers;
 using Naad.Settings;
+using Naad.Snippets;
 using Naad.Transcription;
 using Naad.Tray;
 using Naad.Updates;
@@ -157,6 +159,10 @@ internal static class Program
 
         // Not disposed at exit, like the transcriber: a local model may still be running native code.
         ILanguageModel? languageModel = null;
+        TranscriptCleanup? cleanup = null;
+        Action<HistoryRetention>? enforceHistory = null;
+        var snippetStore = new SnippetStore(SnippetStore.DefaultPath);
+        var snippets = snippetStore.Load();
 
         // A newer Naad wrote settings.json; this build never replaces it (docs/settings.md).
         var canSave = loaded.Status != SettingsStatus.FutureVersion;
@@ -206,12 +212,17 @@ internal static class Program
                 inserter,
                 FocusGuard.Foreground,
                 FocusGuard.Check,
-                TimeProvider.System);
+                TimeProvider.System,
+                TextInserter.SendEnter);
             dictation = controller;
-            controller.UseHandsFree(settings.HandsFree);
-            UseLanguageModel(settings, replace: true);
             var startup = StartupEntry.ForThisApp();
             var actions = new SettingsActions(store, keys, startup, canSave, http);
+            using var history = DictationFeatures.Connect(
+                controller, hook, overlay, tray, clipboard, () => pending ?? settings, () => languageModel is not null,
+                SaveWords);
+            enforceHistory = r => history.Enforce(r);
+            controller.UseHandsFree(settings.HandsFree);
+            UseLanguageModel(settings, replace: true);
             offline = () =>
             {
                 Log.Info(LogEvent.OfflineFallbackUsed);
@@ -226,7 +237,6 @@ internal static class Program
             // Recording starts with focus on the window being dictated into, so the overlay
             // appears on that window's monitor.
             controller.StateChanged += state => overlay.ShowState(state, FocusGuard.Foreground().Handle);
-            controller.CleaningUp += overlay.ShowCleaningUp;
             controller.CleanupFellBack += overlay.ShowCleanupFellBack;
             controller.MicrophoneOpened += () => PlayIf(settings.PlaySounds, s => s.PlayStart());
             controller.MicrophoneClosed += () => PlayIf(settings.PlaySounds, s => s.PlayStop());
@@ -252,9 +262,26 @@ internal static class Program
             hook.TriggerCancelled += controller.Cancel;
             hook.CaptureEnded += step => windows?.SettingsForm?.ShowCapture(step);
             windows = new WindowHost(
-                () => pending ?? settings, Microphones, startup.IsEnabled, WindowActions, Application.ExitThread);
+                () => pending ?? settings,
+                Microphones,
+                startup.IsEnabled,
+                WindowActions,
+                Application.ExitThread,
+                new(
+                    history,
+                    controller.CopyAsync,
+                    controller.PasteAsync,
+                    record => DictationFeatures.RetryAsync(record, transcriber, cleanup, history, controller),
+                    () => (pending ?? settings).Words,
+                    SaveWords,
+                    snippetStore,
+                    () =>
+                    {
+                        snippets = snippetStore.Load();
+                        UseLanguageModel(pending ?? settings, replace: false);
+                    }));
             tray.AddItems(
-                ToggleDictation,
+                controller.Toggle,
                 Microphones,
                 () => (pending ?? settings).Microphone,
                 microphone => Save(new(
@@ -288,20 +315,6 @@ internal static class Program
             // Closed before the hook is unhooked, so a capture in progress ends cleanly.
             windows.CloseAll();
 
-            // From the tray: a menu click is neither a press nor a hold, so hands-free's press-twice
-            // rule stops it, and a held dictation ends with a release.
-            void ToggleDictation()
-            {
-                if (controller.State == DictationState.Recording && !settings.HandsFree)
-                {
-                    controller.Release();
-                }
-                else
-                {
-                    controller.Press();
-                }
-            }
-
             void PlayIf(bool wanted, Action<SoundCues> play)
             {
                 if (wanted && sounds is { } cues)
@@ -325,11 +338,16 @@ internal static class Program
                     languageModel = CleanupSetup.CreateModel(http, KeyFor, s, temperature, Offline);
                 }
 
-                controller.UseCleanup(
-                    CleanupSetup.Create(languageModel, http, KeyFor, s, temperature, cooldowns));
+                cleanup = CleanupSetup.Create(languageModel, http, KeyFor, s, temperature, cooldowns, snippets);
+                controller.UseCleanup(cleanup);
             }
 
             void Offline() => offline?.Invoke();
+
+            string? SaveWords(IReadOnlyList<string> words) => Save(new(
+                (pending ?? settings) with { Words = words },
+                new Dictionary<CloudService, string>(),
+                startup.IsEnabled()));
 
             SettingsWindowActions WindowActions() => new(
                 keys.Resolve,
@@ -408,6 +426,13 @@ internal static class Program
                 }
 
                 tray.SetVisible(next.ShowTrayIcon);
+                hook.SetPasteAgainShortcut(next.PasteAgainShortcut);
+                overlay.UseTimer(next.OverlayTimer);
+                if (next.HistoryRetention != settings.HistoryRetention)
+                {
+                    var retention = next.HistoryRetention;
+                    _ = Task.Run(() => enforceHistory?.Invoke(retention));
+                }
 
                 hook.SetShortcut(next.DictationShortcut);
                 tray.SetShortcut(next.DictationShortcut, next.HandsFree);

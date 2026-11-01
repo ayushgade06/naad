@@ -78,6 +78,19 @@ internal sealed class SettingsStore(string path)
             root.TryAdd("transcriptionService", ServiceFromUrl(root, "transcriptionBaseUrl"));
             root.TryAdd("languageModelService", ServiceFromUrl(root, "languageModelBaseUrl"));
         },
+
+        // 3 -> 4: the vocabulary, one comma-separated line, becomes a list of dictionary entries.
+        root =>
+        {
+            if (root["vocabulary"] is JsonValue value && value.TryGetValue(out string? text))
+            {
+                // A long run without commas was words separated by spaces.
+                var pieces = (text ?? "").Split([',', ';', '\n', '\r'])
+                    .SelectMany(p => p.Trim().Length > AppSettings.MaxWordLength ? p.Split(' ') : [p]);
+                var words = AppSettings.SplitWords(string.Join(',', pieces));
+                root["vocabulary"] = new JsonArray([.. words.Select(w => (JsonNode)w)]);
+            }
+        },
     ];
 
     public static string DefaultPath { get; } = Path.Combine(
@@ -338,7 +351,7 @@ internal sealed class SettingsStore(string path)
             TranscriptionModel = ReadModel(root, "transcriptionModel", defaults.TranscriptionModel, ref repaired),
             Language = ReadOptional(root, "language", AppSettings.IsValidLanguage, ref repaired),
             Microphone = ReadOptional(root, "microphone", AppSettings.IsValidMicrophone, ref repaired),
-            Vocabulary = ReadOptional(root, "vocabulary", AppSettings.IsValidVocabulary, ref repaired),
+            Words = ReadList(root, "vocabulary", AppSettings.IsValidWord, ref repaired),
             HandsFree = handsFree,
             LanguageModelProvider = ReadName(
                 root, "languageModelProvider", defaults.LanguageModelProvider, ref repaired),
@@ -360,6 +373,18 @@ internal sealed class SettingsStore(string path)
             SoundVolume = ReadInt(root, "soundVolume", defaults.SoundVolume, AppSettings.IsValidVolume, ref repaired),
             Theme = ReadName(root, "theme", defaults.Theme, ref repaired),
             ShowTrayIcon = ReadBool(root, "showTrayIcon", defaults.ShowTrayIcon, ref repaired),
+            HistoryRetention = ReadName(root, "historyRetention", defaults.HistoryRetention, ref repaired),
+            PressEnterCommand = ReadBool(root, "pressEnterCommand", defaults.PressEnterCommand, ref repaired),
+            PasteAgainShortcut = ReadChord(root, "pasteAgainShortcut", ref repaired),
+            OverlayTimer = ReadBool(root, "overlayTimer", defaults.OverlayTimer, ref repaired),
+            Context = ReadBool(root, "context", defaults.Context, ref repaired),
+            ContextExcludedApps = ReadList(root, "contextExcludedApps", AppSettings.IsValidWord, ref repaired),
+            ContextScreenshot = ReadBool(root, "contextScreenshot", defaults.ContextScreenshot, ref repaired),
+            ScreenshotSize = ReadInt(
+                root, "screenshotSize", defaults.ScreenshotSize, AppSettings.IsValidScreenshotSize, ref repaired),
+            ScreenshotWholeDesktop = ReadBool(
+                root, "screenshotWholeDesktop", defaults.ScreenshotWholeDesktop, ref repaired),
+            EditMode = ReadName(root, "editMode", defaults.EditMode, ref repaired),
         };
         return (settings, repaired);
     }

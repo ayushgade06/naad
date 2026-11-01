@@ -13,7 +13,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "fileLogging": true,
   "playSounds": false,
   "errorSound": false,
@@ -29,7 +29,17 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "transcriptionModel": "whisper-large-v3-turbo",
   "language": null,
   "microphone": null,
-  "vocabulary": null,
+  "vocabulary": [],
+  "historyRetention": "Month",
+  "pressEnterCommand": false,
+  "pasteAgainShortcut": null,
+  "overlayTimer": false,
+  "context": true,
+  "contextExcludedApps": [],
+  "contextScreenshot": false,
+  "screenshotSize": 1024,
+  "screenshotWholeDesktop": false,
+  "editMode": "Automatic",
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
@@ -48,7 +58,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 | Setting | Type | Default | Meaning |
 |---|---|---|---|
-| `version` | integer | `3` | The file's schema version. Naad manages it; don't change it. |
+| `version` | integer | `4` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `playSounds` | `true` or `false` | `false` | Play a short, soft tone once Naad is listening and once it has stopped. Off by default: on a PC whose speakers go idle, waking them takes a second or more, so the start tone comes that long after the press; speak after it. |
 | `errorSound` | `true` or `false` | `false` | Play a low tone when a dictation fails. |
@@ -63,7 +73,17 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `transcriptionModel` | text | `"whisper-large-v3-turbo"` | The service's model id, such as `whisper-1` for OpenAI or `nova-3` for Deepgram. Up to 100 visible ASCII characters, no spaces. |
 | `transcriptionTimeoutSeconds` | 2 to 300 | `20` | How long one cloud transcription may take before Naad gives up and says the request timed out. Raise it for a slow server on this PC. |
 | `language` | text or `null` | `null` | The language you speak, as a lowercase [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code such as `"en"` or `"hi"`; a few providers also take three-letter codes. Naad sends it with each recording, which makes transcripts faster and more accurate. `null` (or `""`) lets the provider detect the language. |
-| `vocabulary` | text or `null` | `null` | Names and terms you use, such as `"Naad, Groq, Priya"`, sent with each recording as Whisper's prompt so they are spelled right. One line, up to 500 characters. It goes to the transcription provider but never into the log. `null` (or `""`) sends none. |
+| `vocabulary` | list of text | `[]` | Your dictionary: names and terms you use, such as `["Naad", "Groq", "Priya"]`, each up to 100 characters. Edit it on the **Dictionary** page. They are sent with each recording as Whisper's prompt (the first 500 characters' worth), and to the language model, so they are spelled right. They go to the services you chose but never into the log. |
+| `historyRetention` | `"Off"`, `"Week"`, `"Month"` or `"Forever"` | `"Month"` | How long dictations are kept on the **History** page: not at all, 7 days, 30 days, or until you delete them. They are encrypted; see [History](#history). Choosing a shorter time deletes older ones at once. |
+| `pressEnterCommand` | `true` or `false` | `false` | Saying "press enter" at the end of a dictation presses Enter after the text, for chat boxes. Only if the same window is still in front. |
+| `pasteAgainShortcut` | text or `null` | `null` | Keys, written like `dictationShortcut` (for example `"RightAlt+V"`), that paste the last dictation again. `null` has none. |
+| `overlayTimer` | `true` or `false` | `false` | Show the recording time on the overlay. |
+| `context` | `true` or `false` | `true` | Read the app's name and up to 2,000 characters around the cursor when you dictate, so the language model can spell names you can see. Never from a password field. See [Context and Edit Mode](#context-and-edit-mode). |
+| `contextExcludedApps` | list of text | `[]` | App names (the program's file name without `.exe`, such as `"keepass"`) Naad never reads context from. |
+| `contextScreenshot` | `true` or `false` | `false` | With `context` on, AI cleanup and a **Cloud** language model, also send a screenshot of the window you dictate into, so the model can see what you're replying to. |
+| `screenshotSize` | `512`, `640`, `768` or `1024` | `1024` | The longest side of the screenshot, in pixels. |
+| `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
+| `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
@@ -305,6 +325,62 @@ shows the reply, how long it took and the full prompt. When a newer default
 prompt ships, the dialog says so. **Test model** on the tab does the same
 with the sample text.
 
+## History
+
+With `historyRetention` other than `"Off"`, Naad keeps each dictation: the
+time, the app's name, the transcript before and after cleanup, and the
+recording. Each is encrypted with Windows DPAPI for your account, in
+`%LOCALAPPDATA%\Naad\history`. The **History** page lists them by day with
+a search box; each can be copied, pasted again, played, transcribed again
+(**Retry**, useful after a failed one), exported as a ZIP or deleted.
+**Delete all** removes every one. The **Home** page counts your words,
+speaking speed, time saved against typing at 40 words a minute, and days in
+a row. The tray menu's **Paste again** and **History** items paste or copy
+recent ones.
+
+## Dictionary and snippets
+
+The **Dictionary** page holds `vocabulary`: add, rename, delete and search
+words. **Add copied words to dictionary** in the tray menu adds the words on
+the clipboard. Naad 1.1's single vocabulary line is split into words when
+the file migrates to version 4.
+
+**Snippets** are phrases that expand: say the trigger ("my address") and the
+snippet's text is pasted in its place. Triggers match whole words, in any
+case. Snippets are stored encrypted in `%LOCALAPPDATA%\Naad\snippets.dpapi`,
+not in settings.json, because they often hold personal details.
+
+## Keys during a dictation
+
+- **Esc** while recording cancels the dictation; during cleanup it cancels
+  that too, and nothing is pasted. Esc goes to the app as usual otherwise.
+- **Space** while holding the shortcut keeps recording after you let go
+  (hands-free for one dictation). Press the shortcut again to stop.
+- The `pasteAgainShortcut` pastes the last dictation again.
+
+## Context and Edit Mode
+
+With `context` on, when you start a dictation Naad reads, through Windows'
+accessibility interface, the app's name and the text around the cursor
+(at most 2,000 characters, within 150 ms) and gives it to the language
+model as hints for spelling names. It is never pasted and never logged.
+Nothing is read from a password field or an app in `contextExcludedApps`.
+With a language model on this PC it never leaves the PC; with **Cloud** it
+goes to the AI service with the transcript.
+
+**Edit Mode** turns speech into an instruction when text is selected:
+select a paragraph, hold the shortcut and say "make this more formal", and
+the language model rewrites the selection, which Naad pastes over it.
+
+- `"Automatic"`: speaking over a selection edits it.
+- `"Manual"`: hold **Shift** with the shortcut to edit. In apps that don't
+  expose their selection, Naad copies it with Ctrl+C and then restores your
+  clipboard.
+- `"Off"`: dictation replaces a selection like typing does.
+
+If the edit fails or the model is slow, nothing is pasted and the selection
+stays as it was; the overlay says so.
+
 ## Starting Naad when you sign in
 
 **Start Naad when I sign in** in Settings adds a `Naad` value to
@@ -336,6 +412,8 @@ A setting is added only when the app actually reads it.
 - Version 3 (Naad 1.1) chose cloud services by name. Migrating a version-2
   file sets `transcriptionService` and `languageModelService` from the
   service each base URL belongs to, or `"Custom"`.
+- Version 4 (Naad 2.0) made `vocabulary` a list. Migrating a version-3
+  file splits its text at commas, semicolons and line breaks.
 - Before Naad migrates or repairs a file, it copies the original next to it
   (see below), so nothing is lost.
 - A file with a **newer** version than this build supports was written by a

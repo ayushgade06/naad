@@ -63,6 +63,11 @@ internal sealed class TrayIcon : IDisposable
     // Windows 11 shows balloon tips as toasts and ignores the timeout; Windows 10 uses it.
     private const int NotificationMilliseconds = 10_000;
 
+    // Short enough for a menu, long enough to recognise a dictation.
+    private const int PasteAgainPreview = 35;
+    private const int HistoryPreview = 48;
+    private const int HistoryItems = 10;
+
     private readonly Icon _image = LoadIcon();
     private readonly Icon _recordingImage;
     private readonly Icon _transcribingImage;
@@ -258,6 +263,69 @@ internal sealed class TrayIcon : IDisposable
         var setup = new ToolStripMenuItem("Re-run setup...", null, (_, _) => rerunSetup());
         _menu.Items.Insert(_menu.Items.IndexOf(settings), setup);
         _icon.DoubleClick += (_, _) => openWindow();
+    }
+
+    /// <summary>
+    /// Adds the history and dictionary items: Paste again with a preview of the last text, the
+    /// ten newest dictations to copy, and Add copied words to dictionary. Call once, on the UI thread.
+    /// </summary>
+    /// <param name="recent">The newest dictations' text, newest first.</param>
+    /// <param name="copy">Puts text on the clipboard.</param>
+    /// <param name="pasteAgain">Pastes the last text into the window in front once the menu closes.</param>
+    /// <param name="addCopiedWords">Adds the clipboard's words to the dictionary.</param>
+    public void AddHistoryItems(
+        Func<IReadOnlyList<string>> recent, Func<string, Task<bool>> copy, Func<Task> pasteAgain, Action addCopiedWords)
+    {
+        var again = new ToolStripMenuItem("Paste again");
+        again.Click += (_, _) => _ = pasteAgain();
+        var history = new ToolStripMenuItem("History");
+        history.DropDownItems.Add(new ToolStripMenuItem("(empty)") { Enabled = false });
+        _menu.Opening += (_, _) =>
+        {
+            var texts = recent();
+            again.Enabled = texts.Count > 0;
+            again.Text = texts.Count > 0 ? $"Paste again: “{Preview(texts[0], PasteAgainPreview)}”" : "Paste again";
+            history.DropDownItems.Clear();
+            foreach (var text in texts.Take(HistoryItems))
+            {
+                history.DropDownItems.Add(new ToolStripMenuItem(Preview(text, HistoryPreview), null, (_,
+                    _) => _ = copy(text)));
+            }
+
+            if (history.DropDownItems.Count == 0)
+            {
+                history.DropDownItems.Add(new ToolStripMenuItem("(empty)") { Enabled = false });
+            }
+        };
+        var at = _menu.Items.IndexOf(_copyLastTranscript);
+        _menu.Items.Insert(at, again);
+        _menu.Items.Insert(at + 1, history);
+        _menu.Items.Insert(at + 2, new ToolStripMenuItem("Add copied words to dictionary", null, (_,
+            _) => addCopiedWords()));
+    }
+
+    /// <summary>Says how many words went into the dictionary, or why none did.</summary>
+    public void ShowWordsAdded(int added) => Notify(
+        "Naad dictionary",
+        added > 0 ? $"Added {added} word{(added == 1 ? "" : "s")} to the dictionary." :
+            "No new words: copy names or terms separated by commas or new lines first.",
+        ToolTipIcon.Info,
+        clicked: null);
+
+    /// <summary>Says an edit couldn't be made, and why, leaving the selection as it was.</summary>
+    public void ShowEditFailed(bool needsSelection) => Notify(
+        "Naad couldn't edit",
+        needsSelection
+            ? "Select text first, then hold Shift with the shortcut to edit it."
+            : "The edit didn't work, so your text was left as it was. Try again, or check the AI settings.",
+        ToolTipIcon.Warning,
+        clicked: null);
+
+    // A menu item shows one short line of the text.
+    private static string Preview(string text, int length)
+    {
+        var line = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return (line.Length > length ? line[..length] + "…" : line).Replace("&", "&&", StringComparison.Ordinal);
     }
 
     /// <summary>Shows or hides the icon; hidden, Naad is reached by starting it again.</summary>

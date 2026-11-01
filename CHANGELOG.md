@@ -43,6 +43,24 @@ All notable changes to Naad are listed here. The format follows
   and Re-run setup. The icon can be hidden; starting Naad again opens it.
 - An error tone, a volume setting and **Preview**.
 
+- **History**: every dictation kept encrypted for 7 days, 30 days (the
+  default) or until deleted, or not at all. Search, copy, paste, play,
+  retry, export as ZIP and delete; Home shows words, words per minute,
+  time saved and a day streak.
+- **Dictionary page** for your words, and **snippets** that expand a spoken
+  trigger, stored encrypted. "Press enter" at the end presses Enter
+  (off by default).
+- **Esc** cancels a dictation; **Space** while holding the shortcut keeps
+  recording hands-free; a **Paste again** shortcut and tray items for
+  recent dictations; **Add copied words to dictionary**; an optional
+  recording timer on the overlay.
+- **Context**: the app's name and text near the cursor help the language
+  model spell names. Never from password fields; apps can be excluded. With
+  a cloud model, an optional screenshot (off by default).
+- **Edit Mode**: speak an instruction over selected text and the model
+  rewrites it. Automatic, Manual (hold Shift) or Off. A failed edit leaves
+  the text alone.
+
 ### Changed
 
 - Settings is split into **Dictation**, **AI** and **General** tabs, and
@@ -52,7 +70,9 @@ All notable changes to Naad are listed here. The format follows
   (`NAAD_GROQ_API_KEY` still works for Groq). Settings version 3.
 - Network errors say whether there is no internet, the request timed out or
   the connection was lost.
-- The overlay shows **Cleaning up** while the language model works.
+- The overlay shows **Cleaning up** while the language model works, and
+  **Starting** until the microphone is open.
+- The vocabulary becomes a list of words. Settings version 4.
 
 ## [1.0.0] - 2026-10-31
 

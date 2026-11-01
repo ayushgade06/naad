@@ -50,7 +50,7 @@ internal sealed class Harness : IDisposable
         Controller.NothingHeard += () => NothingHeard++;
         Controller.MicrophoneOpened += () => Recorder.Calls.Add("opened");
         Controller.MicrophoneClosed += () => Recorder.Calls.Add("closed");
-        Controller.CleaningUp += () => Cleanups++;
+        Controller.CleaningUp += _ => Cleanups++;
         Controller.CleanupFellBack += () => CleanupFallbacks++;
     }
 
@@ -205,7 +205,8 @@ internal sealed class FakeCleanup(CleanupResult result) : ITranscriptCleanup
 
     public void Prepare() => Prepared++;
 
-    public Task<CleanupResult> CleanAsync(string transcript, CancellationToken cancellationToken)
+    public Task<CleanupResult> CleanAsync(
+        string transcript, Naad.Context.DictationContext context, CancellationToken cancellationToken)
     {
         Cleaned.Add(transcript);
         return Error is null ? Task.FromResult(result) : Task.FromException<CleanupResult>(Error);

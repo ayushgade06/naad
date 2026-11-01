@@ -1,3 +1,4 @@
+using Naad.Hotkey;
 using Naad.Tray;
 using Naad.Window;
 
@@ -42,6 +43,15 @@ internal sealed class GeneralPanel : TableLayoutPanel
     };
 
     private readonly Button _preview = new() { Text = "Preview", AutoSize = true };
+    private readonly ComboBox _history = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
+    private readonly CheckBox _pressEnter = new()
+    {
+        Text = "Saying \u201cpress enter\u201d at the end presses Enter after the text",
+        AutoSize = true,
+    };
+
+    private readonly CheckBox _timer = new() { Text = "Show a timer while recording", AutoSize = true };
+    private readonly TextBox _pasteAgain = new() { Width = 200 };
     private SoundCues? _previewCues;
 
     /// <param name="current">The settings in use.</param>
@@ -59,6 +69,11 @@ internal sealed class GeneralPanel : TableLayoutPanel
         _playSounds.Checked = current.PlaySounds;
         _errorSound.Checked = current.ErrorSound;
         _volume.Value = current.SoundVolume;
+        _history.Items.AddRange(["Off: keep nothing", "Keep 7 days", "Keep 30 days", "Keep until I delete"]);
+        _history.SelectedIndex = (int)current.HistoryRetention;
+        _pressEnter.Checked = current.PressEnterCommand;
+        _timer.Checked = current.OverlayTimer;
+        _pasteAgain.Text = current.PasteAgainShortcut?.ToString() ?? "";
 
         Row(this, "Theme", _theme);
         Row(this, "", _showTrayIcon);
@@ -67,6 +82,14 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "Sounds", _playSounds);
         Row(this, "", _errorSound);
         Row(this, "Volume", Flow(_volume, _preview));
+        Row(this, "History", _history);
+        Row(this, "", Note("Dictations are kept encrypted for your Windows account, and can be deleted on the " +
+            "History page. Off deletes them all."));
+        Row(this, "Paste again", Flow(_pasteAgain, Note("Keys such as RightAlt+V; blank for none.")));
+        Row(this, "", _pressEnter);
+        Row(this, "", _timer);
+        Row(this, "", Note("Esc cancels a dictation. Pressing Space while holding the shortcut keeps " +
+            "recording after you let go; press the shortcut again to stop."));
         Row(this, "", new Label
         {
             Text = "Off by default: on PCs whose speakers sleep, waking them can delay the start of a dictation.",
@@ -87,8 +110,35 @@ internal sealed class GeneralPanel : TableLayoutPanel
     /// <summary>Whether to start at sign-in, as ticked.</summary>
     public bool StartAtLogin => _startAtLogin.Checked;
 
-    /// <summary><paramref name="chosen"/> with this page's choices applied.</summary>
-    public AppSettings Apply(AppSettings chosen) => chosen with
+    /// <summary>
+    /// <paramref name="chosen"/> with this page's choices applied, or null with
+    /// <paramref name="error"/> when the paste-again keys aren't a shortcut.
+    /// </summary>
+    public AppSettings? Apply(AppSettings chosen, out string? error)
+    {
+        error = null;
+        Chord? pasteAgain = null;
+        if (_pasteAgain.Text.Trim() is { Length: > 0 } keys)
+        {
+            if (!Chord.TryParse(keys, out var chord) || chord == chosen.DictationShortcut)
+            {
+                error = "The paste-again keys must be a shortcut such as RightAlt+V, other than the dictation one.";
+                return null;
+            }
+
+            pasteAgain = chord;
+        }
+
+        return Apply(chosen) with
+        {
+            HistoryRetention = (Naad.History.HistoryRetention)_history.SelectedIndex,
+            PressEnterCommand = _pressEnter.Checked,
+            OverlayTimer = _timer.Checked,
+            PasteAgainShortcut = pasteAgain,
+        };
+    }
+
+    private AppSettings Apply(AppSettings chosen) => chosen with
     {
         Theme = (ThemeChoice)_theme.SelectedIndex,
         ShowTrayIcon = _showTrayIcon.Checked,

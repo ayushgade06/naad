@@ -46,8 +46,13 @@ internal sealed class RecordingOverlay : Form
     private readonly LevelMeter _meter = new();
     private readonly VoiceBars _bars = new(BarCount);
     private readonly System.Windows.Forms.Timer _notice = new() { Interval = FallbackNoticeMilliseconds };
+    private readonly float[] _shown = new float[BarCount];
     private DictationState _state;
     private string _label = "Transcribing";
+    private bool _microphoneOpen;
+    private long _recordingStarted;
+
+    private bool _showTimer;
 
     public RecordingOverlay()
     {
@@ -98,6 +103,9 @@ internal sealed class RecordingOverlay : Form
         {
             _notice.Stop();
             _label = "Transcribing";
+            _microphoneOpen = false;
+            _recordingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            Array.Clear(_shown);
             _meter.Reset();
             _bars.Reset();
             Place(target);
@@ -108,16 +116,38 @@ internal sealed class RecordingOverlay : Form
         Render();
     }
 
-    /// <summary>The language model is tidying the transcript.</summary>
-    public void ShowCleaningUp() => ShowLabel("Cleaning up");
+    /// <summary>Shows, or stops showing, how long the recording has run at the pill's right end.</summary>
+    public void UseTimer(bool show) => _showTimer = show;
+
+    /// <summary>The language model is tidying the transcript, or rewriting the selection.</summary>
+    public void ShowCleaningUp(bool editing) => ShowLabel(editing ? "Editing" : "Cleaning up");
+
+    /// <summary>The microphone is recording: the bars replace "Starting".</summary>
+    public void ShowMicrophoneOpen()
+    {
+        _microphoneOpen = true;
+        if (Visible)
+        {
+            Render();
+        }
+    }
 
     /// <summary>
     /// Cleanup failed, so the transcript is pasted as said: says so for a moment, even after the
     /// dictation ends.
     /// </summary>
-    public void ShowCleanupFellBack()
+    public void ShowCleanupFellBack() => ShowNotice("Pasted as said");
+
+    /// <summary>Says <paramref name="text"/> (two or three words) for a moment, even after the dictation.</summary>
+    public void ShowNotice(string text)
     {
-        ShowLabel("Pasted as said");
+        ShowLabel(text);
+        if (!Visible)
+        {
+            Show();
+            Render();
+        }
+
         _notice.Start();
     }
 
@@ -179,6 +209,13 @@ internal sealed class RecordingOverlay : Form
             graphics.DrawPath(edge, pill);
         }
 
+        // The microphone can take a moment to open; until then there are no levels to show.
+        if (_state == DictationState.Recording && !_microphoneOpen)
+        {
+            DrawLabel(graphics, "Starting");
+            return;
+        }
+
         if (_state != DictationState.Recording)
         {
             using var text = new SolidBrush(TextColor);
@@ -198,10 +235,41 @@ internal sealed class RecordingOverlay : Form
         using var brush = new SolidBrush(BarColor);
         for (var i = 0; i < BarCount; i++)
         {
-            var height = Math.Max(barWidth, (float)(_bars.Height(i) * Scale(LogicalMaxBarHeight)));
+            // Halfway to the new level at each buffer, so the bars glide instead of jumping.
+            _shown[i] += ((float)_bars.Height(i) - _shown[i]) * 0.5f;
+            var height = Math.Max(barWidth, _shown[i] * Scale(LogicalMaxBarHeight));
             using var bar = Capsule(new RectangleF(left + (i * step), (Height - height) / 2f, barWidth, height));
             graphics.FillPath(brush, bar);
         }
+
+        if (_showTimer)
+        {
+            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(_recordingStarted);
+            using var text = new SolidBrush(TextColor);
+            using var small = new Font(Font.FontFamily, Font.Size * 0.85f);
+            using var format = new StringFormat
+            {
+                Alignment = StringAlignment.Far,
+                LineAlignment = StringAlignment.Center
+            };
+            graphics.DrawString(
+                $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}",
+                small,
+                text,
+                new RectangleF(0, 0, Width - Scale(LogicalBarGap * 4), Height),
+                format);
+        }
+    }
+
+    private void DrawLabel(Graphics graphics, string label)
+    {
+        using var text = new SolidBrush(TextColor);
+        using var format = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
+        graphics.DrawString(label, Font, text, new RectangleF(0, 0, Width, Height), format);
     }
 
     private void ShowLabel(string label)

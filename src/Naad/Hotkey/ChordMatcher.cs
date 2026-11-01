@@ -15,6 +15,15 @@ internal enum ChordEventKind
     /// keys may still be held; it becomes active again only when one of them is pressed anew.
     /// </summary>
     Cancelled,
+
+    /// <summary>Esc went down while <see cref="ChordMatcher.EscapeArmed"/>: cancel the dictation.</summary>
+    Escape,
+
+    /// <summary>
+    /// The latch key (Space) went down while the chord was held: the recording stays on after the
+    /// chord is let go. The chord ends without a Released event.
+    /// </summary>
+    Latched,
 }
 
 internal readonly record struct ChordEvent(ChordEventKind Kind, Chord Chord);
@@ -57,6 +66,21 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     private readonly HashSet<Key> _swallowed = [];
     private Chord? _active;
     private ChordCapture? _capture;
+
+    /// <summary>The key that latches a held chord on, as hold-to-hands-free.</summary>
+    public const Key LatchKey = Key.Space;
+
+    /// <summary>
+    /// Whether Esc cancels: set while a dictation runs. Esc is then swallowed, so the app doesn't
+    /// also see it; otherwise it passes through untouched.
+    /// </summary>
+    public bool EscapeArmed { get; set; }
+
+    /// <summary>
+    /// Whether Space while the chord is held latches it: only while a hold can become hands-free.
+    /// Otherwise Space cancels the chord like any other key, and reaches the app.
+    /// </summary>
+    public bool LatchArmed { get; set; } = true;
 
     /// <summary>Whether a chord is active, so the hook knows when to watch the mouse.</summary>
     public bool IsActive => _active is not null;
@@ -135,6 +159,22 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
         {
             _swallowed.Add(key);
             return Captured(_capture.OnKey(key, down: true), swallow: true);
+        }
+
+        // Even with the chord still held: Esc ends the dictation, not just the hold.
+        if (key == Key.Escape && EscapeArmed)
+        {
+            _active = null;
+            _swallowed.Add(key);
+            return new([new(ChordEventKind.Escape, Chord.RightCtrl)], Swallow: true);
+        }
+
+        // Space while the chord is held latches it, unless Space is part of the chord itself.
+        if (key == LatchKey && LatchArmed && _active is { } held && !held.Contains(key))
+        {
+            _active = null;
+            _swallowed.Add(key);
+            return new([new(ChordEventKind.Latched, held)], Swallow: true);
         }
 
         var events = new List<ChordEvent>(2);

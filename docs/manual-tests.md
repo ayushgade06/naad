@@ -968,3 +968,62 @@ run** by a person.
 | M-HB5 | Hidden icon | Untick **Show Naad in the notification area**, save, then start Naad again from the Start menu. | The icon disappears; starting Naad again opens its window instead of a second copy. | Partly: the show-window signal is unit tested. |
 
 **Status after P29:** M-HB1 to M-HB5 have **not been run** by a person.
+
+## History and stats (P30): M-HY1 to M-HY6
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-HY1 | Recorded | Dictate three times into Notepad, once with the window changed before the text is ready. Open **History**. | Today's group lists all three, newest first, with the app and length; the kept one says so. Home's numbers go up. | Partly: the page rendered off-screen with invented records on 2026-11-01. NOT RUN. |
+| M-HY2 | Encrypted | Open `%LOCALAPPDATA%\Naad\history` in a text editor. | `.record` and `.audio` files; no readable words. | **No.** Unit tested. |
+| M-HY3 | Actions | On one row: Copy, Paste, Play, Details, Export (open the ZIP), Delete. | Each does what it says; Export holds the recording and both transcripts. | **No.** |
+| M-HY4 | Retry | Turn Wi-Fi off with Cloud chosen and no local model, dictate (it fails), turn Wi-Fi on and **Retry** the failed row. | The row gets a transcript. | **No.** |
+| M-HY5 | Retention | Choose **Off** and save. | Every file under `history` is deleted; new dictations aren't kept. | **No.** Unit tested. |
+| M-HY6 | Delete all | **Delete all** and confirm. | The page is empty; the folder is empty. | **No.** |
+
+**Status after P30:** M-HY1 to M-HY6 have **not been run** by a person.
+
+## Dictionary and snippets (P31): M-SN1 to M-SN4
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-SN1 | Migration | Start this build with a version-3 settings.json whose vocabulary is `"Naad, Groq"`. | settings.json now has `"version": 4` and `"vocabulary": ["Naad", "Groq"]`; a `.bak` holds the old file; the Dictionary page lists both. | **No.** Unit tested. |
+| M-SN2 | Dictionary | Add, rename, search and delete words; add a duplicate. | The duplicate is refused; the changes are saved. | Partly: the page rendered off-screen on 2026-11-01. |
+| M-SN3 | Snippets | Add a snippet "my address"; dictate "send it to my address". | The snippet's text is pasted in place of the trigger. `snippets.dpapi` has no readable text. | **No.** Expansion unit tested. |
+| M-SN4 | Press enter | Turn on the press-enter command; in a chat box, dictate "hello press enter". | "Hello" is sent. With the setting off, the words are pasted. | **No.** |
+
+**Status after P31:** M-SN1 to M-SN4 have **not been run** by a person.
+
+## Keys, tray and overlay (P32): M-PL1 to M-PL4
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-PL1 | Esc | Start a dictation and press Esc; then again during **Cleaning up**. Press Esc in an app with Naad idle. | Nothing is pasted either time; the app gets Esc only when Naad is idle. | **No.** The matcher and controller are unit tested. |
+| M-PL2 | Latch | Hold the shortcut, press Space, let go, speak, press the shortcut. | Recording continues after letting go and stops on the press; the text is pasted with no space typed. | **No.** Unit tested. |
+| M-PL3 | Paste again | Set the paste-again shortcut to RightAlt+V; dictate, then press it in another app. Use the tray's **Paste again** and **History** items. | The last dictation is pasted again; History items copy. | **No.** |
+| M-PL4 | Overlay | Turn the timer on; dictate. | "Starting" until the microphone opens, then bars and a running time. | **No.** |
+
+**Status after P32:** M-PL1 to M-PL4 have **not been run** by a person.
+
+## Context (P33): M-CX1 to M-CX5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-CX1 | Names from the screen | In an email that says "Hi Priya Raghunathan", dictate "thanks priya raghunathan". | The surname is spelled as on screen. | **No.** |
+| M-CX2 | Password field | Dictate into a password box with the log on. | The log shows the context was skipped; nothing near the cursor is read. | **No.** |
+| M-CX3 | Excluded app | Add `notepad` to **Never read**; dictate into Notepad. | No context is read (log: count 0). | **No.** |
+| M-CX4 | Screenshot | With a cloud vision model and **send a screenshot** ticked, dictate a reply to something on screen. | Spelling follows the screen; nothing is saved to disk. | **No.** |
+| M-CX5 | Speed | With context on, dictate 10 times in a large document. | No noticeable delay; the log's context time stays under 150 ms. | **No.** |
+
+**Status after P33:** M-CX1 to M-CX5 have **not been run** by a person.
+
+## Edit Mode (P34): M-ED1 to M-ED5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-ED1 | Automatic | In Word or Notepad, select a sentence, hold the shortcut and say "make this more formal". | The overlay says **Editing**; the selection is replaced by the rewrite. | **No.** Unit tested with a fake model. |
+| M-ED2 | Failed edit | Repeat with Wi-Fi off and a cloud model, or a 2-second timeout. | Nothing is pasted; the selection is unchanged; a notice says the edit failed. | **No.** Unit tested. |
+| M-ED3 | Manual | Choose **Manual**; select text and dictate without Shift, then with Shift held. | Without Shift the dictation replaces the selection; with Shift it edits. | **No.** |
+| M-ED4 | Copy fallback | In Manual, select text in an app without accessibility support (for example a terminal or an old app) and dictate with Shift. | The selection is read by copying; the clipboard holds what it held before. | **No.** |
+| M-ED5 | No selection | In Manual, dictate with Shift and nothing selected. | A notice asks you to select text; nothing is pasted. | **No.** Unit tested. |
+
+**Status after P34:** M-ED1 to M-ED5 have **not been run** by a person.

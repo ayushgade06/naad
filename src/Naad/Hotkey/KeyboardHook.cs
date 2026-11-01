@@ -43,8 +43,12 @@ internal sealed class KeyboardHook : IDisposable
     private nint _mouseHandle;
     private bool _disposed;
 
+    private Chord _shortcut;
+    private Chord? _pasteAgain;
+
     public KeyboardHook(Chord shortcut)
     {
+        _shortcut = shortcut;
         _ui = SynchronizationContext.Current
             ?? throw new InvalidOperationException("KeyboardHook must be created on a thread with a message loop.");
         _matcher = new ChordMatcher([shortcut]);
@@ -76,6 +80,29 @@ internal sealed class KeyboardHook : IDisposable
     /// </summary>
     public event Action<CancelCause>? TriggerCancelled;
 
+    /// <summary>Esc was pressed while <see cref="EscapeArmed"/>; it was kept from the app.</summary>
+    public event Action? EscapePressed;
+
+    /// <summary>Space joined the held shortcut: keep recording after it is let go.</summary>
+    public event Action? Latched;
+
+    /// <summary>The paste-again shortcut was pressed.</summary>
+    public event Action? PasteAgainPressed;
+
+    /// <summary>Whether Esc cancels a dictation; set while one runs. Call on the UI thread.</summary>
+    public bool EscapeArmed
+    {
+        get => _matcher.EscapeArmed;
+        set => _matcher.EscapeArmed = value;
+    }
+
+    /// <summary>Whether Space latches the held shortcut; set while a hold records. Call on the UI thread.</summary>
+    public bool LatchArmed
+    {
+        get => _matcher.LatchArmed;
+        set => _matcher.LatchArmed = value;
+    }
+
     /// <summary>A capture started by <see cref="BeginCapture"/> captured, rejected or cancelled.</summary>
     public event Action<CaptureStep>? CaptureEnded;
 
@@ -101,8 +128,16 @@ internal sealed class KeyboardHook : IDisposable
     /// </summary>
     public void SetShortcut(Chord shortcut)
     {
-        _matcher.SetChords([shortcut]);
+        _shortcut = shortcut;
+        _matcher.SetChords(_pasteAgain is { } paste ? [shortcut, paste] : [shortcut]);
         SyncMouseHook();
+    }
+
+    /// <summary>Also watches for <paramref name="pasteAgain"/>; null for none. Call on the UI thread.</summary>
+    public void SetPasteAgainShortcut(Chord? pasteAgain)
+    {
+        _pasteAgain = pasteAgain == _shortcut ? null : pasteAgain;
+        SetShortcut(_shortcut);
     }
 
     public void Dispose()
@@ -251,11 +286,18 @@ internal sealed class KeyboardHook : IDisposable
 
         foreach (var e in events)
         {
+            // The paste-again chord acts on its press only; its release and cancel mean nothing.
+            var paste = e.Kind is not (ChordEventKind.Escape or ChordEventKind.Latched)
+                && e.Chord != _shortcut && e.Chord == _pasteAgain;
             Action? handler = e.Kind switch
             {
+                ChordEventKind.Pressed when paste => PasteAgainPressed,
+                _ when paste => null,
                 ChordEventKind.Pressed => TriggerPressed,
                 ChordEventKind.Released => TriggerReleased,
                 ChordEventKind.Cancelled => TriggerCancelled is { } cancelled ? () => cancelled(cause) : null,
+                ChordEventKind.Escape => EscapePressed,
+                ChordEventKind.Latched => Latched,
                 _ => throw new UnreachableException(),
             };
             if (handler is not null)

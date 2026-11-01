@@ -49,6 +49,60 @@ internal static class SettingsFields
         return fallback;
     }
 
+    // Absent or null means none; an array of strings keeps the valid ones, without duplicates in
+    // any casing. Anything else, or an invalid entry, marks the settings repaired.
+    public static IReadOnlyList<string> ReadList(
+        JsonObject root, string name, Func<string?, bool> isValid, ref bool repaired)
+    {
+        if (!root.TryGetPropertyValue(name, out var node) || node is null)
+        {
+            return [];
+        }
+
+        if (node is not JsonArray array)
+        {
+            repaired = true;
+            return [];
+        }
+
+        var items = new List<string>();
+        foreach (var item in array)
+        {
+            if (item is JsonValue value && value.TryGetValue(out string? text) && isValid(text))
+            {
+                if (!items.Contains(text, StringComparer.OrdinalIgnoreCase))
+                {
+                    items.Add(text);
+                }
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
+        // The shared empty list, so settings without entries compare equal to the defaults.
+        return items.Count == 0 ? (IReadOnlyList<string>)[] : items;
+    }
+
+    // Absent or null means none; text that isn't a chord marks the settings repaired.
+    public static Naad.Hotkey.Chord? ReadChord(JsonObject root, string name, ref bool repaired)
+    {
+        if (!root.TryGetPropertyValue(name, out var node) || node is null)
+        {
+            return null;
+        }
+
+        if (node is JsonValue value && value.TryGetValue(out string? text)
+            && Naad.Hotkey.Chord.TryParse(text, out var chord))
+        {
+            return chord;
+        }
+
+        repaired = true;
+        return null;
+    }
+
     // Absent means the default; a whole number outside IsValidTimeout falls back to it.
     public static int ReadTimeout(JsonObject root, string name, int fallback, ref bool repaired) =>
         ReadInt(root, name, fallback, AppSettings.IsValidTimeout, ref repaired);

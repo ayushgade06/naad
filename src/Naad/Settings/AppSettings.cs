@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Naad.Cleanup;
+using Naad.Context;
+using Naad.History;
 using Naad.Hotkey;
 using Naad.LanguageModel;
 using Naad.Providers;
@@ -19,7 +21,7 @@ internal sealed record AppSettings
     /// Bump when a property is renamed, removed or changes meaning, and add the matching
     /// migration to <see cref="SettingsStore"/>. Adding a property with a default needs no bump.
     /// </summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public static AppSettings Defaults { get; } = new();
 
@@ -86,10 +88,65 @@ internal sealed record AppSettings
     public string? Microphone { get; init; }
 
     /// <summary>
-    /// Names and terms the provider should expect, sent as Whisper's prompt; null sends none.
-    /// User content: it goes to the provider with each recording but never into the log.
+    /// The dictionary: names and terms to spell right, one per entry. Sent as Whisper's prompt and
+    /// in the cleanup prompt. User content: it goes to the providers but never into the log.
     /// </summary>
-    public string? Vocabulary { get; init; }
+    [JsonPropertyName("vocabulary")]
+    public IReadOnlyList<string> Words { get; init; } = [];
+
+    /// <summary>The dictionary as one comma-separated line, or null when it is empty.</summary>
+    [JsonIgnore]
+    public string? Vocabulary => Words.Count == 0 ? null : string.Join(", ", Words);
+
+    /// <summary>
+    /// The dictionary as Whisper's prompt: the first words that fit in 500 characters, since
+    /// Whisper reads only the start of a long prompt and some services refuse one.
+    /// </summary>
+    [JsonIgnore]
+    public string? TranscriptionPrompt
+    {
+        get
+        {
+            var length = -2;
+            var words = Words.TakeWhile(w => (length += w.Length + 2) <= MaxVocabularyLength).ToList();
+            return words.Count == 0 ? null : string.Join(", ", words);
+        }
+    }
+
+    /// <summary>How long the history keeps dictations.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<HistoryRetention>))]
+    public HistoryRetention HistoryRetention { get; init; } = HistoryRetention.Month;
+
+    /// <summary>A trailing "press enter" is removed and Enter is pressed after the paste.</summary>
+    public bool PressEnterCommand { get; init; }
+
+    /// <summary>Keys that paste the last dictation again; null for none.</summary>
+    public Chord? PasteAgainShortcut { get; init; }
+
+    /// <summary>Show how long the recording has run in the overlay.</summary>
+    public bool OverlayTimer { get; init; }
+
+    /// <summary>
+    /// Read the app's name and the text around the cursor when a dictation starts, as spelling
+    /// hints for AI cleanup. Never from password fields or the excluded apps.
+    /// </summary>
+    public bool Context { get; init; } = true;
+
+    /// <summary>Process names, such as "keepass", whose text is never read.</summary>
+    public IReadOnlyList<string> ContextExcludedApps { get; init; } = [];
+
+    /// <summary>Send a screenshot of the window to a cloud vision model for spelling hints. Opt-in.</summary>
+    public bool ContextScreenshot { get; init; }
+
+    /// <summary>The screenshot's longest side in pixels: 1024, 768, 640 or 512.</summary>
+    public int ScreenshotSize { get; init; } = 1024;
+
+    /// <summary>Capture the whole desktop when the window can't be captured on its own.</summary>
+    public bool ScreenshotWholeDesktop { get; init; }
+
+    /// <summary>When a dictation over selected text is an instruction to rewrite it.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<EditMode>))]
+    public EditMode EditMode { get; init; } = EditMode.Automatic;
 
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
@@ -152,6 +209,9 @@ internal sealed record AppSettings
     // Model ids are short tokens such as "whisper-large-v3-turbo" or "openai/whisper-1".
     private const int MaxModelLength = 100;
 
+    // A long product or place name fits; a sentence doesn't belong in a dictionary entry.
+    public const int MaxWordLength = 100;
+
     // Whisper reads only the last 224 tokens of a prompt; 500 characters of names and terms
     // stay well inside that.
     private const int MaxVocabularyLength = 500;
@@ -201,6 +261,30 @@ internal sealed record AppSettings
     /// <summary>1 to 500 characters on one line, without control characters.</summary>
     public static bool IsValidVocabulary(string? vocabulary) =>
         vocabulary is { Length: > 0 and <= MaxVocabularyLength } && !vocabulary.Any(char.IsControl);
+
+    /// <summary>One dictionary entry: 1 to 100 characters, no commas, semicolons or control characters.</summary>
+    public static bool IsValidWord(string? word) =>
+        word is { Length: > 0 and <= MaxWordLength } && word == word.Trim()
+        && !word.Any(c => char.IsControl(c) || c is ',' or ';');
+
+    /// <summary>A screenshot size Naad offers.</summary>
+    public static bool IsValidScreenshotSize(int size) => size is 1024 or 768 or 640 or 512;
+
+    /// <summary>
+    /// The dictionary entries in <paramref name="text"/>: split on commas, semicolons and new
+    /// lines, trimmed, without duplicates in any casing or invalid entries.
+    /// </summary>
+    public static IReadOnlyList<string> SplitWords(string? text)
+    {
+        var words = (text ?? "")
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(IsValidWord)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // The shared empty list when there are none, so settings compare equal to the defaults.
+        return words.Count == 0 ? (IReadOnlyList<string>)[] : words;
+    }
 
     /// <summary>A volume from 0 to 100.</summary>
     public static bool IsValidVolume(int volume) => volume is >= 0 and <= 100;

@@ -23,7 +23,13 @@ appear wherever your cursor is.
 - **Cloud optional.** Groq, OpenAI, Gemini, xAI, Deepgram, Anthropic,
   Cerebras or any OpenAI-compatible server, with keys encrypted by Windows.
   Offline, Naad falls back to your PC.
-- **Configurable.** Any shortcut, hands-free mode, a custom vocabulary, the
+- **History.** Dictations are kept encrypted for as long as you choose, to
+  copy, paste again, replay or retry, with words-per-minute stats.
+- **Your words.** A dictionary for names and terms, snippets that expand a
+  phrase, and "press enter" to send.
+- **Edit by voice.** Select text and say "make this shorter". Naad reads
+  the text near the cursor (never a password field) to spell names right.
+- **Configurable.** Any shortcut, hands-free mode, Esc to cancel, the
   language and the microphone.
 
 ## Install

@@ -148,7 +148,7 @@ internal sealed class SetupWizard : System.Windows.Window
             Cleanup = _settings.Cleanup,
             LocalLanguageModel = _settings.LocalLanguageModel,
             TranscriptionService = _settings.TranscriptionService,
-            Vocabulary = _settings.Vocabulary,
+            Words = _settings.Words,
         };
         return _actions.Save(new(s, keys, _startAtLogin));
     }
@@ -292,11 +292,11 @@ internal sealed class SetupWizard : System.Windows.Window
         box.TextChanged += (_, _) =>
         {
             var terms = box.Text.Trim();
-            var valid = terms.Length == 0 || AppSettings.IsValidVocabulary(terms);
-            note.Text = valid ? "" : "Keep it to one line of up to 500 characters; the last valid list is kept.";
+            var valid = !terms.Any(char.IsControl);
+            note.Text = valid ? "" : "Keep it to one line; the last valid list is kept.";
             if (valid)
             {
-                _settings = _settings with { Vocabulary = terms.Length > 0 ? terms : null };
+                _settings = _settings with { Words = AppSettings.SplitWords(terms) };
             }
         };
         return Page(

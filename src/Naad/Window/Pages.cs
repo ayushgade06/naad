@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms.Integration;
+using Naad.History;
 using Naad.Settings;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 
@@ -15,25 +17,64 @@ internal static class Pages
     public const string Snippets = "Snippets";
     public const string Settings = "Settings";
 
-    /// <summary>A greeting and how to dictate, and Quit for when the tray icon is hidden.</summary>
-    public static UIElement HomePage(AppSettings s, Palette palette, Action exit)
+    /// <summary>
+    /// A greeting, how to dictate, the stats from the history (words, pace, time saved, streak),
+    /// and Quit for when the tray icon is hidden.
+    /// </summary>
+    public static UIElement HomePage(
+        AppSettings s, IReadOnlyList<HistoryRecord> records, Palette palette, Action exit, Action setup)
     {
-        var quit = new System.Windows.Controls.Button
-        {
-            Content = "Quit Naad",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4, 12, 4),
-        };
-        quit.Click += (_, _) => exit();
+        var stats = DictationStats.Compute(
+            records, DateOnly.FromDateTime(DateTime.Now), TimeZoneInfo.Local);
+        var how = s.HandsFree
+            ? $"Press {s.DictationShortcut.Describe()} to start dictating into any app, and again to stop."
+            : $"Hold {s.DictationShortcut.Describe()} and speak; let go and your words appear where you are typing.";
+        var row = new WrapPanel { Margin = new Thickness(0, 8, 0, 16) };
+        row.Children.Add(Stat("Words dictated", stats.Words.ToString("N0", CultureInfo.CurrentCulture), palette));
+        row.Children.Add(Stat("Words per minute", stats.WordsPerMinute > 0 ? stats.WordsPerMinute.ToString(
+            CultureInfo.CurrentCulture) : "—", palette));
+        row.Children.Add(Stat("Time saved", $"{(int)stats.TimeSaved.TotalMinutes} min", palette));
+        row.Children.Add(Stat("Day streak", stats.DayStreak.ToString(CultureInfo.CurrentCulture), palette));
+        var buttons = new WrapPanel();
+        buttons.Children.Add(Button("Run setup again", setup));
+        buttons.Children.Add(Button("Quit Naad", exit));
         return Stack(
             palette,
-            Heading("Naad is ready"),
-            Text(s.HandsFree
-                ? $"Press {s.DictationShortcut.Describe()} to start dictating into any app, and again to stop."
-                : $"Hold {s.DictationShortcut.Describe()} and speak; let go and your words appear where you are " +
-                    "typing."),
-            Muted("Your words, pace and time saved will gather here as you dictate."),
-            quit);
+            Heading(records.Count == 0 ? "Welcome to Naad" : "Welcome back"),
+            Text(how),
+            records.Count == 0 ? Muted("Your words will gather here as you dictate.") : row,
+            Muted("Time saved compares your speaking time with typing at 40 words a minute."),
+            buttons);
+    }
+
+    private static Border Stat(string label, string value, Palette palette)
+    {
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock { Text = value, FontSize = 24, FontWeight = FontWeights.SemiBold });
+        stack.Children.Add(new TextBlock { Text = label, Foreground = MainWindow.Brush(palette.Muted) });
+        return new Border
+        {
+            Child = stack,
+            Padding = new Thickness(16, 10, 16, 10),
+            Margin = new Thickness(0, 0, 12, 12),
+            MinWidth = 140,
+            Background = MainWindow.Brush(palette.Surface),
+            BorderBrush = MainWindow.Brush(palette.Border),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+        };
+    }
+
+    private static System.Windows.Controls.Button Button(string label, Action click)
+    {
+        var button = new System.Windows.Controls.Button
+        {
+            Content = label,
+            Padding = new Thickness(12, 4, 12, 4),
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        button.Click += (_, _) => click();
+        return button;
     }
 
     /// <summary>A page whose content arrives in a later version.</summary>

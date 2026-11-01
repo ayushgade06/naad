@@ -12,12 +12,14 @@ namespace Naad.Window;
 /// <param name="startsAtLogin">Whether Naad starts at sign-in now.</param>
 /// <param name="actions">What the settings and the guide's buttons do.</param>
 /// <param name="exit">Quits Naad, for when its tray icon is hidden.</param>
+/// <param name="pages">What the History, Dictionary and Snippets pages do.</param>
 internal sealed class WindowHost(
     Func<AppSettings> settings,
     Func<IReadOnlyList<string>> microphones,
     Func<bool> startsAtLogin,
     Func<SettingsWindowActions> actions,
-    Action exit)
+    Action exit,
+    PageActions pages)
 {
     private MainWindow? _main;
     private SetupWizard? _wizard;
@@ -36,15 +38,11 @@ internal sealed class WindowHost(
             var (palette, dark) = Colours();
             _main = new MainWindow(
                 [
-                    new(Pages.Home, () => Pages.HomePage(settings(), palette, exit)),
-                    new(Pages.History, () => Pages.Placeholder(
-                        "History",
-                        "Your past dictations will be listed here, to find, copy and paste again.",
-                        palette)),
-                    new(Pages.Dictionary, () => Pages.Placeholder(
-                        "Dictionary", "The names and terms Naad should spell right will be listed here.", palette)),
-                    new(Pages.Snippets, () => Pages.Placeholder(
-                        "Snippets", "Short phrases that expand into saved text will be listed here.", palette)),
+                    new(Pages.Home, () => Pages.HomePage(
+                        settings(), pages.History.Records, palette, exit, OpenSetup)),
+                    new(Pages.History, () => new HistoryPage(PasteFromWindow(), palette)),
+                    new(Pages.Dictionary, () => DictionaryPage.Words(pages, palette)),
+                    new(Pages.Snippets, () => DictionaryPage.Snippets(pages, palette)),
                     new(Pages.Settings, () => Pages.SettingsPage(SettingsForm = SettingsPage(dark ? palette : null))),
                 ],
                 palette,
@@ -63,6 +61,23 @@ internal sealed class WindowHost(
         _main.ShowPage(page ?? (_main.IsLoaded ? null : Pages.Home));
         _main.Activate();
     }
+
+    // Naad's window has focus when Paste is clicked: it steps aside first, so the text goes into
+    // the window that was in front of it.
+    private PageActions PasteFromWindow() => pages with
+    {
+        Paste = async text =>
+        {
+            if (_main is { } main)
+            {
+                main.WindowState = System.Windows.WindowState.Minimized;
+            }
+
+            // Long enough for Windows to hand focus back to the window before Naad's.
+            await Task.Delay(TimeSpan.FromMilliseconds(400));
+            return await pages.Paste(text);
+        },
+    };
 
     // Forgotten once disposed, so the shortcut capture never reaches a page that is gone.
     private SettingsWindow SettingsPage(Palette? palette)

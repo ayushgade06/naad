@@ -14,20 +14,21 @@ internal static class SettingsInput
     /// <summary>
     /// The settings to save: <paramref name="chosen"/> (shortcut, microphone and switches,
     /// which the window can't get wrong) with the typed language and vocabulary checked and
-    /// applied. Text is trimmed, a blank language means "detect it", a language is lowercased,
+    /// applied (a null vocabulary keeps the dictionary). Text is trimmed, a blank language means "detect it", a
+    /// language is lowercased,
     /// and a blank vocabulary sends none. On failure, <paramref name="error"/> says what to fix
     /// and names the field. The cloud fields are checked by <see cref="CloudServiceFields"/>.
     /// </summary>
     public static bool TryBuild(
         AppSettings chosen,
         string language,
-        string vocabulary,
+        string? vocabulary,
         [NotNullWhen(true)] out AppSettings? settings,
         [NotNullWhen(false)] out string? error)
     {
         settings = null;
         var languageCode = language.Trim().ToLowerInvariant();
-        var terms = vocabulary.Trim();
+        var terms = vocabulary?.Trim() ?? "";
         error = languageCode.Length > 0 && !AppSettings.IsValidLanguage(languageCode)
                 ? "The language must be a two-letter code such as en or hi, or blank to detect it."
             : terms.Length > 0 && !AppSettings.IsValidVocabulary(terms)
@@ -41,7 +42,7 @@ internal static class SettingsInput
         settings = chosen with
         {
             Language = languageCode.Length == 0 ? null : languageCode,
-            Vocabulary = terms.Length == 0 ? null : terms,
+            Words = vocabulary is null ? chosen.Words : AppSettings.SplitWords(terms),
         };
         return true;
     }

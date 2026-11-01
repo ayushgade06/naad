@@ -127,6 +127,32 @@ internal sealed class TextInserter(
         return sent == inputs.Length;
     }
 
+    /// <summary>Whether a Shift key is physically held: Manual Edit Mode's signal.</summary>
+    public static bool ShiftDown() => IsDown(User32.VkShift);
+
+    /// <summary>Sends Enter to the foreground window, for the "press enter" voice command.</summary>
+    public static bool SendEnter() => Send([Key(User32.VkReturn, up: false), Key(User32.VkReturn, up: true)]);
+
+    /// <summary>
+    /// Sends Ctrl+C to the foreground window, to read a selection UI Automation can't. A held Shift
+    /// (Manual Edit Mode's) is lifted around it, so the app doesn't get Ctrl+Shift+C.
+    /// </summary>
+    public static bool SendCopy()
+    {
+        var shift = ShiftDown();
+        User32.Input[] copy =
+        [
+            Key(User32.VkControl, up: false),
+            Key(User32.VkC, up: false),
+            Key(User32.VkC, up: true),
+            Key(User32.VkControl, up: true),
+        ];
+        return Send(shift ? [Key(User32.VkShift, up: true), .. copy, Key(User32.VkShift, up: false)] : copy);
+    }
+
+    private static bool Send(User32.Input[] inputs) =>
+        User32.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<User32.Input>()) == inputs.Length;
+
     private async Task<InsertionOutcome> PasteCoreAsync(
         string text, Func<bool> canInsert, Action? pasted, CancellationToken cancellationToken)
     {

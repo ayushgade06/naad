@@ -31,4 +31,12 @@ internal sealed record ClipboardSnapshot(IReadOnlyList<ClipboardFormatData> Form
 
     // The generated ToString would print every byte array's type; contents never matter in a log.
     public override string ToString() => $"ClipboardSnapshot {{ Formats = {Formats.Count}, Skipped = {Skipped} }}";
+
+    // CF_UNICODETEXT: UTF-16 with a terminating null.
+    private const uint UnicodeTextFormat = 13;
+
+    /// <summary>The plain text on the clipboard, or null when it holds none.</summary>
+    public string? Text => Formats.FirstOrDefault(f => f.Format == UnicodeTextFormat)?.Data is { } data
+        ? System.Text.Encoding.Unicode.GetString(data).TrimEnd('\0')
+        : null;
 }

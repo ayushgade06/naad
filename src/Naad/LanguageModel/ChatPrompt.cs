@@ -4,7 +4,9 @@ namespace Naad.LanguageModel;
 /// <param name="Instructions">What the model is told to do: the system message.</param>
 /// <param name="Text">The text to work on, such as a transcript: user content, never logged.</param>
 /// <param name="MaxTokens">The longest reply wanted, in tokens.</param>
-internal sealed record ChatPrompt(string Instructions, string Text, int MaxTokens = ChatPrompt.DefaultMaxTokens)
+/// <param name="Image">A PNG to show the model with the text, for vision models; null for none.</param>
+internal sealed record ChatPrompt(
+    string Instructions, string Text, int MaxTokens = ChatPrompt.DefaultMaxTokens, byte[]? Image = null)
 {
     // A minute of dictation is about 150 words, some 200 tokens; this leaves room for several
     // minutes without letting a model that rambles run on for long.
