@@ -110,6 +110,10 @@ internal sealed class TextInserter(
     /// <summary>Whether Shift, Ctrl, Alt or Windows is physically held.</summary>
     public static bool AnyModifierDown() => Modifiers.Any(IsDown);
 
+    /// <summary>The modifiers held now, by side, such as Right Ctrl.</summary>
+    public static IReadOnlyList<System.Windows.Forms.Keys> ModifiersDown() =>
+        [.. HeldModifiers.All.Where(key => IsDown((ushort)key))];
+
     /// <summary>
     /// Sends Ctrl+V to the foreground window. Returns false if Windows rejected the input.
     /// Input blocked by UIPI (an elevated target window) still reports success; see P15.

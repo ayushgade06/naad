@@ -22,10 +22,13 @@ internal enum TypingResult
 /// </summary>
 internal static class UnicodeTyping
 {
-    /// <summary>Sends the text to the focused window in one SendInput call.</summary>
-    public static TypingResult Type(string text)
+    /// <summary>
+    /// Sends the text to the focused window in one SendInput call, after releasing
+    /// <paramref name="lift"/>; see <see cref="Build"/>.
+    /// </summary>
+    public static TypingResult Type(string text, IReadOnlyList<System.Windows.Forms.Keys>? lift = null)
     {
-        var inputs = Build(text);
+        var inputs = Build(text, lift);
         if (inputs.Length == 0)
         {
             return TypingResult.Typed;
@@ -42,9 +45,17 @@ internal static class UnicodeTyping
     /// (an emoji) is two code units, sent back to back, which apps combine. Line breaks become
     /// Enter, since a Unicode "\n" isn't a key press most apps act on; "\r\n" is one Enter.
     /// </summary>
-    public static User32.Input[] Build(string text)
+    /// <param name="text">What to type.</param>
+    /// <param name="lift">Held keys to release first, in the same call, so a held Ctrl doesn't make
+    /// the letters shortcuts. They aren't pressed again: the user's own release comes later.</param>
+    public static User32.Input[] Build(string text, IReadOnlyList<System.Windows.Forms.Keys>? lift = null)
     {
-        var inputs = new List<User32.Input>(text.Length * 2);
+        var inputs = new List<User32.Input>((text.Length * 2) + (lift?.Count ?? 0));
+        foreach (var key in lift ?? [])
+        {
+            inputs.Add(Key((ushort)key, '\0', up: true));
+        }
+
         for (var i = 0; i < text.Length; i++)
         {
             var c = text[i];
@@ -77,7 +88,11 @@ internal static class UnicodeTyping
             {
                 Vk = vk,
                 Scan = unit,
-                Flags = (vk == 0 ? User32.KeyEventFUnicode : 0) | (up ? User32.KeyEventFKeyUp : 0),
+                Flags = (vk == 0 ? User32.KeyEventFUnicode : 0) | (up ? User32.KeyEventFKeyUp : 0)
+
+                    // Without it, Windows takes an injected Right Ctrl or Right Shift for the left one,
+                    // and the right one would stay held.
+                    | (vk is (ushort)System.Windows.Forms.Keys.RControlKey ? User32.KeyEventFExtendedKey : 0),
 
                 // Marks the keys as Naad's own, so the keyboard hook skips them.
                 ExtraInfo = KeyboardHook.OwnInputMarker,

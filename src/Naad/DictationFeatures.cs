@@ -66,6 +66,7 @@ internal static class DictationFeatures
 
         controller.MicrophoneOpened += overlay.ShowMicrophoneOpen;
         controller.CleaningUp += overlay.ShowCleaningUp;
+        controller.Cancelled += () => overlay.ShowNotice("Cancelled");
         controller.EditFailed += needsSelection =>
         {
             overlay.ShowNotice(needsSelection ? "Select text first" : "Edit failed");
@@ -95,11 +96,7 @@ internal static class DictationFeatures
             TimeProvider.System);
         controller.Finished += history.Record;
         tray.AddHistoryItems(
-            () => history.Records
-                .Where(r => r.Outcome != HistoryOutcome.Failed)
-                .Select(r => r.Text)
-                .Take(10)
-                .ToList(),
+            () => HistoryRecorder.RecentTexts(history.Records, TrayIcon.HistoryItems),
             controller.CopyAsync,
             async () =>
             {
@@ -160,7 +157,14 @@ internal static class DictationFeatures
             Live.LiveTyper? typer = null;
             if (s.LiveTyping)
             {
-                typer = new(target, FocusGuard.Check, TextInserter.AnyModifierDown, UnicodeTyping.Type);
+                // Typed while the shortcut is held, with its Ctrl or Shift let go first; any other
+                // key held makes typing wait.
+                var shortcut = s.DictationShortcut;
+                typer = new(
+                    target,
+                    FocusGuard.Check,
+                    () => HeldModifiers.BlockTyping(TextInserter.ModifiersDown(), shortcut),
+                    text => UnicodeTyping.Type(text, HeldModifiers.ToLift(TextInserter.ModifiersDown(), shortcut)));
                 session.StableChanged += stable => ui.Post(_ => typer.Update(stable), null);
             }
 

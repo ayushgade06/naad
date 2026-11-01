@@ -17,6 +17,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
 
     private readonly Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> _download;
     private readonly Func<string?, string, CancellationToken, Task<PromptTest>> _testPrompt;
+    private readonly Func<string?, string, CancellationToken, Task<IReadOnlyList<ModelTest>>> _testModels;
     private readonly CancellationToken _closing;
     private readonly CloudServiceFields _cloud;
 
@@ -29,7 +30,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     };
 
     private readonly Button _promptButton = new() { Text = "Edit prompt...", AutoSize = true };
-    private readonly Button _testModelButton = new() { Text = "Test model", AutoSize = true };
+    private readonly Button _testModelButton = new() { Text = "Test models", AutoSize = true };
     private readonly Label _testModelResult = Note("");
     private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
     private readonly ComboBox _localModel = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
@@ -72,6 +73,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     /// <param name="download">Downloads a model file, reporting progress.</param>
     /// <param name="testKey">Checks a service's key.</param>
     /// <param name="testPrompt">Sends instructions (null for the default) and a sample to the saved model.</param>
+    /// <param name="testModels">Sends them to each saved model in turn.</param>
     /// <param name="cooldownFor">A cloud model's running rate limit, if any.</param>
     /// <param name="closing">Cancelled when the window closes.</param>
     public LanguageModelPanel(
@@ -80,10 +82,12 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> download,
         Func<CloudService, string?, Uri, CancellationToken, Task<KeyTestResult>> testKey,
         Func<string?, string, CancellationToken, Task<PromptTest>> testPrompt,
+        Func<string?, string, CancellationToken, Task<IReadOnlyList<ModelTest>>> testModels,
         Func<string, Cooldown?> cooldownFor,
         CancellationToken closing)
     {
         _testPrompt = testPrompt;
+        _testModels = testModels;
         _customPrompt = current.CleanupPrompt;
         _promptVersion = current.CleanupPromptVersion;
         _download = download;
@@ -217,11 +221,12 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
     private async Task TestModelAsync()
     {
         _testModelButton.Enabled = false;
-        _testModelResult.Text = "Waiting for the model (uses the saved AI settings)...";
+        _testModelResult.Text = "Waiting for the models (uses the saved AI settings)...";
         try
         {
-            var result = await _testPrompt(_customPrompt, CleanupPromptDialog.Sample, _closing);
-            _testModelResult.Text = SettingsInput.PromptTestMessage(result);
+            var results = await _testModels(_customPrompt, CleanupPromptDialog.Sample, _closing);
+            _testModelResult.Text = string.Join(
+                "\n", results.Select(r => $"{r.Model}: {SettingsInput.PromptTestMessage(r.Result)}"));
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
         {

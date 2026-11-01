@@ -1,3 +1,4 @@
+using System.Globalization;
 using Naad.Context;
 using Naad.LanguageModel;
 
@@ -52,13 +53,16 @@ internal static class CleanupPrompt
     /// <param name="transcript">What was said: user content, never logged.</param>
     /// <param name="context">What was read from the app, as spelling hints only; null for none.</param>
     /// <param name="screenSummary">A context model's account of the app's window, or null.</param>
+    /// <param name="spokenLanguage">The language set for dictation, as a code such as "de", or null when it
+    /// is detected.</param>
     public static ChatPrompt Clean(
         string? customInstructions,
         string? vocabulary,
         string? outputLanguage,
         string transcript,
         DictationContext? context = null,
-        string? screenSummary = null)
+        string? screenSummary = null,
+        string? spokenLanguage = null)
     {
         var instructions = string.IsNullOrWhiteSpace(customInstructions) ? DefaultInstructions : customInstructions;
         if (Terms(vocabulary) is { Length: > 0 } terms)
@@ -69,6 +73,13 @@ internal static class CleanupPrompt
         if (outputLanguage is not null)
         {
             instructions += $"\n\nWrite the result in {outputLanguage}, translating it if it is in another language.";
+        }
+        else if (spokenLanguage is not null && spokenLanguage != "en")
+        {
+            // Told nothing, a model tends to answer in English, which reads as a translation.
+            var name = LanguageName(spokenLanguage);
+            instructions += $"\n\nThe text is mostly in {name}. Write the result in {name}, and keep words or " +
+                "passages in other languages as they were said.";
         }
 
         if (context?.App is not null || context?.NearbyText is not null || screenSummary is not null)
@@ -87,6 +98,20 @@ internal static class CleanupPrompt
         }
 
         return new(instructions, Wrap(transcript));
+    }
+
+    // "de" becomes "German"; a code .NET doesn't know is named as it is.
+    private static string LanguageName(string code)
+    {
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(code);
+            return culture.ThreeLetterISOLanguageName == "ivl" ? code : culture.EnglishName;
+        }
+        catch (CultureNotFoundException)
+        {
+            return code;
+        }
     }
 
     /// <summary>The prompt that rewrites a selection as a spoken instruction asks.</summary>

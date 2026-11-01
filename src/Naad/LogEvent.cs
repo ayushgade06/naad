@@ -116,6 +116,7 @@ internal enum LogEvent
     HistoryExportFailed,
     HistoryActionFailed,
     ContextReadSkipped,
+    ContextReadFailed,
     SelectionRead,
     EditFailed,
     EditNeedsSelection,

@@ -7,6 +7,7 @@ public sealed class UnicodeTypingTests
 {
     private const uint Unicode = 0x0004;
     private const uint KeyUp = 0x0002;
+    private const uint Extended = 0x0001;
     private const ushort Return = 0x0D;
 
     [Fact]
@@ -61,7 +62,17 @@ public sealed class UnicodeTypingTests
             UnicodeTyping.Build("a\nb"),
             input => Assert.Equal(KeyboardHook.OwnInputMarker, input.Union.Keyboard.ExtraInfo));
 
-    private static List<(ushort Vk, char Scan, uint Flags)> Keys(string text) =>
-        [.. UnicodeTyping.Build(text).Select(
+    [Fact]
+    public void Build_HeldShortcut_LiftsItBeforeTheText()
+    {
+        // Typed with Right Ctrl down, "a" would arrive as Ctrl+A.
+        var keys = Keys("a", [System.Windows.Forms.Keys.RControlKey]);
+
+        Assert.Equal([(0xA3, '\0', KeyUp | Extended), (0, 'a', Unicode), (0, 'a', Unicode | KeyUp)], keys);
+    }
+
+    private static List<(ushort Vk, char Scan, uint Flags)> Keys(
+        string text, IReadOnlyList<System.Windows.Forms.Keys>? lift = null) =>
+        [.. UnicodeTyping.Build(text, lift ?? []).Select(
             i => (i.Union.Keyboard.Vk, (char)i.Union.Keyboard.Scan, i.Union.Keyboard.Flags))];
 }

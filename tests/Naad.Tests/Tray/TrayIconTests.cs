@@ -138,4 +138,11 @@ public sealed class TrayIconTests
         Assert.Equal(idle, TrayIcon.Tooltip(Chord.RightCtrl, handsFree));
         Assert.Equal(recording, TrayIcon.RecordingTooltip(Chord.RightCtrl, handsFree));
     }
+
+    [Theory]
+    [InlineData(1, false, true)]
+    [InlineData(0, true, true)]
+    [InlineData(0, false, false)]
+    public void CanCopyLast_HistoryOrKept_GreyOnlyWhenBothEmpty(int records, bool kept, bool expected) =>
+        Assert.Equal(expected, TrayIcon.CanCopyLast([.. Enumerable.Repeat("synthetic", records)], kept));
 }

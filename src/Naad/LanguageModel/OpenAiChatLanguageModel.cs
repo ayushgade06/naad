@@ -75,7 +75,7 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
         // One budget covers every attempt, so a retry never makes the user wait longer.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_timeout);
-        var withTemperature = !_temperature.IsRefused(_baseUrl, _model);
+        var withTemperature = !ModelOptions.OmitsTemperature(_model) && !_temperature.IsRefused(_baseUrl, _model);
         for (var attempt = 1; ; attempt++)
         {
             try
@@ -145,7 +145,7 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
                 new JsonObject { ["role"] = "system", ["content"] = prompt.Instructions },
                 new JsonObject { ["role"] = "user", ["content"] = UserContent(prompt) }),
             [ModelOptions.UsesMaxCompletionTokens(_model) ? "max_completion_tokens" : "max_tokens"] =
-                prompt.MaxTokens,
+                ModelOptions.MaxTokens(_model, prompt.MaxTokens),
             ["stream"] = false,
         };
 
@@ -158,6 +158,11 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
         if (ModelOptions.ReasoningEffort(_model) is { } effort)
         {
             body["reasoning_effort"] = effort;
+        }
+
+        if (ModelOptions.SendsIncludeReasoning(_baseUrl, _model))
+        {
+            body["include_reasoning"] = false;
         }
 
         // Disposing the request disposes the content.
@@ -181,20 +186,31 @@ internal sealed class OpenAiChatLanguageModel : ILanguageModel
                 ["image_url"] = new JsonObject { ["url"] = "data:image/png;base64," + Convert.ToBase64String(png) },
             });
 
-    // OpenAI's shape: { "error": { "param": "temperature", ... } }. Only that field is read; the
-    // message may quote the request.
+    // OpenAI's shape: { "error": { "param": "temperature", ... } }; Anthropic's has no param, only
+    // { "type": "error", "error": { "type": "invalid_request_error", "message": "temperature: ..." } }.
+    // The message may quote the request: it is only searched for the word, never kept or logged.
     private static async Task<bool> RefusesTemperatureAsync(HttpResponseMessage response, CancellationToken token)
     {
         try
         {
             await using var body = await response.Content.ReadAsStreamAsync(token);
             using var json = await JsonDocument.ParseAsync(body, cancellationToken: token);
-            return json.RootElement.ValueKind == JsonValueKind.Object
-                && json.RootElement.TryGetProperty("error", out var error)
-                && error.ValueKind == JsonValueKind.Object
-                && error.TryGetProperty("param", out var param)
-                && param.ValueKind == JsonValueKind.String
-                && param.GetString() == "temperature";
+            if (json.RootElement.ValueKind != JsonValueKind.Object
+                || !json.RootElement.TryGetProperty("error", out var error)
+                || error.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            if (error.TryGetProperty("param", out var param) && param.ValueKind == JsonValueKind.String)
+            {
+                return param.GetString() == "temperature";
+            }
+
+            return error.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
+                && type.GetString() == "invalid_request_error"
+                && error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String
+                && message.GetString()!.Contains("temperature", StringComparison.OrdinalIgnoreCase);
         }
         catch (JsonException)
         {

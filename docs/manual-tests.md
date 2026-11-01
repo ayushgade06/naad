@@ -1054,7 +1054,7 @@ Deepgram key is needed.
 | M-LY2 | Focus change | During a hands-free dictation, click another window after the first sentence is typed, then stop. | Typing stops; a notification says live typing stopped early; **Copy last transcript** gives the full text. Nothing is typed into the second window. | **No.** Unit tested. |
 | M-LY3 | Streaming | Choose **OpenAI realtime** (or **Deepgram streaming**), hold the shortcut and speak for 15 seconds. | With **Preview** ticked, words appear while you speak; the text is typed on release. The log shows `LiveFinished` with a character count only. | **No.** |
 | M-LY4 | Lost connection | Start a streamed dictation, turn Wi-Fi off mid-way, then on again before release; repeat with a wrong key. | The whole text still arrives (the log shows `LiveStreamFailed` and `LiveFellBack`), transcribed by the regular provider. | **No.** The fallback is unit tested offline. |
-| M-LY5 | Held shortcut | With Right Ctrl held (not hands-free), dictate into a browser text box with cleanup on. | Nothing is typed while Ctrl is held, so no shortcut such as Ctrl+A fires; on release the cleaned text is pasted as usual. | **No.** Unit tested. |
+| M-LY5 | Held shortcut | With Right Ctrl held (not hands-free), dictate into a browser text box with cleanup on. | Since P41: each phrase is typed while Ctrl is held, and no shortcut such as Ctrl+A fires; the rest is typed on release. See M-FX1. | **No.** Unit tested. |
 
 **Status after P36:** M-LY1 to M-LY5 have **not been run** by a person.
 
@@ -1106,6 +1106,18 @@ Deepgram key is needed.
 | M-RL6 | Meeting in progress | During meeting notes, click **Install and restart**. | The window says Naad updates once the meeting is finished; nothing restarts. | **No.** |
 
 **Status after P40:** M-RL1 to M-RL6 have **not been run** by a person.
+
+## Fixes from the code audit (P41): M-FX1 to M-FX5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-FX1 | Live typing while holding Right Ctrl | Tick **Type the words into the app while I speak**; in Notepad, hold Right Ctrl and say three sentences with pauses; repeat in a browser text box and in Slack or Teams with a line break ("new line"). | Each sentence is typed while Ctrl is still held; nothing is selected, deleted or sent (no Ctrl+A, Ctrl+Backspace or Ctrl+Enter); letting go types the rest. Holding Shift as well makes typing wait until it is released. | **No.** The held-key rules and the key-up before the text are unit tested. |
+| M-FX2 | Add snippet, then Save | On **Snippets**, click **Add snippet**, then **Save**; fill in only the trigger and **Save**; fill in both and **Save**. | The new row starts empty; nothing is saved until both fields are filled; dictating the trigger then expands it. | **No.** The row rule is unit tested. |
+| M-FX3 | Copy last transcript after a paste | Dictate into Notepad (it pastes), then open the tray menu. | **Copy last transcript** is enabled and copies that dictation's text; after **Delete all** in History it is greyed out. | **No.** |
+| M-FX4 | Esc during cleanup, then Paste again | With AI cleanup on a slow cloud model, dictate, then press Esc while the overlay says **Cleaning up**; then use **Paste again**. | The overlay says **Cancelled**; nothing is pasted; Paste again pastes this dictation's words as said, not the previous one. | **No.** Unit tested. |
+| M-FX5 | Offline while dictating | With **Cloud** chosen and the model on this PC downloaded, start a dictation, turn Wi-Fi off before letting go, then release. | The text arrives, transcribed on this PC, with the offline notice; without the local model the tray says there is no internet, not that the request timed out. | **No.** The timeout rule and fallbacks are unit tested. |
+
+**Status after P41:** M-FX1 to M-FX5 have **not been run** by a person.
 
 ## v2.0.0: the automated pass, 2026-11-01
 

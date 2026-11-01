@@ -21,6 +21,7 @@ public sealed class OfflineFallbackTests
     [Theory]
     [InlineData("Network")]
     [InlineData("NoInternet")]
+    [InlineData("ConnectionLost")]
     public async Task Transcribe_CloudUnreachable_RetriesOnThisPcWithTheSameAudio(string error)
     {
         var cloud = new Transcriber(new("", new(Enum.Parse<TranscriptionError>(error))));
@@ -77,6 +78,27 @@ public sealed class OfflineFallbackTests
             cloud, () => new Model(new("local")), () => true, () => { });
 
         Assert.Equal("local", (await fallback.CompleteAsync(new("i", "t"), CancellationToken.None)).Text);
+    }
+
+    [Fact]
+    public async Task Complete_TimeoutAfterGoingOffline_UsesThisPc()
+    {
+        var online = new Queue<bool>([true, false]);
+        using var fallback = new OfflineFallbackLanguageModel(
+            new Model(new("", new(CompletionError.Timeout))), () => new Model(new("local")), online.Dequeue, () => { });
+
+        Assert.Equal("local", (await fallback.CompleteAsync(new("i", "t"), CancellationToken.None)).Text);
+    }
+
+    [Fact]
+    public async Task Complete_TimeoutWhileOnline_ReportsIt()
+    {
+        using var fallback = new OfflineFallbackLanguageModel(
+            new Model(new("", new(CompletionError.Timeout))), () => new Model(new("local")), () => true, () => { });
+
+        var result = await fallback.CompleteAsync(new("i", "t"), CancellationToken.None);
+
+        Assert.Equal(CompletionError.Timeout, result.Failure?.Error);
     }
 
     private sealed class Transcriber(TranscriptionResult result) : ITranscriber

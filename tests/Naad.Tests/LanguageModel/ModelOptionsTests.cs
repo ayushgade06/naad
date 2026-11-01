@@ -23,6 +23,8 @@ public sealed class ModelOptionsTests
     [Theory]
     [InlineData("gpt-5-mini", true)]
     [InlineData("o3", true)]
+    [InlineData("openai/gpt-5-mini", true)]
+    [InlineData("openai/o4-mini", true)]
     [InlineData("gpt-4o-mini", false)]
     [InlineData("openai/gpt-oss-20b", false)]
     [InlineData("llama3.2", false)]
@@ -30,4 +32,35 @@ public sealed class ModelOptionsTests
     {
         Assert.Equal(expected, ModelOptions.UsesMaxCompletionTokens(model));
     }
+
+    [Theory]
+    [InlineData("claude-haiku-4-5", false)]
+    [InlineData("o3-mini", true)]
+    [InlineData("gpt-5-nano", true)]
+    [InlineData("openai/gpt-5-mini", true)]
+    [InlineData("gpt-4o-mini", false)]
+    [InlineData("llama-3.1-8b-instant", false)]
+    [InlineData("openai/gpt-oss-20b", false)]
+    public void OmitsTemperature_Model_ForModelsKnownToRefuseIt(string model, bool expected) =>
+        Assert.Equal(expected, ModelOptions.OmitsTemperature(model));
+
+    [Theory]
+    [InlineData("https://api.groq.com/openai/v1", "openai/gpt-oss-20b", true)]
+    [InlineData("https://api.groq.com/openai/v1", "qwen/qwen3-32b", true)]
+    [InlineData("https://openrouter.ai/api/v1", "openai/gpt-oss-120b", true)]
+    [InlineData("https://api.groq.com/openai/v1", "llama-3.1-8b-instant", false)]
+    [InlineData("https://api.cerebras.ai/v1", "gpt-oss-120b", false)]
+    [InlineData("http://localhost:11434/v1", "qwen3:4b", false)]
+    public void SendsIncludeReasoning_ServiceAndModel_OnlyWhereTheServiceTakesIt(
+        string baseUrl, string model, bool expected) =>
+        Assert.Equal(expected, ModelOptions.SendsIncludeReasoning(new(baseUrl), model));
+
+    [Theory]
+    [InlineData("llama-3.1-8b-instant", 1024, 1024)]
+    [InlineData("openai/gpt-oss-20b", 1024, 4096)]
+    [InlineData("o4-mini", 200, 4096)]
+    [InlineData("gpt-5-mini", 2048, 4096)]
+    [InlineData("gpt-5-mini", 8192, 8192)]
+    public void MaxTokens_Model_LeavesReasoningModelsRoomToThink(string model, int wanted, int expected) =>
+        Assert.Equal(expected, ModelOptions.MaxTokens(model, wanted));
 }

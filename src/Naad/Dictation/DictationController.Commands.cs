@@ -14,6 +14,9 @@ internal sealed partial class DictationController
     /// <summary>A press was refused because meeting notes are recording. Raised on the UI thread.</summary>
     public event Action? RefusedWhileBusy;
 
+    /// <summary>Esc cancelled a recording or a transcription in flight. Raised on the UI thread.</summary>
+    public event Action? Cancelled;
+
     /// <summary>
     /// From the tray menu: starts a dictation, or stops the one recording. A click is neither a
     /// press nor a hold, so a held dictation ends with a release. Call on the UI thread.
@@ -87,6 +90,12 @@ internal sealed partial class DictationController
         {
             _jobCancel?.Cancel();
         }
+        else
+        {
+            return;
+        }
+
+        Cancelled?.Invoke();
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using Naad.Settings;
+using Naad.Snippets;
 using Button = System.Windows.Controls.Button;
 using Orientation = System.Windows.Controls.Orientation;
 using TextBox = System.Windows.Controls.TextBox;
@@ -96,7 +97,7 @@ internal static class DictionaryPage
         var items = actions.Snippets.Load().ToList();
         void Save()
         {
-            var valid = items.Where(s => s.Trigger.Trim().Length > 0 && s.Text.Length > 0).ToList();
+            var valid = items.Where(s => s.IsComplete).ToList();
             note.Text = actions.Snippets.Save(valid) ? "Saved." : "The snippets couldn't be saved.";
             actions.SnippetsChanged();
         }
@@ -134,7 +135,7 @@ internal static class DictionaryPage
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         buttons.Children.Add(Button("Add snippet", () =>
         {
-            items.Add(new("trigger phrase", "Text to paste"));
+            items.Add(Snippet.Blank);
             Fill();
         }));
         buttons.Children.Add(Button("Save", Save));

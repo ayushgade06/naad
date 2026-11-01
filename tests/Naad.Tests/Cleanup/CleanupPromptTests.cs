@@ -40,4 +40,30 @@ public sealed class CleanupPromptTests
         Assert.Contains("into Hindi", prompt.Instructions, StringComparison.Ordinal);
         Assert.EndsWith("<<<\nhello\n>>>", prompt.Text, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Clean_SpokenLanguage_KeepsTheResultInIt()
+    {
+        var prompt = CleanupPrompt.Clean(null, null, null, "x", spokenLanguage: "de");
+
+        Assert.Contains("mostly in German", prompt.Instructions, StringComparison.Ordinal);
+        Assert.Contains("Write the result in German", prompt.Instructions, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("en")]
+    public void Clean_EnglishOrDetected_AddsNoLanguage(string? spoken) =>
+        Assert.Equal(
+            CleanupPrompt.DefaultInstructions,
+            CleanupPrompt.Clean(null, null, null, "x", spokenLanguage: spoken).Instructions);
+
+    [Fact]
+    public void Clean_OutputLanguage_WinsOverTheSpokenOne()
+    {
+        var prompt = CleanupPrompt.Clean(null, null, "French", "x", spokenLanguage: "de");
+
+        Assert.Contains("Write the result in French", prompt.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("German", prompt.Instructions, StringComparison.Ordinal);
+    }
 }

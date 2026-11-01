@@ -394,7 +394,16 @@ internal sealed partial class DictationController(
             var thenEnter = false;
             Log.Info(
                 LogEvent.TranscriptionCompleted, ("request_ms", report.TranscribeMilliseconds), ("chars", raw.Length));
-            var context = await contextTask;
+
+            // Paste again has this dictation's words from here on, as said: Esc during cleanup or a
+            // failed edit must never leave the previous dictation's text behind.
+            var previousText = _lastText;
+            if (raw.Length > 0)
+            {
+                _lastText = raw;
+            }
+
+            var context = await ContextOrNoneAsync(contextTask);
 
             // Without a selection to edit, or a model to edit it, the selection stays as it was.
             if (context.NeedsSelection || (context.IsEdit && cleanup is null))
@@ -434,9 +443,10 @@ internal sealed partial class DictationController(
 
             if (text.Length == 0)
             {
-                // Only "press enter" was said.
+                // Only "press enter" was said: a command, not words to paste again.
                 if (thenEnter)
                 {
+                    _lastText = previousText;
                     _delivery.PressEnter(target);
                 }
 
@@ -491,6 +501,20 @@ internal sealed partial class DictationController(
                 ? DictationEvent.Inserted
                 : DictationEvent.TranscriptionFailed;
             Apply(end, step.Job);
+        }
+    }
+
+    // A context read that fails costs the hints, never the transcript.
+    private static async Task<DictationContext> ContextOrNoneAsync(Task<DictationContext> context)
+    {
+        try
+        {
+            return await context;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            Log.Error(LogEvent.ContextReadFailed, e);
+            return DictationContext.None;
         }
     }
 

@@ -18,8 +18,14 @@ internal enum FallbackReason
 /// <param name="OutputLanguage">A language to write the result in, or null to keep the speaker's.</param>
 /// <param name="Guard">Whether to refuse replies that answer the dictation instead of tidying it.</param>
 /// <param name="ContextModel">A cloud model that describes a screenshot of the app, or null.</param>
+/// <param name="SpokenLanguage">The language set for dictation, such as "de", or null when detected.</param>
 internal sealed record CleanupOptions(
-    string? Instructions, string? Vocabulary, string? OutputLanguage, bool Guard, ILanguageModel? ContextModel = null)
+    string? Instructions,
+    string? Vocabulary,
+    string? OutputLanguage,
+    bool Guard,
+    ILanguageModel? ContextModel = null,
+    string? SpokenLanguage = null)
 {
     // The generated ToString would print the instructions and vocabulary.
     public override string ToString() => $"CleanupOptions {{ Guard = {Guard} }}";
@@ -71,7 +77,13 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
         var summary = await DescribeAsync(context, token);
         return await RunAsync(
             CleanupPrompt.Clean(
-                options.Instructions, options.Vocabulary, options.OutputLanguage, basic, context, summary),
+                options.Instructions,
+                options.Vocabulary,
+                options.OutputLanguage,
+                basic,
+                context,
+                summary,
+                options.SpokenLanguage),
             transcript,
             token);
     }

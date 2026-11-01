@@ -60,6 +60,7 @@ public sealed class SettingsWindowTests
             (_, _, _, _) => throw new InvalidOperationException("Not used."),
             (_, _, _) => throw new InvalidOperationException("Not used."),
             (_, _, _) => throw new InvalidOperationException("Not used."),
+            (_, _, _) => throw new InvalidOperationException("Not used."),
             _ => null,
             save,
             () => false,

@@ -23,6 +23,22 @@ public sealed class SnippetStoreTests : IDisposable
     }
 
     [Fact]
+    public void Blank_NewRow_IsEmptyAndNeverSaved()
+    {
+        Assert.Equal(new Snippet("", ""), Snippet.Blank);
+        Assert.False(Snippet.Blank.IsComplete);
+    }
+
+    [Theory]
+    [InlineData("my address", "", false)]
+    [InlineData("", "1 Synthetic Lane", false)]
+    [InlineData("  ", "1 Synthetic Lane", false)]
+    [InlineData("my address", "   ", false)]
+    [InlineData("my address", "1 Synthetic Lane", true)]
+    public void IsComplete_Row_OnlyWithBothTriggerAndText(string trigger, string text, bool complete) =>
+        Assert.Equal(complete, new Snippet(trigger, text).IsComplete);
+
+    [Fact]
     public void Load_MissingOrDamaged_IsEmpty()
     {
         Assert.Empty(new SnippetStore(_path).Load());

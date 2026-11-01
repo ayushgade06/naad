@@ -19,9 +19,60 @@ internal sealed record PromptTest(
     public override string ToString() => $"PromptTest {{ Verdict = {Verdict}, Milliseconds = {Milliseconds} }}";
 }
 
+/// <param name="Model">The model's id, or <see cref="CleanupSetup.LocalModelName"/>.</param>
+/// <param name="Result">What the test found.</param>
+internal sealed record ModelTest(string Model, PromptTest Result);
+
 /// <summary>Builds the language model and the cleanup step from the settings.</summary>
 internal static class CleanupSetup
 {
+    /// <summary>How a test names the model on this PC.</summary>
+    public const string LocalModelName = "Model on this PC";
+
+    /// <summary>
+    /// The models <b>Test models</b> asks, in order: the cloud model and its fallback, each once,
+    /// or the model on this PC.
+    /// </summary>
+    public static IReadOnlyList<string> ModelsToTest(AppSettings s) =>
+        s.LanguageModelProvider != LanguageModelProvider.Cloud
+            ? [LocalModelName]
+            : [.. new[] { s.LanguageModelName, s.LanguageModelFallbackName }
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct()
+                .Cast<string>()];
+
+    /// <summary>
+    /// Sends the sample to each of <see cref="ModelsToTest"/> in turn: <paramref name="model"/> is
+    /// the one in use, and a fallback is built from the saved settings.
+    /// </summary>
+    public static async Task<IReadOnlyList<ModelTest>> TestModelsAsync(
+        ILanguageModel? model,
+        HttpClient http,
+        Func<CloudService, string?> keyFor,
+        AppSettings s,
+        TemperatureSupport temperature,
+        string? instructions,
+        string sample,
+        CancellationToken token)
+    {
+        var results = new List<ModelTest>();
+        foreach (var name in ModelsToTest(s))
+        {
+            var tested = name == LocalModelName || name == s.LanguageModelName
+                ? model
+                : new OpenAiChatLanguageModel(
+                    http,
+                    keyFor(s.LanguageModelService),
+                    CloudServices.For(s.LanguageModelService).BaseUrl ?? s.LanguageModelBaseUrl,
+                    name,
+                    temperature,
+                    TimeSpan.FromSeconds(s.LanguageModelTimeoutSeconds));
+            results.Add(new(name, await TestAsync(tested, s, instructions, sample, token)));
+        }
+
+        return results;
+    }
+
     /// <summary>
     /// Whether the language model must be replaced: its provider, model, service, address or
     /// time limit changed. Replacing a model on this PC unloads it, so nothing else does.
@@ -105,7 +156,7 @@ internal static class CleanupSetup
         // The screenshot goes only to a cloud model the user chose, and only when they opted in.
         var describer = cloud && s.ContextScreenshot ? model : null;
         var options = new CleanupOptions(
-            s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard, describer);
+            s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard, describer, s.Language);
         return new(s.Cleanup, new AiCleanup(models, cooldowns, options), budget, snippets, s.PressEnterCommand);
     }
 
@@ -116,7 +167,8 @@ internal static class CleanupSetup
     public static async Task<PromptTest> TestAsync(
         ILanguageModel? model, AppSettings s, string? instructions, string sample, CancellationToken token)
     {
-        var prompt = CleanupPrompt.Clean(instructions, s.Vocabulary, s.OutputLanguage, sample);
+        var prompt = CleanupPrompt.Clean(
+            instructions, s.Vocabulary, s.OutputLanguage, sample, spokenLanguage: s.Language);
         // Neither a verdict nor a failure: there is no model to ask.
         if (model is null)
         {

@@ -104,7 +104,7 @@ internal sealed class OpenAiCompatibleTranscriber : ITranscriber
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                return new("", new(TranscriptionError.Timeout));
+                return new("", TranscriptionFailure.ForTimeout(Reachability.IsOnline()));
             }
             catch (HttpRequestException e) when (RetryPolicy.ShouldRetry(e.HttpRequestError, attempt))
             {

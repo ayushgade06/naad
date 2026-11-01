@@ -107,6 +107,7 @@ internal sealed partial class SettingsWindow : Form
             actions.DownloadModel,
             actions.TestKey,
             actions.TestPrompt,
+            actions.TestModels,
             actions.CooldownFor,
             _closing.Token);
         Controls.Add(BuildLayout());
@@ -314,13 +315,41 @@ internal sealed partial class SettingsWindow : Form
             }
         }
 
-        _error.Text = newKeys.Count > 0 ? "Checking the new key..." : "";
+        // A custom endpoint that is new or moved is checked even without a key: a wrong address would
+        // otherwise only fail at the next dictation. Its new key is checked with it.
+        var endpoints = new List<CloudChoice>();
+        foreach (var (choice, service, url) in new[]
+        {
+            (transcription, _current.TranscriptionService, _current.TranscriptionBaseUrl),
+            (languageModel, _current.LanguageModelService, _current.LanguageModelBaseUrl),
+        })
+        {
+            if (choice.Service == CloudService.Custom
+                && (service != CloudService.Custom || choice.CustomUrl != url || choice.NewKey is not null)
+                && !endpoints.Any(e => e.CustomUrl == choice.CustomUrl))
+            {
+                endpoints.Add(choice);
+            }
+        }
+
+        _error.Text = newKeys.Count > 0 ? "Checking the new key..."
+            : endpoints.Count > 0 ? "Checking the address..."
+            : "";
         _saveButton.Enabled = false;
         try
         {
-            foreach (var (service, key) in newKeys)
+            foreach (var (service, key) in newKeys.Where(k => k.Key != CloudService.Custom))
             {
                 if (await RejectsAsync(service, key, settings) is { } rejected)
+                {
+                    _error.Text = rejected;
+                    return;
+                }
+            }
+
+            foreach (var endpoint in endpoints)
+            {
+                if (await EndpointRejectsAsync(endpoint) is { } rejected)
                 {
                     _error.Text = rejected;
                     return;
@@ -373,6 +402,20 @@ internal sealed partial class SettingsWindow : Form
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
         {
             return "Settings closed before the key was checked.";
+        }
+    }
+
+    private async Task<string?> EndpointRejectsAsync(CloudChoice endpoint)
+    {
+        var key = endpoint.NewKey ?? _actions.KeyFor(CloudService.Custom).Key;
+        try
+        {
+            return SettingsInput.EndpointSaveError(
+                await _actions.TestKey(CloudService.Custom, key, endpoint.CustomUrl, _closing.Token));
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            return "Settings closed before the address was checked.";
         }
     }
 

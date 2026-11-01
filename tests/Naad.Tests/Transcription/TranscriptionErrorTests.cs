@@ -24,4 +24,11 @@ public sealed class TranscriptionErrorTests
         Assert.Equal(expected, failure.Error.ToString());
         Assert.Equal(status, failure.Code);
     }
+
+    [Theory]
+    [InlineData(true, "Timeout")]
+    [InlineData(false, "NoInternet")]
+    public void ForTimeout_Reachability_SaysNoInternetOnlyWhenOffline(bool online, string expected) =>
+        // A request hung by a dropped Wi-Fi looks like a slow server; reachability tells them apart.
+        Assert.Equal(Enum.Parse<TranscriptionError>(expected), TranscriptionFailure.ForTimeout(online).Error);
 }

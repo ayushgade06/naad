@@ -24,7 +24,10 @@ internal sealed class OfflineFallbackLanguageModel(
         }
 
         var result = await cloud.CompleteAsync(prompt, cancellationToken);
-        if (result.Failure?.Error is CompletionError.Network && Local() is { } fallback)
+        // A timeout is the connection's fault only if the PC went offline meanwhile.
+        if ((result.Failure?.Error is CompletionError.Network
+                || (result.Failure?.Error is CompletionError.Timeout && !isOnline()))
+            && Local() is { } fallback)
         {
             fellBack();
             return await fallback.CompleteAsync(prompt, cancellationToken);

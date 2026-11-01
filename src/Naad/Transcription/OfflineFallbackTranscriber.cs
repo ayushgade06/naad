@@ -26,6 +26,7 @@ internal sealed class OfflineFallbackTranscriber(
 
         var result = await cloud.TranscribeAsync(wav, cancellationToken);
         if (result.Failure?.Error is TranscriptionError.Network or TranscriptionError.NoInternet
+                or TranscriptionError.ConnectionLost
             && Local() is { } fallback)
         {
             fellBack();

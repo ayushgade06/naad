@@ -97,6 +97,29 @@ All notable changes to Naad are listed here. The format follows
 - The overlay shows **Cleaning up** while the language model works, and
   **Starting** until the microphone is open.
 - The vocabulary becomes a list of words. Settings version 4.
+- **Test models** on the **AI** tab tests the model and its fallback. A
+  custom base URL is checked when it is saved, even without a key.
+- With a dictation language set, AI cleanup is told the text is in it.
+
+### Fixed
+
+- Live typing types while the shortcut is held: the shortcut's Ctrl or
+  Shift is let go for the app first, so the letters never become
+  shortcuts. It used to wait until you let go.
+- **Add snippet** adds an empty row, and a half-filled row is never saved;
+  it used to save a "trigger phrase" placeholder.
+- OpenAI reasoning models are sent no temperature, and a refusal in
+  Anthropic's error format is recognised as well as OpenAI's. Reasoning models get room to
+  think, and on Groq and OpenRouter don't send their reasoning back.
+- **Copy last transcript** copies the newest dictation in the history and is
+  enabled whenever there is one, not only after a paste failed.
+- **Paste again** after Esc during cleanup, or after a failed edit, pastes
+  that dictation's words, never the previous one's.
+- A request that times out because the PC went offline says there is no
+  internet and falls back to this PC, as does a dropped connection.
+- Esc says **Cancelled** on the overlay. A context read that fails no
+  longer loses the dictation, and tray notifications show even when the
+  icon is hidden.
 
 ## [1.0.0] - 2026-10-31
 

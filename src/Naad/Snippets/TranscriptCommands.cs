@@ -7,6 +7,12 @@ namespace Naad.Snippets;
 /// <param name="Text">What is pasted instead.</param>
 internal sealed record Snippet(string Trigger, string Text)
 {
+    /// <summary>A new row, empty until the user fills it in.</summary>
+    public static Snippet Blank { get; } = new("", "");
+
+    /// <summary>Both a trigger and a text are filled in; anything less is never saved.</summary>
+    public bool IsComplete => !string.IsNullOrWhiteSpace(Trigger) && !string.IsNullOrWhiteSpace(Text);
+
     // The generated ToString would print the text.
     public override string ToString() => $"Snippet {{ TriggerChars = {Trigger.Length}, TextChars = {Text.Length} }}";
 }

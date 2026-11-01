@@ -63,7 +63,7 @@ internal sealed partial class TrayIcon : IDisposable
     // Short enough for a menu, long enough to recognise a dictation.
     private const int PasteAgainPreview = 35;
     private const int HistoryPreview = 48;
-    private const int HistoryItems = 10;
+    public const int HistoryItems = 10;
 
     private readonly Icon _image = LoadIcon();
     private readonly Icon _recordingImage;
@@ -82,9 +82,15 @@ internal sealed partial class TrayIcon : IDisposable
     private bool _wantVisible = true;
     private Font? _boldFont;
 
+    // Copy last transcript copies the newest dictation in the history, or else the kept transcript.
+    private Func<string, Task<bool>>? _copyText;
+    private string? _latest;
+    private bool _hasKept;
+
     /// <param name="shortcut">Named in the tooltip.</param>
     /// <param name="handsFree">Whether the shortcut is pressed to start and stop, rather than held.</param>
-    /// <param name="copyLastTranscript">Copies the kept transcript; false if it couldn't.</param>
+    /// <param name="copyLastTranscript">Copies the kept transcript, when the history has none; false if
+    /// it couldn't.</param>
     /// <param name="openSettings">Opens the settings window.</param>
     /// <param name="exit">Ends the app.</param>
     public TrayIcon(
@@ -96,7 +102,8 @@ internal sealed partial class TrayIcon : IDisposable
         _recordingTooltip = RecordingTooltip(shortcut, handsFree);
         _recordingImage = WithDot(_image, RecordingColor);
         _transcribingImage = WithDot(_image, TranscribingColor);
-        _copyLastTranscript = new ToolStripMenuItem(CopyLastTranscriptText, null, (_, _) => _ = CopyAsync())
+        _copyLastTranscript = new ToolStripMenuItem(
+            CopyLastTranscriptText, null, (_, _) => _ = CopyAsync(_latest is { } text ? () => _copyText!(text) : _copy))
         {
             Enabled = false,
         };
@@ -131,9 +138,11 @@ internal sealed partial class TrayIcon : IDisposable
     /// </summary>
     public void ShowMicrophoneError(MicrophoneError error)
     {
-        _notificationClicked = error == MicrophoneError.Blocked ? OpenPrivacySettings : null;
-        _icon.ShowBalloonTip(
-            NotificationMilliseconds, MicrophoneErrorTitle, MicrophoneErrorMessage(error), ToolTipIcon.Warning);
+        Notify(
+            MicrophoneErrorTitle,
+            MicrophoneErrorMessage(error),
+            ToolTipIcon.Warning,
+            error == MicrophoneError.Blocked ? OpenPrivacySettings : null);
     }
 
     /// <summary>Names a new shortcut, or way of using it, in the tooltip. Call while idle.</summary>
@@ -202,6 +211,7 @@ internal sealed partial class TrayIcon : IDisposable
     public void AddHistoryItems(
         Func<IReadOnlyList<string>> recent, Func<string, Task<bool>> copy, Func<Task> pasteAgain, Action addCopiedWords)
     {
+        _copyText = copy;
         var again = new ToolStripMenuItem("Paste again");
         again.Click += (_, _) => _ = pasteAgain();
         var history = new ToolStripMenuItem("History");
@@ -209,6 +219,8 @@ internal sealed partial class TrayIcon : IDisposable
         _menu.Opening += (_, _) =>
         {
             var texts = recent();
+            _latest = texts.Count > 0 ? texts[0] : null;
+            _copyLastTranscript.Enabled = CanCopyLast(texts, _hasKept);
             again.Enabled = texts.Count > 0;
             again.Text = texts.Count > 0 ? $"Paste again: “{Preview(texts[0], PasteAgainPreview)}”" : "Paste again";
             history.DropDownItems.Clear();
@@ -229,6 +241,12 @@ internal sealed partial class TrayIcon : IDisposable
         _menu.Items.Insert(at + 2, new ToolStripMenuItem("Add copied words to dictionary", null, (_,
             _) => addCopiedWords()));
     }
+
+    /// <summary>
+    /// Whether Copy last transcript has anything to copy: a dictation in the history, or a
+    /// transcript kept when it couldn't be pasted (with the history off, say).
+    /// </summary>
+    public static bool CanCopyLast(IReadOnlyList<string> recent, bool hasKept) => recent.Count > 0 || hasKept;
 
     /// <summary>Says how many words went into the dictionary, or why none did.</summary>
     public void ShowWordsAdded(int added) => Notify(
@@ -317,10 +335,9 @@ internal sealed partial class TrayIcon : IDisposable
     /// </summary>
     public void ShowTranscriptKept(TranscriptKeptReason reason)
     {
+        _hasKept = true;
         _copyLastTranscript.Enabled = true;
-        _notificationClicked = () => _ = CopyAsync();
-        _icon.ShowBalloonTip(
-            NotificationMilliseconds, TranscriptKeptTitle, TranscriptKeptMessage(reason), ToolTipIcon.Info);
+        Notify(TranscriptKeptTitle, TranscriptKeptMessage(reason), ToolTipIcon.Info, () => _ = CopyAsync(_copy));
     }
 
     // Draws a coloured dot with a white ring in the bottom-right quarter of the icon.
@@ -365,15 +382,13 @@ internal sealed partial class TrayIcon : IDisposable
         Process.Start(new ProcessStartInfo(MicrophonePrivacySettings) { UseShellExecute = true })?.Dispose();
 
     // Fire-and-forget from a click: anything not caught here would vanish silently.
-    private async Task CopyAsync()
+    private async Task CopyAsync(Func<Task<bool>> copy)
     {
         try
         {
-            if (!await _copy())
+            if (!await copy())
             {
-                _notificationClicked = null;
-                _icon.ShowBalloonTip(
-                    NotificationMilliseconds, TranscriptKeptTitle, CopyFailedMessage, ToolTipIcon.Warning);
+                Notify(TranscriptKeptTitle, CopyFailedMessage, ToolTipIcon.Warning, clicked: null);
             }
         }
         catch (Exception e)

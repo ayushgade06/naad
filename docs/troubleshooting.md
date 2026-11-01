@@ -109,9 +109,11 @@ while another app holds the clipboard; dictate again once it lets go.
   on a graphics card, and starts from the second dictation after Naad
   starts or settings are saved. With OpenAI or Deepgram chosen, that
   service's key must be set; without it, Naad transcribes as usual.
-- **Live typing typed nothing until I let go.** While a key of the shortcut
-  is held, nothing is typed (an app could read the letters as shortcuts);
-  use hands-free mode to type as you speak.
+- **Live typing typed nothing until I let go.** Typing waits while a
+  modifier other than the shortcut's is held, such as Shift with a Right
+  Ctrl shortcut, and for the whole of an Alt or Windows shortcut, since
+  letting go of those alone opens a menu. Use a Ctrl or Shift shortcut, or
+  hands-free mode, to type as you speak.
 - **"Live typing stopped early".** You switched windows or the service
   revised words already typed. The full text is kept: **Copy last
   transcript**.

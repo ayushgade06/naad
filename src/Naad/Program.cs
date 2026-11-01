@@ -209,7 +209,7 @@ internal static class Program
             using var hook = new KeyboardHook(settings.DictationShortcut);
             using var clipboard = new WindowsClipboard();
             var inserter = new TextInserter(
-                clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, UnicodeTyping.Type);
+                clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, text => UnicodeTyping.Type(text));
             using var controller = new DictationController(
                 recorder,
                 transcriber = TranscriberSetup.Create(http, KeyFor, settings, Offline),
@@ -382,6 +382,8 @@ internal static class Program
                 },
                 (instructions, sample, token) =>
                     CleanupSetup.TestAsync(languageModel, settings, instructions, sample, token),
+                (instructions, sample, token) => CleanupSetup.TestModelsAsync(
+                    languageModel, http, KeyFor, settings, temperature, instructions, sample, token),
                 cooldowns.For,
                 Save,
                 BeginCapture: () =>

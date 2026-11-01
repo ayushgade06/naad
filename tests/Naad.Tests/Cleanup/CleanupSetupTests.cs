@@ -99,4 +99,80 @@ public sealed class CleanupSetupTests : IDisposable
         public Task<CompletionResult> CompleteAsync(ChatPrompt prompt, CancellationToken cancellationToken) =>
             Task.FromResult(new CompletionResult(text));
     }
+
+    [Fact]
+    public void ModelsToTest_CloudWithFallback_TestsBoth()
+    {
+        var s = AppSettings.Defaults with
+        {
+            LanguageModelProvider = LanguageModelProvider.Cloud,
+            LanguageModelName = "synthetic-main",
+            LanguageModelFallbackName = "synthetic-fallback",
+        };
+
+        Assert.Equal(["synthetic-main", "synthetic-fallback"], CleanupSetup.ModelsToTest(s));
+    }
+
+    [Fact]
+    public void ModelsToTest_FallbackSameAsMain_TestsItOnce()
+    {
+        var s = AppSettings.Defaults with
+        {
+            LanguageModelProvider = LanguageModelProvider.Cloud,
+            LanguageModelName = "synthetic-main",
+            LanguageModelFallbackName = "synthetic-main",
+        };
+
+        Assert.Equal(["synthetic-main"], CleanupSetup.ModelsToTest(s));
+    }
+
+    [Fact]
+    public void ModelsToTest_OnThisPc_TestsTheLocalModelOnly()
+    {
+        var s = AppSettings.Defaults with
+        {
+            LanguageModelProvider = LanguageModelProvider.Local,
+            LanguageModelFallbackName = "synthetic-fallback",
+        };
+
+        Assert.Equal([CleanupSetup.LocalModelName], CleanupSetup.ModelsToTest(s));
+    }
+
+    [Fact]
+    public async Task TestModelsAsync_CloudWithFallback_AsksTheFallbackByName()
+    {
+        var models = new List<string>();
+        using var http = new HttpClient(new ModelEcho(models));
+        var s = AppSettings.Defaults with
+        {
+            LanguageModelProvider = LanguageModelProvider.Cloud,
+            LanguageModelName = "synthetic-main",
+            LanguageModelFallbackName = "synthetic-fallback",
+        };
+        var main = new OpenAiChatLanguageModel(http, FakeKey, s.LanguageModelBaseUrl, "synthetic-main", Temperature());
+
+        var results = await CleanupSetup.TestModelsAsync(
+            main, http, _ => FakeKey, s, Temperature(), null, "synthetic sample", CancellationToken.None);
+
+        Assert.Equal(["synthetic-main", "synthetic-fallback"], results.Select(r => r.Model));
+        Assert.Equal(["synthetic-main", "synthetic-fallback"], models);
+        Assert.All(results, r => Assert.Null(r.Result.Failure));
+    }
+
+    // Answers every chat request with the sample tidied, and notes which model it was for.
+    private sealed class ModelEcho(List<string> models) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            using var body = System.Text.Json.JsonDocument.Parse(
+                await request.Content!.ReadAsStringAsync(cancellationToken));
+            models.Add(body.RootElement.GetProperty("model").GetString()!);
+            return new(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """{ "choices": [ { "message": { "content": "Synthetic sample." } } ] }"""),
+            };
+        }
+    }
 }

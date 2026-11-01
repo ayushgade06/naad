@@ -69,6 +69,21 @@ internal static class SettingsInput
             "the text would be pasted as said.",
     };
 
+    /// <summary>
+    /// Why a custom endpoint can't be saved, or null to save it. Only a definite answer blocks the
+    /// save: a rejected key, or an address that isn't an OpenAI-compatible API. One that can't be
+    /// reached now may work later, and one that can't list models may still transcribe.
+    /// </summary>
+    public static string? EndpointSaveError(KeyTestResult result) => result.Failure?.Error switch
+    {
+        TranscriptionError.Unauthorized => "The custom endpoint rejected the key, so nothing was saved.",
+        TranscriptionError.Rejected or TranscriptionError.MalformedResponse =>
+            "The custom endpoint didn't answer like an OpenAI-compatible API" +
+            (result.Failure.Value.Code > 0 ? $" (HTTP {result.Failure.Value.Code})" : "") +
+            ". Check the address; nothing was saved.",
+        _ => null,
+    };
+
     /// <summary>A failed request to the language model, in a sentence.</summary>
     public static string CompletionMessage(CompletionFailure failure) => failure.Error switch
     {

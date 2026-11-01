@@ -6,18 +6,19 @@ namespace Naad.Live;
 /// Types a dictation into its window while the user speaks, one finished phrase at a time. Only
 /// text the transcriber won't revise is typed, and only ever appended: if the transcriber changes
 /// words already typed, or focus leaves the window, typing stops for the rest of the dictation
-/// and the full text is kept instead, so no words are lost. While a key is held (a modifier
-/// shortcut such as Right Ctrl), typing waits: an app could read the typed letters as shortcuts.
-/// Use on the UI thread. The text is user content: it is typed, never logged.
+/// and the full text is kept instead, so no words are lost. Typing goes on while the dictation
+/// shortcut is held, but waits while any other modifier is: an app could read the typed letters
+/// as shortcuts. Use on the UI thread. The text is user content: it is typed, never logged.
 /// </summary>
 /// <param name="target">The window being dictated into.</param>
 /// <param name="check">Whether that window may receive text now.</param>
-/// <param name="anyKeyDown">Whether a modifier key is held.</param>
-/// <param name="type">Types text as Naad's own key events, which the keyboard hook skips.</param>
+/// <param name="keysBlockTyping">Whether a held key, other than the shortcut's own, must be let go first.</param>
+/// <param name="type">Types text as Naad's own key events, which the keyboard hook skips, with the
+/// shortcut's held Ctrl or Shift released first.</param>
 internal sealed class LiveTyper(
     WindowTarget target,
     Func<WindowTarget, InsertionDecision> check,
-    Func<bool> anyKeyDown,
+    Func<bool> keysBlockTyping,
     Func<string, TypingResult> type)
 {
     private string _stable = "";
@@ -75,10 +76,10 @@ internal sealed class LiveTyper(
         }
     }
 
-    // Types what is stable but not typed yet, if no key is held and the window is the same.
+    // Types what is stable but not typed yet, if no other key is held and the window is the same.
     private void TypePending()
     {
-        if (Stopped || !_allowed || _stable.Length == Typed.Length || anyKeyDown())
+        if (Stopped || !_allowed || _stable.Length == Typed.Length || keysBlockTyping())
         {
             return;
         }

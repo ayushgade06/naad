@@ -51,7 +51,23 @@ public sealed class OpenAiChatLanguageModelTests : IDisposable
         Assert.Equal("Hello.", result.Text);
         var body = handler.Bodies.Single().RootElement;
         Assert.Equal("minimal", body.GetProperty("reasoning_effort").GetString());
-        Assert.Equal(64, body.GetProperty("max_completion_tokens").GetInt32());
+
+        // Its thinking counts against the limit, so it gets room for both.
+        Assert.Equal(4096, body.GetProperty("max_completion_tokens").GetInt32());
+        Assert.False(body.TryGetProperty("temperature", out _));
+    }
+
+    [Fact]
+    public async Task Complete_ReasoningModelOnGroq_AsksForNoReasoningBack()
+    {
+        using var handler = new FakeHandler(_ => Reply(HttpStatusCode.OK, Choice("Hello.")));
+        using var http = new HttpClient(handler);
+        var model = new OpenAiChatLanguageModel(
+            http, FakeKey, new("https://api.groq.com/openai/v1"), "openai/gpt-oss-20b", Temperature());
+
+        await model.CompleteAsync(Prompt, CancellationToken.None);
+
+        Assert.False(handler.Bodies.Single().RootElement.GetProperty("include_reasoning").GetBoolean());
     }
 
     [Fact]
@@ -115,6 +131,48 @@ public sealed class OpenAiChatLanguageModelTests : IDisposable
         Assert.True(handler.Bodies[0].RootElement.TryGetProperty("temperature", out _));
         Assert.False(handler.Bodies[1].RootElement.TryGetProperty("temperature", out _));
         Assert.True(temperature.IsRefused(BaseUrl, "m"));
+    }
+
+    [Fact]
+    public async Task Complete_TemperatureRefusedInAnthropicsShape_SendsAgainWithoutIt()
+    {
+        var calls = 0;
+        using var handler = new FakeHandler(_ => ++calls == 1
+            ? Reply(
+                HttpStatusCode.BadRequest,
+                """
+                { "type": "error", "error": { "type": "invalid_request_error",
+                  "message": "temperature: may only be set to 1 when thinking is enabled" } }
+                """)
+            : Reply(HttpStatusCode.OK, Choice("Hello.")));
+
+        var result = await Complete(handler);
+
+        Assert.Equal("Hello.", result.Text);
+        Assert.False(handler.Bodies[1].RootElement.TryGetProperty("temperature", out _));
+    }
+
+    [Fact]
+    public async Task Complete_OtherBadRequest_IsNotTakenForARefusedTemperature()
+    {
+        using var handler = new FakeHandler(_ => Reply(
+            HttpStatusCode.BadRequest,
+            """{ "type": "error", "error": { "type": "invalid_request_error", "message": "messages: too long" } }"""));
+
+        var result = await Complete(handler);
+
+        Assert.Equal(CompletionError.Rejected, result.Failure?.Error);
+        Assert.Single(handler.Bodies);
+    }
+
+    [Fact]
+    public async Task Complete_ModelKnownToRefuseTemperature_LeavesItOutFromTheStart()
+    {
+        using var handler = new FakeHandler(_ => Reply(HttpStatusCode.OK, Choice("Hello.")));
+
+        await Complete(handler, model: "o4-mini");
+
+        Assert.False(handler.Bodies.Single().RootElement.TryGetProperty("temperature", out _));
     }
 
     [Fact]

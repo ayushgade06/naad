@@ -42,6 +42,10 @@ internal sealed class HistoryRecorder : IDisposable
     /// </summary>
     public IReadOnlyList<HistoryRecord> Records => _records;
 
+    /// <summary>The newest <paramref name="count"/> texts that went in or were kept, newest first.</summary>
+    public static IReadOnlyList<string> RecentTexts(IEnumerable<HistoryRecord> records, int count) =>
+        [.. records.Where(r => r.Outcome != HistoryOutcome.Failed).Select(r => r.Text).Take(count)];
+
     /// <summary>Stores a finished dictation, unless the history is off. Call on the UI thread.</summary>
     public void Record(DictationReport report)
     {

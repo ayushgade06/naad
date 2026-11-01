@@ -93,7 +93,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
 | `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
 | `livePreview` | `true` or `false` | `false` | Transcribe while you speak and show the words in the overlay, so the text is ready sooner after you let go. With `liveService` `"Local"`, only when Whisper on this PC (`transcriptionProvider` `"Local"`) runs on a graphics card; it starts from the second dictation after Naad starts or settings are saved, once the model is loaded. On the processor alone it does nothing. The words are shown, never saved. |
-| `liveTyping` | `true` or `false` | `false` | Type each finished phrase into the window while you speak. Typed text skips cleanup and snippets, which can't change words already typed. While a key of the shortcut is held (such as Right Ctrl) nothing is typed, since an app could read the letters as shortcuts; if nothing was typed by the time you let go, the text is cleaned up and pasted as usual. In hands-free mode it types as you speak. If you switch windows, or the service revises words already typed, typing stops and the full text is kept for **Copy last transcript** and **Paste again**. Never over a selection (Edit Mode). |
+| `liveTyping` | `true` or `false` | `false` | Type each finished phrase into the window while you speak. Typed text skips cleanup and snippets, which can't change words already typed. It types while you hold the shortcut too: Naad lets go of the shortcut's Ctrl or Shift for the app first, so the letters never become shortcuts such as Ctrl+A. While any other modifier is held, or an Alt or Windows shortcut, typing waits; if nothing was typed by the time you let go, the text is cleaned up and pasted as usual. If you switch windows, or the service revises words already typed, typing stops and the full text is kept for **Copy last transcript** and **Paste again**. Never over a selection (Edit Mode). |
 | `liveService` | `"Local"`, `"OpenAI"` or `"Deepgram"` | `"Local"` | Where live preview and typing transcribe. `"Local"` is Whisper on this PC, phrase by phrase, with a graphics card (see `livePreview`). `"OpenAI"` and `"Deepgram"` stream your voice to that service's realtime API as you speak, using its key (set on the Dictation or AI tab); they need nothing on this PC. If the connection fails, or the service hasn't answered for every word within 8 seconds of the end (13 if it was still connecting), the recording is transcribed by `transcriptionProvider` as usual. |
 | `liveModel` | text or `null` | `null` | The streaming model; `null` uses `gpt-4o-mini-transcribe` (OpenAI) or `nova-3` (Deepgram). It must suit `liveService`; choosing another service on the Live tab clears it. A model the service refuses makes every dictation fall back to the regular upload. |
 | `keepMeetingAudio` | `true` or `false` | `false` | Keep each meeting's recording, encrypted, with its notes. With `false`, each piece of a meeting's audio is dropped as soon as it is transcribed. See [Meeting notes](#meeting-notes). |
@@ -304,9 +304,15 @@ transcript. Settings has an **AI** tab for it.
 - **In the cloud**: choose **Cloud** and a **Cloud service**, then the
   model and, under **New key**, the service's key (see
   [The API keys](#the-api-keys)). A server on this PC, such as Ollama,
-  needs no key. When a model refuses a
-  `temperature`, Naad sends the request again without it and remembers
-  that for a week in `%LOCALAPPDATA%\Naad\temperature-refused.json`.
+  needs no key. A custom base URL is checked when you save it, with or
+  without a key: a wrong address or a rejected key isn't saved, while one
+  that can't be reached right now is. OpenAI's reasoning models are
+  sent no `temperature`; when another model refuses one, in
+  OpenAI's or Anthropic's error format, Naad sends the request again
+  without it and remembers that for a week in
+  `%LOCALAPPDATA%\Naad\temperature-refused.json`. Reasoning models get
+  room to think within the reply limit, and on Groq and OpenRouter are
+  asked not to send their reasoning back.
 
 ## Cleanup
 
@@ -318,8 +324,10 @@ Before Naad pastes a transcript, it tidies it at the level chosen under
   removed, and the text starts with a capital and ends with a full stop.
 - **AI** (the default): the language model removes filler words, false
   starts and self-corrections ("at three, no, four" becomes "at four"),
-  fixes punctuation and spells your vocabulary right. Until a language
-  model is set up (see above), AI tidies like Basic.
+  fixes punctuation and spells your vocabulary right. With a dictation
+  `language` other than English set, it is told the text is in that
+  language and to keep it so. Until a language model is set up (see
+  above), AI tidies like Basic.
 
 The AI step never costs you a dictation. It gets 8 seconds; if it takes
 longer, fails, or gives a reply that looks like a chat answer or is far
@@ -338,8 +346,9 @@ meanwhile.
 **Edit prompt...** shows the instructions the model gets. Change them, or
 **Reset to default**; **Test** sends the sample text to the saved model and
 shows the reply, how long it took and the full prompt. When a newer default
-prompt ships, the dialog says so. **Test model** on the tab does the same
-with the sample text.
+prompt ships, the dialog says so. **Test models** on the tab sends the
+sample text to the model and then to its fallback, and shows each one's
+result.
 
 ## History
 
@@ -362,7 +371,8 @@ the clipboard. Naad 1.1's single vocabulary line is split into words when
 the file migrates to version 4.
 
 **Snippets** are phrases that expand: say the trigger ("my address") and the
-snippet's text is pasted in its place. Triggers match whole words, in any
+snippet's text is pasted in its place. **Add snippet** adds an empty row; a
+row without both a trigger and a text isn't saved. Triggers match whole words, in any
 case. Snippets are stored encrypted in `%LOCALAPPDATA%\Naad\snippets.dpapi`,
 not in settings.json, because they often hold personal details.
 

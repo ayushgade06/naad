@@ -188,4 +188,32 @@ public sealed class SettingsInputTests
         Assert.StartsWith("Daily limit reached for m; it resets at", text, StringComparison.Ordinal);
         Assert.Null(SettingsInput.CooldownMessage("m", null));
     }
+
+    [Theory]
+    [InlineData("Accepted", null, null)]
+    [InlineData("CannotVerify", null, null)]
+    [InlineData("Failed", "Network", null)]
+    [InlineData("Failed", "NoInternet", null)]
+    [InlineData("Failed", "Timeout", null)]
+    [InlineData("Failed", "Unauthorized", "rejected the key")]
+    [InlineData("Failed", "Rejected", "Check the address")]
+    [InlineData("Failed", "ServerError", null)]
+    [InlineData("Failed", "MalformedResponse", "Check the address")]
+    public void EndpointSaveError_Result_BlocksOnlyAWrongAddressOrKey(string outcome, string? error, string? expected)
+    {
+        var result = new Naad.Transcription.KeyTestResult(
+            Enum.Parse<Naad.Transcription.KeyTestOutcome>(outcome),
+            error is null ? null : new(Enum.Parse<Naad.Transcription.TranscriptionError>(error)));
+
+        var message = SettingsInput.EndpointSaveError(result);
+
+        if (expected is null)
+        {
+            Assert.Null(message);
+        }
+        else
+        {
+            Assert.Contains(expected, message, StringComparison.Ordinal);
+        }
+    }
 }

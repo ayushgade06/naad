@@ -44,6 +44,13 @@ internal enum TranscriptionError
 /// otherwise 0.</param>
 internal readonly record struct TranscriptionFailure(TranscriptionError Error, int Code = 0)
 {
+    /// <summary>
+    /// A request that got no answer in time. Offline, it was the connection, not the service: a
+    /// request hung by Wi-Fi dropping looks just like a slow server.
+    /// </summary>
+    public static TranscriptionFailure ForTimeout(bool online) =>
+        new(online ? TranscriptionError.Timeout : TranscriptionError.NoInternet);
+
     /// <summary>Maps a non-success HTTP status to a failure.</summary>
     public static TranscriptionFailure FromStatus(HttpStatusCode status) => new(
         (int)status switch

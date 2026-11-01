@@ -63,7 +63,7 @@ internal static class ServiceKeyCheck
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new(KeyTestOutcome.Failed, new(TranscriptionError.Timeout));
+            return new(KeyTestOutcome.Failed, TranscriptionFailure.ForTimeout(Reachability.IsOnline()));
         }
         catch (HttpRequestException e)
         {
