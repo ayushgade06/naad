@@ -44,6 +44,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "liveTyping": false,
   "liveService": "Local",
   "liveModel": null,
+  "keepMeetingAudio": false,
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
@@ -92,6 +93,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `liveTyping` | `true` or `false` | `false` | Type each finished phrase into the window while you speak. Typed text skips cleanup and snippets, which can't change words already typed. While a key of the shortcut is held (such as Right Ctrl) nothing is typed, since an app could read the letters as shortcuts; if nothing was typed by the time you let go, the text is cleaned up and pasted as usual. In hands-free mode it types as you speak. If you switch windows, or the service revises words already typed, typing stops and the full text is kept for **Copy last transcript** and **Paste again**. Never over a selection (Edit Mode). |
 | `liveService` | `"Local"`, `"OpenAI"` or `"Deepgram"` | `"Local"` | Where live preview and typing transcribe. `"Local"` is Whisper on this PC, phrase by phrase, with a graphics card (see `livePreview`). `"OpenAI"` and `"Deepgram"` stream your voice to that service's realtime API as you speak, using its key (set on the Dictation or AI tab); they need nothing on this PC. If the connection fails, or the service hasn't answered for every word within 8 seconds of the end (13 if it was still connecting), the recording is transcribed by `transcriptionProvider` as usual. |
 | `liveModel` | text or `null` | `null` | The streaming model; `null` uses `gpt-4o-mini-transcribe` (OpenAI) or `nova-3` (Deepgram). It must suit `liveService`; choosing another service on the Live tab clears it. A model the service refuses makes every dictation fall back to the regular upload. |
+| `keepMeetingAudio` | `true` or `false` | `false` | Keep each meeting's recording, encrypted, with its notes. With `false`, each piece of a meeting's audio is dropped as soon as it is transcribed. See [Meeting notes](#meeting-notes). |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
@@ -463,3 +465,22 @@ the previous `settings.json` is still there.
 clipboard text, and a rewrite keeps only the known settings. Log events
 about settings contain version numbers and exception type names only, never
 values, file contents or paths.
+
+## Meeting notes
+
+Choose **Start meeting notes** in the Naad menu or on the **Meetings** page. Naad records two
+tracks: your microphone, labelled **You**, and the sound your PC plays (the other people on a
+call), labelled **Others**. Naad's own tones are left out of the second track on Windows 10
+version 2004 and later. Each track is split at pauses (a piece ends after a 2-second pause, at
+the first quiet moment after 10 seconds, or at 15 seconds) and transcribed while the meeting
+runs, with the transcription you chose, on this PC by default. A piece that can't be
+transcribed shows as `[couldn't transcribe]`.
+
+Choose **Stop meeting notes** (or **Stop and copy**) to finish: the last pieces are
+transcribed, the meeting is saved encrypted, and the transcript is copied to the clipboard, one
+line per turn (`You: ...`, `Others: ...`). Dictation is off while meeting notes record, and
+meeting notes can't start during a dictation. Quitting Naad saves meeting notes that are still
+recording first.
+
+Tell the people on the call that you are taking notes; recording others may need their consent
+where you live.

@@ -22,6 +22,18 @@ internal sealed record PromptTest(
 /// <summary>Builds the language model and the cleanup step from the settings.</summary>
 internal static class CleanupSetup
 {
+    /// <summary>
+    /// Whether the language model must be replaced: its provider, model, service, address or
+    /// time limit changed. Replacing a model on this PC unloads it, so nothing else does.
+    /// </summary>
+    public static bool ModelChanged(AppSettings before, AppSettings after) =>
+        before.LanguageModelProvider != after.LanguageModelProvider
+        || before.LocalLanguageModel != after.LocalLanguageModel
+        || before.LanguageModelService != after.LanguageModelService
+        || before.LanguageModelBaseUrl != after.LanguageModelBaseUrl
+        || before.LanguageModelName != after.LanguageModelName
+        || before.LanguageModelTimeoutSeconds != after.LanguageModelTimeoutSeconds;
+
     // The model may be loading for the first time, compiling its shaders; a person is watching.
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(90);
 

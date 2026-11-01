@@ -167,6 +167,12 @@ internal sealed record AppSettings
     /// <summary>The streaming service's model; null uses its default.</summary>
     public string? LiveModel { get; init; }
 
+    /// <summary>
+    /// Keep each meeting's recording, encrypted, with its notes. Off by default: the audio is
+    /// dropped as soon as each piece is transcribed.
+    /// </summary>
+    public bool KeepMeetingAudio { get; init; }
+
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
 

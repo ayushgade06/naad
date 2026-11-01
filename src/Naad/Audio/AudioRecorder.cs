@@ -52,6 +52,23 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
         [.. Enumerable.Range(0, WaveIn.DeviceCount).Select(i => WaveIn.GetCapabilities(i).ProductName)];
 
     /// <summary>
+    /// The connected recording devices' names, or none when a device vanished while they were
+    /// read; the window then still offers the Windows default.
+    /// </summary>
+    public static IReadOnlyList<string> ConnectedNames()
+    {
+        try
+        {
+            return DeviceNames();
+        }
+        catch (MmException e)
+        {
+            Log.Error(LogEvent.MicrophoneUnavailable, e);
+            return [];
+        }
+    }
+
+    /// <summary>
     /// The device number for <paramref name="microphone"/>, or the Windows default (-1) when it is
     /// null or not connected.
     /// </summary>

@@ -185,6 +185,11 @@ internal sealed partial class DictationController(
             }
         }
 
+        if (e == DictationEvent.Pressed && _session.State == DictationState.Idle && RefusedBusy())
+        {
+            return;
+        }
+
         // Without a transcriber the words could never be used, so the microphone isn't opened.
         if (e == DictationEvent.Pressed && _transcriber is null && _session.State == DictationState.Idle)
         {

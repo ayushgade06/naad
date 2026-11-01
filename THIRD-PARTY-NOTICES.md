@@ -40,11 +40,12 @@ Rules for keeping this file accurate:
 
 ## NAudio
 
-- Packages: `NAudio.WinMM` 3.3.0, with its dependencies `NAudio.Core` 3.3.0
-  and `NAudio.Midi` 3.3.0
+- Packages: `NAudio.WinMM` 3.3.0 and `NAudio.Wasapi` 3.3.0, with their
+  dependencies `NAudio.Core` 3.3.0 and `NAudio.Midi` 3.3.0
 - License: MIT, © Mark Heath 2026
 - Source: https://github.com/naudio/NAudio
-- Used for microphone capture and WAV encoding. Ships with Naad.
+- Used for microphone capture, capture of the PC's sound for meeting notes
+  (WASAPI loopback), and WAV encoding. Ships with Naad.
 
 ## Velopack
 

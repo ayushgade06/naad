@@ -43,6 +43,7 @@ internal sealed class WindowHost(
                     new(Pages.History, () => new HistoryPage(PasteFromWindow(), palette)),
                     new(Pages.Dictionary, () => DictionaryPage.Words(pages, palette)),
                     new(Pages.Snippets, () => DictionaryPage.Snippets(pages, palette)),
+                    new(Pages.Meetings, () => new MeetingsPage(pages.Meetings, palette)),
                     new(Pages.Settings, () => Pages.SettingsPage(SettingsForm = SettingsPage(dark ? palette : null))),
                 ],
                 palette,

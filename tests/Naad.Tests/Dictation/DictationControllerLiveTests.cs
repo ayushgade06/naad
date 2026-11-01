@@ -1,4 +1,5 @@
 using Naad.Live;
+using Naad.Tests.Live;
 using Naad.Transcription;
 
 namespace Naad.Tests.Dictation;
@@ -55,7 +56,7 @@ public sealed class DictationControllerLiveTests : IDisposable
         _h.Time.Advance(LongHold);
         await _h.Ui.RunAsync(_h.Controller.Escape);
         await idle.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
-        live!.Add([.. Live.Audio.Loud(1), .. Live.Audio.Quiet(1)]);
+        live!.Add([.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)]);
         await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, pieces.Calls);
@@ -85,8 +86,8 @@ public sealed class DictationControllerLiveTests : IDisposable
             live.StableChanged += stable => _h.Ui.Post(_ => typer.Update(stable), null);
             return new(live, typer);
         });
-        byte[] first = [.. Live.Audio.Loud(1), .. Live.Audio.Quiet(1)];
-        _h.Recorder.Pcm = [.. first, .. Live.Audio.Loud(1)];
+        byte[] first = [.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)];
+        _h.Recorder.Pcm = [.. first, .. SyntheticAudio.Loud(1)];
         var idle = _h.NextIdle();
 
         await _h.Ui.RunAsync(_h.Controller.Press);
@@ -127,8 +128,8 @@ public sealed class DictationControllerLiveTests : IDisposable
             live.StableChanged += stable => _h.Ui.Post(_ => typer.Update(stable), null);
             return new(live, typer);
         });
-        byte[] first = [.. Live.Audio.Loud(1), .. Live.Audio.Quiet(1)];
-        _h.Recorder.Pcm = [.. first, .. Live.Audio.Loud(1)];
+        byte[] first = [.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)];
+        _h.Recorder.Pcm = [.. first, .. SyntheticAudio.Loud(1)];
         var idle = _h.NextIdle();
 
         await _h.Ui.RunAsync(_h.Controller.Press);
@@ -168,5 +169,19 @@ public sealed class DictationControllerLiveTests : IDisposable
         Assert.Empty(typed);
         Assert.Equal(["synthetic live"], cleanup.Cleaned);
         Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
+    public async Task Press_WhileBusy_RecordsNothingAndSaysSo()
+    {
+        var refused = 0;
+        _h.Controller.UseBusy(() => true);
+        _h.Controller.RefusedWhileBusy += () => refused++;
+
+        await _h.Ui.RunAsync(_h.Controller.Press);
+
+        Assert.Equal(1, refused);
+        Assert.Equal(0, _h.Recorder.Starts);
+        Assert.Empty(_h.States);
     }
 }

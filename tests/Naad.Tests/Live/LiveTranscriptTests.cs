@@ -14,8 +14,8 @@ public sealed class LiveTranscriptTests
         using var live = new LiveTranscript(transcriber, SpeechChunker.ForDictation());
         var shown = new List<string>();
         live.TextChanged += shown.Add;
-        byte[] first = [.. Audio.Loud(1), .. Audio.Quiet(1)];
-        byte[] second = Audio.Loud(1);
+        byte[] first = [.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)];
+        byte[] second = SyntheticAudio.Loud(1);
 
         live.Add(first);
         live.Add(second);
@@ -32,7 +32,7 @@ public sealed class LiveTranscriptTests
     {
         var transcriber = Numbered();
         using var live = new LiveTranscript(transcriber, SpeechChunker.ForDictation());
-        byte[] audio = [.. Audio.Loud(1), .. Audio.Quiet(1)];
+        byte[] audio = [.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)];
 
         live.Add(audio);
         var result = await live.FinishAsync(audio, TestContext.Current.CancellationToken);
@@ -50,8 +50,8 @@ public sealed class LiveTranscriptTests
             ? new TranscriptionResult("", new(TranscriptionError.LocalFailed))
             : new TranscriptionResult("whole recording"));
         using var live = new LiveTranscript(transcriber, SpeechChunker.ForDictation());
-        byte[] first = [.. Audio.Loud(1), .. Audio.Quiet(1)];
-        byte[] audio = [.. first, .. Audio.Loud(1)];
+        byte[] first = [.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)];
+        byte[] audio = [.. first, .. SyntheticAudio.Loud(1)];
 
         live.Add(first);
         var result = await live.FinishAsync(audio, TestContext.Current.CancellationToken);
@@ -65,7 +65,7 @@ public sealed class LiveTranscriptTests
     {
         var transcriber = Numbered();
         using var live = new LiveTranscript(transcriber, SpeechChunker.ForDictation());
-        var audio = Audio.Loud(3);
+        var audio = SyntheticAudio.Loud(3);
 
         live.Add(audio);
         var result = await live.FinishAsync(audio, TestContext.Current.CancellationToken);
@@ -81,7 +81,7 @@ public sealed class LiveTranscriptTests
         var live = new LiveTranscript(transcriber, SpeechChunker.ForDictation());
         live.Dispose();
 
-        live.Add([.. Audio.Loud(1), .. Audio.Quiet(1)]);
+        live.Add([.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)]);
         await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, transcriber.Calls);
@@ -96,7 +96,7 @@ public sealed class LiveTranscriptTests
         var shown = 0;
         live.TextChanged += _ => shown++;
 
-        live.Add([.. Audio.Loud(1), .. Audio.Quiet(1)]);
+        live.Add([.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)]);
         while (transcriber.Calls == 0)
         {
             await Task.Delay(5, TestContext.Current.CancellationToken);
@@ -114,13 +114,13 @@ public sealed class LiveTranscriptTests
     {
         var transcriber = Numbered();
         using var live = new LiveTranscript(transcriber, SpeechChunker.ForDictation());
-        byte[] audio = [.. Audio.Loud(1), .. Audio.Quiet(1)];
+        byte[] audio = [.. SyntheticAudio.Loud(1), .. SyntheticAudio.Quiet(1)];
 
         live.Add(audio);
-        var result = await live.FinishAsync(Audio.Loud(1), TestContext.Current.CancellationToken);
+        var result = await live.FinishAsync(SyntheticAudio.Loud(1), TestContext.Current.CancellationToken);
 
         Assert.Equal("piece 2", result.Text.Trim());
-        Assert.Equal(Audio.Loud(1).Length + 44, transcriber.Uploads[^1].Length);
+        Assert.Equal(SyntheticAudio.Loud(1).Length + 44, transcriber.Uploads[^1].Length);
     }
 
     private static FakeTranscriber Numbered()

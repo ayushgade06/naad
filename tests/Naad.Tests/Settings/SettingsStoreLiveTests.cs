@@ -9,13 +9,14 @@ public sealed class SettingsStoreLiveTests
     {
         var result = SettingsStore.Parse("""
             { "version": 4, "livePreview": true, "liveTyping": true, "liveService": "Deepgram",
-              "liveModel": "nova-2" }
+              "liveModel": "nova-2", "keepMeetingAudio": true }
             """);
 
         Assert.Equal(SettingsStatus.Loaded, result.Status);
         Assert.True(result.Settings.LivePreview && result.Settings.LiveTyping);
         Assert.Equal(Naad.Live.LiveService.Deepgram, result.Settings.LiveService);
         Assert.Equal("nova-2", result.Settings.LiveModel);
+        Assert.True(result.Settings.KeepMeetingAudio);
     }
 
     [Fact]

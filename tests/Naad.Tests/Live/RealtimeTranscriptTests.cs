@@ -16,7 +16,7 @@ public sealed class RealtimeTranscriptTests
             Respond = _ => Task.FromResult(new TranscriptionResult("synthetic upload")),
         };
         using var stream = new RealtimeTranscript(LiveService.Deepgram, "synthetic-key", "nova-3", null, upload);
-        var audio = Audio.Loud(1);
+        var audio = SyntheticAudio.Loud(1);
 
         stream.Add(audio);
         var result = await stream.FinishAsync(audio, TestContext.Current.CancellationToken);

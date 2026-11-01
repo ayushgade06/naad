@@ -60,6 +60,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "liveTyping": false,
               "liveService": "Local",
               "liveModel": null,
+              "keepMeetingAudio": false,
               "handsFree": false,
               "languageModelProvider": "Local",
               "localLanguageModel": "Small",
@@ -229,7 +230,8 @@ public sealed class SettingsStoreWriteTests : IDisposable
             [
                 "cleanup", "cleanupPrompt", "cleanupPromptVersion", "context", "contextExcludedApps",
                 "contextScreenshot", "dictationShortcut", "editMode", "errorSound", "fileLogging",
-                "handsFree", "historyRetention", "instructionGuard", "language", "languageModelBaseUrl",
+                "handsFree", "historyRetention", "instructionGuard", "keepMeetingAudio", "language",
+                "languageModelBaseUrl",
                 "languageModelFallbackName",
                 "languageModelName", "languageModelProvider", "languageModelService", "languageModelTimeoutSeconds",
                 "liveModel", "livePreview", "liveService", "liveTyping",

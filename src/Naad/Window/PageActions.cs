@@ -1,4 +1,5 @@
 using Naad.History;
+using Naad.Meetings;
 using Naad.Snippets;
 
 namespace Naad.Window;
@@ -12,6 +13,7 @@ namespace Naad.Window;
 /// <param name="SaveWords">Saves a new dictionary; returns what went wrong, or null.</param>
 /// <param name="Snippets">The saved snippets.</param>
 /// <param name="SnippetsChanged">Called after the snippets are saved, so dictation uses them.</param>
+/// <param name="Meetings">Meeting notes: recording, and the saved meetings.</param>
 internal sealed record PageActions(
     HistoryRecorder History,
     Func<string, Task<bool>> Copy,
@@ -20,4 +22,5 @@ internal sealed record PageActions(
     Func<IReadOnlyList<string>> Words,
     Func<IReadOnlyList<string>, string?> SaveWords,
     SnippetStore Snippets,
-    Action SnippetsChanged);
+    Action SnippetsChanged,
+    MeetingActions Meetings);

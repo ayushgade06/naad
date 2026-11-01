@@ -1057,3 +1057,16 @@ Deepgram key is needed.
 | M-LY5 | Held shortcut | With Right Ctrl held (not hands-free), dictate into a browser text box with cleanup on. | Nothing is typed while Ctrl is held, so no shortcut such as Ctrl+A fires; on release the cleaned text is pasted as usual. | **No.** Unit tested. |
 
 **Status after P36:** M-LY1 to M-LY5 have **not been run** by a person.
+
+## Meeting recorder (P37): M-MR1 to M-MR5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-MR1 | Two tracks | Start meeting notes, say a sentence, then play a video with speech for 20 seconds; stop. | A notification says the transcript is saved and copied; pasting shows `You:` lines for your sentence and `Others:` lines for the video, in order. | **No.** Unit tested with a fake capture. |
+| M-MR2 | Last piece | Speak without pausing right up to **Stop meeting notes**. | The last words are in the transcript. | **No.** Unit tested. |
+| M-MR3 | One hour | Record a one-hour call or a long video, watching Naad's memory in Task Manager. | Memory stays flat (within a few tens of MB) for the whole hour, as long as transcription keeps up; with Whisper on the processor a backlog can build. The transcript arrives soon after stopping. | **Partly.** A unit test feeds one synthetic hour and checks memory. |
+| M-MR4 | Mutual exclusion | Press the dictation shortcut during meeting notes; then start meeting notes while dictating. | The first says dictation is off; the second says to finish the dictation first. | **No.** Unit tested. |
+| M-MR6 | Quit while finishing | Stop meeting notes and quit Naad at once from the tray. | Naad quits only after the meeting is saved and copied. | **No.** Unit tested. |
+| M-MR5 | Naad's sounds and storage | With tones on, record a meeting and press the dictation shortcut (its refusal plays no tone into the track); then look in `%LOCALAPPDATA%\Naad\meetings`. | Naad's tones aren't in the Others track; the `.meeting` file is unreadable ciphertext; no `.audio` files unless **Keep meeting recordings** is ticked. **Delete all meetings** empties the folder. | **No.** |
+
+**Status after P37:** M-MR1 to M-MR6 have **not been run** by a person.

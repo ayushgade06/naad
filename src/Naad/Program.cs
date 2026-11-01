@@ -5,6 +5,7 @@ using Naad.History;
 using Naad.Hotkey;
 using Naad.Insertion;
 using Naad.LanguageModel;
+using Naad.Meetings;
 using Naad.Providers;
 using Naad.Settings;
 using Naad.Snippets;
@@ -12,7 +13,6 @@ using Naad.Transcription;
 using Naad.Tray;
 using Naad.Updates;
 using Naad.Window;
-using NAudio;
 using Velopack;
 
 namespace Naad;
@@ -188,12 +188,16 @@ internal static class Program
             // disposes the sounds, and Main releases the single-instance mutex. The tray's actions
             // reach objects that exist by the time the menu can be clicked.
             DictationController? dictation = null;
+
+            // Quitting saves meeting notes still recording or finishing first.
+            MeetingActions? meetings = null;
+            void Exit() => _ = meetings?.ExitAsync(Application.ExitThread);
             using var tray = new TrayIcon(
                 settings.DictationShortcut,
                 settings.HandsFree,
                 copyLastTranscript: () => dictation?.CopyKeptTranscriptAsync() ?? Task.FromResult(false),
                 openSettings: () => windows?.Open(Pages.Settings),
-                exit: Application.ExitThread);
+                exit: Exit);
             using var overlay = new RecordingOverlay();
             using var http = new HttpClient();
             using var recorder = new AudioRecorder();
@@ -220,6 +224,15 @@ internal static class Program
             using var history = DictationFeatures.Connect(
                 controller, hook, overlay, tray, clipboard, () => pending ?? settings, () => languageModel is not null,
                 SaveWords);
+            meetings = MeetingFeatures.Connect(controller, tray, () => transcriber, () => pending ?? settings,
+                controller.CopyAsync);
+            meetings.Finished += _ =>
+            {
+                if (pending is { } next)
+                {
+                    Apply(next);
+                }
+            };
             enforceHistory = r => history.Enforce(r);
             DictationFeatures.ConnectLive(
                 controller, recorder, overlay, ui, () => transcriber, () => pending ?? settings, KeyFor);
@@ -265,10 +278,10 @@ internal static class Program
             hook.CaptureEnded += step => windows?.SettingsForm?.ShowCapture(step);
             windows = new WindowHost(
                 () => pending ?? settings,
-                Microphones,
+                AudioRecorder.ConnectedNames,
                 startup.IsEnabled,
                 WindowActions,
-                Application.ExitThread,
+                Exit,
                 new(
                     history,
                     controller.CopyAsync,
@@ -281,10 +294,11 @@ internal static class Program
                     {
                         snippets = snippetStore.Load();
                         UseLanguageModel(pending ?? settings, replace: false);
-                    }));
+                    },
+                    meetings));
             tray.AddItems(
                 controller.Toggle,
-                Microphones,
+                AudioRecorder.ConnectedNames,
                 () => (pending ?? settings).Microphone,
                 microphone => Save(new(
                     (pending ?? settings) with { Microphone = microphone }, new Dictionary<CloudService, string>(),
@@ -396,10 +410,11 @@ internal static class Program
                 return problem;
             }
 
-            // A dictation keeps the settings it started with: during one, the change waits for Idle.
+            // A dictation or meeting keeps the settings and transcriber it started with: during one,
+            // the change waits until it is done.
             void Apply(AppSettings next, bool languageModelKeyChanged = false)
             {
-                if (controller.State != DictationState.Idle)
+                if (controller.State != DictationState.Idle || meetings?.Recorder.IsBusy == true)
                 {
                     pending = next;
                     replaceLanguageModel |= languageModelKeyChanged;
@@ -443,7 +458,8 @@ internal static class Program
                 var replaced = transcriber;
                 transcriber = TranscriberSetup.Create(http, KeyFor, next, Offline);
                 controller.UseTranscriber(transcriber);
-                UseLanguageModel(next, replaceLanguageModel || languageModelKeyChanged || ModelChanged(settings, next));
+                UseLanguageModel(
+                    next, replaceLanguageModel || languageModelKeyChanged || CleanupSetup.ModelChanged(settings, next));
                 replaceLanguageModel = false;
 
                 // Idle, so nothing is using it: frees a loaded local model's memory at once.
@@ -471,29 +487,7 @@ internal static class Program
         return key;
     }
 
-    private static bool ModelChanged(AppSettings before, AppSettings after) =>
-        before.LanguageModelProvider != after.LanguageModelProvider
-        || before.LocalLanguageModel != after.LocalLanguageModel
-        || before.LanguageModelService != after.LanguageModelService
-        || before.LanguageModelBaseUrl != after.LanguageModelBaseUrl
-        || before.LanguageModelName != after.LanguageModelName
-        || before.LanguageModelTimeoutSeconds != after.LanguageModelTimeoutSeconds;
-
     // Only built when some tone is on: each holds its tones in memory.
     private static SoundCues? Sounds(AppSettings s) =>
         s.PlaySounds || s.ErrorSound ? new SoundCues(s.SoundVolume) : null;
-
-    private static IReadOnlyList<string> Microphones()
-    {
-        try
-        {
-            return AudioRecorder.DeviceNames();
-        }
-        catch (MmException e)
-        {
-            // A device vanished mid-list; the window still offers the Windows default.
-            Log.Error(LogEvent.MicrophoneUnavailable, e);
-            return [];
-        }
-    }
 }

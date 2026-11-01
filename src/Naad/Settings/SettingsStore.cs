@@ -389,6 +389,7 @@ internal sealed class SettingsStore(string path)
             LiveTyping = ReadBool(root, "liveTyping", defaults.LiveTyping, ref repaired),
             LiveService = ReadName(root, "liveService", defaults.LiveService, ref repaired),
             LiveModel = ReadOptional(root, "liveModel", AppSettings.IsValidModel, ref repaired),
+            KeepMeetingAudio = ReadBool(root, "keepMeetingAudio", defaults.KeepMeetingAudio, ref repaired),
         };
         return (settings, repaired);
     }

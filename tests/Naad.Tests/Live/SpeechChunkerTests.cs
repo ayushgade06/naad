@@ -1,5 +1,7 @@
 using Naad.Live;
 
+using static Naad.Tests.Live.SyntheticAudio;
+
 namespace Naad.Tests.Live;
 
 public sealed class SpeechChunkerTests
@@ -12,7 +14,7 @@ public sealed class SpeechChunkerTests
     {
         var chunker = SpeechChunker.ForDictation();
 
-        Assert.Empty(chunker.Add(Audio.Quiet(5)));
+        Assert.Empty(chunker.Add(Quiet(5)));
         Assert.Equal(5 * BytesPerSecond, chunker.Cut);
     }
 
@@ -21,7 +23,7 @@ public sealed class SpeechChunkerTests
     {
         var chunker = SpeechChunker.ForDictation();
 
-        var cuts = chunker.Add([.. Audio.Loud(1), .. Audio.Quiet(1)]);
+        var cuts = chunker.Add([.. Loud(1), .. Quiet(1)]);
 
         Assert.Equal([(long)(1.6 * BytesPerSecond)], cuts);
     }
@@ -31,7 +33,7 @@ public sealed class SpeechChunkerTests
     {
         var chunker = SpeechChunker.ForDictation();
 
-        Assert.Empty(chunker.Add([.. Audio.Loud(1), .. Audio.Quiet(0.3), .. Audio.Loud(1)]));
+        Assert.Empty(chunker.Add([.. Loud(1), .. Quiet(0.3), .. Loud(1)]));
     }
 
     [Fact]
@@ -39,8 +41,8 @@ public sealed class SpeechChunkerTests
     {
         var chunker = SpeechChunker.ForDictation();
 
-        Assert.Empty(chunker.Add([.. Audio.Loud(0.2), .. Audio.Quiet(1)]));
-        Assert.Single(chunker.Add([.. Audio.Loud(1), .. Audio.Quiet(1)]));
+        Assert.Empty(chunker.Add([.. Loud(0.2), .. Quiet(1)]));
+        Assert.Single(chunker.Add([.. Loud(1), .. Quiet(1)]));
     }
 
     [Fact]
@@ -49,15 +51,25 @@ public sealed class SpeechChunkerTests
         var chunker = SpeechChunker.ForDictation();
 
         // A softer stretch at 11 s, still above the quiet level, is where a word ends.
-        var cuts = chunker.Add([.. Audio.Loud(11), .. Audio.Loud(0.1, 400), .. Audio.Loud(9)]);
+        var cuts = chunker.Add([.. Loud(11), .. Loud(0.1, 400), .. Loud(9)]);
 
         Assert.Equal([(long)(11.1 * BytesPerSecond)], cuts);
     }
 
     [Fact]
+    public void Add_PastTheTarget_CutsAtTheFirstQuietWindow()
+    {
+        var chunker = new SpeechChunker(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10));
+
+        var cuts = chunker.Add([.. Loud(5), .. Quiet(0.3), .. Loud(6), .. Quiet(0.1)]);
+
+        Assert.Equal([(long)(11.4 * BytesPerSecond)], cuts);
+    }
+
+    [Fact]
     public void Add_InOddSizedBuffers_FindsTheSameCuts()
     {
-        byte[] audio = [.. Audio.Loud(1), .. Audio.Quiet(1), .. Audio.Loud(2), .. Audio.Quiet(1)];
+        byte[] audio = [.. Loud(1), .. Quiet(1), .. Loud(2), .. Quiet(1)];
         var whole = SpeechChunker.ForDictation().Add(audio);
         var chunker = SpeechChunker.ForDictation();
         var pieces = new List<long>();
@@ -73,7 +85,7 @@ public sealed class SpeechChunkerTests
 }
 
 // Synthetic audio for the live tests: a square wave stands in for speech.
-internal static class Audio
+internal static class SyntheticAudio
 {
     public static byte[] Loud(double seconds, short amplitude = 3000)
     {

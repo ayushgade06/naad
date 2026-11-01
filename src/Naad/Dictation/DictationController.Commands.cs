@@ -9,6 +9,11 @@ namespace Naad.Dictation;
 // DictationController.cs.
 internal sealed partial class DictationController
 {
+    private Func<bool>? _busy;
+
+    /// <summary>A press was refused because meeting notes are recording. Raised on the UI thread.</summary>
+    public event Action? RefusedWhileBusy;
+
     /// <summary>
     /// From the tray menu: starts a dictation, or stops the one recording. A click is neither a
     /// press nor a hold, so a held dictation ends with a release. Call on the UI thread.
@@ -129,5 +134,24 @@ internal sealed partial class DictationController
             CleanupFellBack?.Invoke();
             return new(text, CleanupOutcome.FellBack);
         }
+    }
+
+    /// <summary>
+    /// Something else has the microphone, such as meeting notes, so a press starts nothing. Call
+    /// on the UI thread.
+    /// </summary>
+    public void UseBusy(Func<bool>? busy) => _busy = busy;
+
+    // A press while busy is refused and said so: the meeting already records the user.
+    private bool RefusedBusy()
+    {
+        if (_busy?.Invoke() != true)
+        {
+            return false;
+        }
+
+        Log.Info(LogEvent.DictationRefusedDuringMeeting);
+        RefusedWhileBusy?.Invoke();
+        return true;
     }
 }

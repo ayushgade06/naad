@@ -51,6 +51,11 @@ internal sealed class GeneralPanel : TableLayoutPanel
     };
 
     private readonly CheckBox _timer = new() { Text = "Show a timer while recording", AutoSize = true };
+    private readonly CheckBox _keepMeetingAudio = new()
+    {
+        Text = "Keep meeting recordings with their notes (encrypted)",
+        AutoSize = true,
+    };
     private readonly TextBox _pasteAgain = new() { Width = 200 };
     private SoundCues? _previewCues;
 
@@ -73,6 +78,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
         _history.SelectedIndex = (int)current.HistoryRetention;
         _pressEnter.Checked = current.PressEnterCommand;
         _timer.Checked = current.OverlayTimer;
+        _keepMeetingAudio.Checked = current.KeepMeetingAudio;
         _pasteAgain.Text = current.PasteAgainShortcut?.ToString() ?? "";
 
         Row(this, "Theme", _theme);
@@ -85,6 +91,9 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "History", _history);
         Row(this, "", Note("Dictations are kept encrypted for your Windows account, and can be deleted on the " +
             "History page. Off deletes them all."));
+        Row(this, "Meetings", _keepMeetingAudio);
+        Row(this, "", Note("Meeting notes are kept encrypted until you delete them on the Meetings page. " +
+            "Without this, each piece of audio is dropped once it is transcribed."));
         Row(this, "Paste again", Flow(_pasteAgain, Note("Keys such as RightAlt+V; blank for none.")));
         Row(this, "", _pressEnter);
         Row(this, "", _timer);
@@ -134,6 +143,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
             HistoryRetention = (Naad.History.HistoryRetention)_history.SelectedIndex,
             PressEnterCommand = _pressEnter.Checked,
             OverlayTimer = _timer.Checked,
+            KeepMeetingAudio = _keepMeetingAudio.Checked,
             PasteAgainShortcut = pasteAgain,
         };
     }

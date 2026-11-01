@@ -15,6 +15,7 @@ internal static class Pages
     public const string History = "History";
     public const string Dictionary = "Dictionary";
     public const string Snippets = "Snippets";
+    public const string Meetings = "Meetings";
     public const string Settings = "Settings";
 
     /// <summary>

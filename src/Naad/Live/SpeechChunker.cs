@@ -9,7 +9,8 @@ namespace Naad.Live;
 /// </summary>
 /// <param name="pause">How long a quiet stretch ends a piece.</param>
 /// <param name="longest">A piece is cut here at its quietest moment even without a pause.</param>
-internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest)
+/// <param name="target">From this length on, any quiet window ends a piece; null waits for a pause.</param>
+internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest, TimeSpan? target = null)
 {
     // 0.1 s windows: short enough to find the gap between words, long enough for a steady level.
     public const int WindowBytes = 3200;
@@ -23,6 +24,7 @@ internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest)
 
     private readonly int _pauseWindows = Windows(pause);
     private readonly int _longestWindows = Windows(longest);
+    private readonly int _targetWindows = target is { } t ? Windows(t) : int.MaxValue;
     private readonly byte[] _partial = new byte[WindowBytes];
     private readonly List<double> _levels = [];
     private int _partialLength;
@@ -88,7 +90,8 @@ internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest)
             return null;
         }
 
-        if (_voiced >= MinVoicedWindows && _quietRun >= _pauseWindows)
+        if (_voiced >= MinVoicedWindows
+            && (_quietRun >= _pauseWindows || (_quietRun > 0 && _levels.Count >= _targetWindows)))
         {
             return Finish(_position);
         }
