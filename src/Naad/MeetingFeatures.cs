@@ -27,12 +27,14 @@ internal static class MeetingFeatures
     /// <param name="transcriber">The transcriber in use.</param>
     /// <param name="settings">The settings in use.</param>
     /// <param name="copy">Puts text on the clipboard, out of clipboard history.</param>
+    /// <param name="languageModel">The language model in use, for summaries.</param>
     public static MeetingActions Connect(
         DictationController controller,
         TrayIcon tray,
         Func<ITranscriber?> transcriber,
         Func<AppSettings> settings,
-        Func<string, Task<bool>> copy)
+        Func<string, Task<bool>> copy,
+        Func<LanguageModel.ILanguageModel?> languageModel)
     {
         var store = new MeetingStore(MeetingStore.DefaultFolder);
         var recorder = new MeetingRecorder(
@@ -42,7 +44,7 @@ internal static class MeetingFeatures
             () => AudioRecorder.DeviceNumber(AudioRecorder.ConnectedNames(), settings().Microphone),
             () => settings().KeepMeetingAudio,
             copy);
-        var actions = new MeetingActions(recorder, store);
+        var actions = new MeetingActions(recorder, store, copy, languageModel);
 
         // Busy from opening the tracks until the last piece is saved, not only while recording.
         controller.UseBusy(() => recorder.IsBusy);

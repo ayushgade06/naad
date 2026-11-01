@@ -128,7 +128,7 @@ public sealed class MeetingRecorderTests : IDisposable
     public async Task ExitAsync_WhileRecording_SavesBeforeQuitting()
     {
         var recorder = Recorder();
-        var actions = new MeetingActions(recorder, _store);
+        var actions = new MeetingActions(recorder, _store, _ => Task.FromResult(true), () => null);
         await recorder.StartAsync();
         _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
         var exits = 0;
@@ -150,6 +150,48 @@ public sealed class MeetingRecorderTests : IDisposable
         Assert.True(_capture.Disposed);
     }
 
+    [Fact]
+    public async Task SummarizeAsync_RenamedMeanwhile_KeepsBothTheTitleAndTheSummary()
+    {
+        var (actions, meeting, reply) = await SavedMeetingWithPendingSummary();
+
+        var summarizing = actions.SummarizeAsync(meeting, CancellationToken.None);
+        actions.Rename(meeting, "Synthetic new title");
+        reply.SetResult(new("## Summary\n- A synthetic point."));
+        await summarizing;
+
+        var saved = Assert.Single(_store.All());
+        Assert.Equal("Synthetic new title", saved.Title);
+        Assert.Equal("## Summary\n- A synthetic point.", saved.Summary);
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_DeletedMeanwhile_StaysDeleted()
+    {
+        var (actions, meeting, reply) = await SavedMeetingWithPendingSummary();
+
+        var summarizing = actions.SummarizeAsync(meeting, CancellationToken.None);
+        actions.Delete(meeting);
+        reply.SetResult(new("## Summary\n- A synthetic point."));
+
+        Assert.Null(await summarizing);
+        Assert.Empty(_store.All());
+        Assert.Empty(Directory.GetFiles(_folder));
+    }
+
+    // A recorded meeting, and actions whose language model answers only when told to.
+    private async Task<(MeetingActions, MeetingRecord, TaskCompletionSource<Naad.LanguageModel.CompletionResult>)>
+        SavedMeetingWithPendingSummary()
+    {
+        var recorder = Recorder();
+        await recorder.StartAsync();
+        _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
+        await recorder.StopAsync();
+        var reply = new TaskCompletionSource<Naad.LanguageModel.CompletionResult>();
+        var actions = new MeetingActions(recorder, _store, _ => Task.FromResult(true), () => new PendingModel(reply));
+        return (actions, _store.All().Single(), reply);
+    }
+
     private MeetingRecorder Recorder() => new(
         _store,
         () => _transcriber,
@@ -166,6 +208,13 @@ public sealed class MeetingRecorderTests : IDisposable
             _capture.Captured = captured;
             return Task.FromResult<IMeetingCapture>(_capture);
         });
+
+    private sealed class PendingModel(TaskCompletionSource<Naad.LanguageModel.CompletionResult> reply)
+        : Naad.LanguageModel.ILanguageModel
+    {
+        public Task<Naad.LanguageModel.CompletionResult> CompleteAsync(
+            Naad.LanguageModel.ChatPrompt prompt, CancellationToken cancellationToken) => reply.Task;
+    }
 
     private sealed class FakeCapture : IMeetingCapture
     {

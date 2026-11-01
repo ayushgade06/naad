@@ -1,18 +1,23 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using Naad.Meetings;
 using Button = System.Windows.Controls.Button;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace Naad.Window;
 
 /// <summary>
-/// The Meetings page: start and stop meeting notes, how many are saved, and Delete all. Use on
-/// the UI thread.
+/// The Meetings page: start and stop meeting notes, and the saved meetings by day, searchable,
+/// each opening in <see cref="MeetingView"/>. What it shows is the user's own text, decrypted only
+/// to show it. Use on the UI thread.
 /// </summary>
 internal sealed class MeetingsPage : DockPanel, IDisposable
 {
     private readonly MeetingActions _meetings;
+    private readonly Palette _palette;
     private readonly Button _toggle = new() { Padding = new Thickness(12, 4, 12, 4) };
     private readonly TextBlock _status = new()
     {
@@ -20,16 +25,17 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
         VerticalAlignment = VerticalAlignment.Center,
     };
 
-    private readonly TextBlock _saved = new() { Margin = new Thickness(0, 16, 0, 8) };
-    private readonly Button _deleteAll = new()
-    {
-        Content = "Delete all meetings",
-        Padding = new Thickness(10, 2, 10, 2),
-    };
+    private readonly TextBox _search = new() { Width = 280, Margin = new Thickness(0, 0, 8, 0) };
+    private readonly Button _deleteAll = Small("Delete all meetings");
+    private readonly ScrollViewer _content = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+
+    // Decrypted once per reload, so typing in Search filters in memory.
+    private IReadOnlyList<MeetingRecord> _all = [];
 
     public MeetingsPage(MeetingActions meetings, Palette palette)
     {
         _meetings = meetings;
+        _palette = palette;
         var top = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
         top.Children.Add(new TextBlock
         {
@@ -47,13 +53,25 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
             Foreground = MainWindow.Brush(palette.Muted),
             Margin = new Thickness(0, 0, 0, 12),
         });
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         row.Children.Add(_toggle);
         row.Children.Add(_status);
         top.Children.Add(row);
-        top.Children.Add(_saved);
-        top.Children.Add(_deleteAll);
-        _deleteAll.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+        var tools = new StackPanel { Orientation = Orientation.Horizontal };
+        tools.Children.Add(new TextBlock { Text = "Search ", VerticalAlignment = VerticalAlignment.Center });
+        tools.Children.Add(_search);
+        tools.Children.Add(_deleteAll);
+        top.Children.Add(tools);
+        SetDock(top, Dock.Top);
+        Children.Add(top);
+        Children.Add(_content);
+
+        _toggle.Click += (_, _) =>
+        {
+            _toggle.IsEnabled = false;
+            _status.Text = _meetings.Recorder.IsRecording ? "Finishing the last pieces..." : "Starting...";
+            _ = _meetings.ToggleAsync();
+        };
         _deleteAll.Click += (_, _) =>
         {
             if (System.Windows.MessageBox.Show(
@@ -61,25 +79,19 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
                 MessageBoxButton.YesNo) == MessageBoxResult.Yes)
             {
                 _meetings.DeleteAll();
-                ShowSaved();
+                Reload();
             }
         };
-        SetDock(top, Dock.Top);
-        Children.Add(top);
-        _toggle.Click += (_, _) =>
-        {
-            _toggle.IsEnabled = false;
-            _status.Text = _meetings.Recorder.IsRecording ? "Finishing the last pieces..." : "Starting...";
-            _ = _meetings.ToggleAsync();
-        };
+        _search.TextChanged += (_, _) => ShowList();
         _meetings.Recorder.RecordingChanged += OnRecordingChanged;
         _meetings.Finished += OnFinished;
         OnRecordingChanged(_meetings.Recorder.IsRecording);
-        ShowSaved();
+        Reload();
     }
 
     public void Dispose()
     {
+        (_content.Content as IDisposable)?.Dispose();
         _meetings.Recorder.RecordingChanged -= OnRecordingChanged;
         _meetings.Finished -= OnFinished;
     }
@@ -92,23 +104,111 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
         _status.Text = recording ? "Recording" : finishing ? "Finishing the last pieces..." : "";
     }
 
-    // Decrypts every meeting to count them; few enough that it is quick.
-    private void ShowSaved()
-    {
-        var count = _meetings.Store.All().Count;
-        _saved.Text = count switch
-        {
-            0 => "No meetings saved.",
-            1 => "1 meeting saved.",
-            _ => $"{count} meetings saved.",
-        };
-        _deleteAll.IsEnabled = count > 0;
-    }
-
     private void OnFinished(MeetingOutcome outcome)
     {
         OnRecordingChanged(_meetings.Recorder.IsRecording);
         _status.Text = Tray.TrayIcon.MeetingMessage(outcome) ?? _status.Text;
-        ShowSaved();
+
+        // A meeting open in its view stays open; the list shows the new one.
+        if (_content.Content is not MeetingView)
+        {
+            Reload();
+        }
     }
+
+    // Decrypts every meeting; a few hundred take a moment at most.
+    private void Reload()
+    {
+        _all = _meetings.Store.All();
+        ShowList();
+    }
+
+    private void ShowList()
+    {
+        var all = _all;
+        _deleteAll.IsEnabled = all.Count > 0;
+        var list = new StackPanel();
+        var shown = all.Where(m => MeetingList.Matches(m, _search.Text)).ToList();
+        if (shown.Count == 0)
+        {
+            list.Children.Add(Muted(all.Count == 0 ? "No meetings saved yet." : "No meeting matches."));
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        foreach (var (day, meetings) in MeetingList.ByDay(shown, today, TimeZoneInfo.Local))
+        {
+            list.Children.Add(new TextBlock
+            {
+                Text = day,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 12, 0, 4),
+            });
+            foreach (var meeting in meetings)
+            {
+                list.Children.Add(Row(meeting));
+            }
+        }
+
+        (_content.Content as IDisposable)?.Dispose();
+        _content.Content = list;
+    }
+
+    private Border Row(MeetingRecord meeting)
+    {
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock { Text = meeting.Title, FontWeight = FontWeights.SemiBold });
+        text.Children.Add(Muted(
+            meeting.Started.LocalDateTime.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant()
+            + " · " + MeetingList.SummaryLine(meeting)));
+        var open = Small("Open");
+        open.Click += (_, _) => _content.Content = new MeetingView(meeting, _meetings, _palette, Reload);
+        var copy = Small("Copy");
+        copy.Click += async (_, _) =>
+        {
+            try
+            {
+                await _meetings.CopyAsync(MeetingTranscript.ClipboardText(meeting.Segments));
+            }
+            catch (Exception e)
+            {
+                // From a click: anything not caught here would vanish silently.
+                Log.Error(LogEvent.TranscriptCopyFailed, e);
+            }
+        };
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        buttons.Children.Add(open);
+        buttons.Children.Add(copy);
+        var row = new DockPanel();
+        SetDock(buttons, Dock.Right);
+        row.Children.Add(buttons);
+        row.Children.Add(text);
+        return new Border
+        {
+            Child = row,
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin = new Thickness(0, 0, 0, 6),
+            Background = MainWindow.Brush(_palette.Surface),
+            BorderBrush = MainWindow.Brush(_palette.Border),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+        };
+    }
+
+    private TextBlock Muted(string text) => new()
+    {
+        Text = text,
+        TextWrapping = TextWrapping.Wrap,
+        Foreground = MainWindow.Brush(_palette.Muted),
+    };
+
+    private static Button Small(string label) => new()
+    {
+        Content = label,
+        Padding = new Thickness(10, 2, 10, 2),
+        Margin = new Thickness(8, 0, 0, 0),
+    };
 }

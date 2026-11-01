@@ -225,7 +225,7 @@ internal static class Program
                 controller, hook, overlay, tray, clipboard, () => pending ?? settings, () => languageModel is not null,
                 SaveWords);
             meetings = MeetingFeatures.Connect(controller, tray, () => transcriber, () => pending ?? settings,
-                controller.CopyAsync);
+                controller.CopyAsync, () => languageModel);
             meetings.Finished += _ =>
             {
                 if (pending is { } next)

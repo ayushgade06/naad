@@ -494,5 +494,14 @@ With `meetingDetection` on, Naad checks every 2 seconds which apps Windows lists
 microphone (the same records as **Settings > Privacy > Microphone**) and offers notes when a
 call starts. It reads only app names and whether they are in use; nothing is logged or sent.
 
+The **Meetings** page lists saved meetings by day ("Today", "Yesterday", "Monday, Oct 20"),
+with a search over titles, summaries and what was said. Open one to rename it, copy its
+transcript, export it to a Markdown file you choose, delete it, or **Write summary**: the
+language model on the **AI** tab (on this PC by default) writes a short summary with the
+decisions and action items, told to use only what the transcript says and to call the speakers
+only You and Others. A long meeting is summarised in parts that are then combined. The summary is
+saved with the meeting, encrypted. The language model on this PC writes one thing at a time, so while a
+summary is being written dictation cleanup waits for it; leaving the meeting's view stops it.
+
 Tell the people on the call that you are taking notes; recording others may need their consent
 where you live.

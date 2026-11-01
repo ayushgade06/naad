@@ -1082,3 +1082,14 @@ Deepgram key is needed.
 | M-MD5 | Watchdog | During meeting notes, mute the microphone in another app that blanks it, or unplug a USB microphone. | A **Microphone blocked** notification; the PC's sound keeps recording; after unmuting or plugging back in, "The microphone works again" and your words return to the notes. | **No.** Unit tested (pure watchdog). |
 
 **Status after P38:** M-MD1 to M-MD5 have **not been run** by a person.
+
+## Meeting view and summaries (P39): M-MS1 to M-MS4
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-MS1 | List and search | Record two short meetings, open **Meetings**. | Grouped under **Today**, newest first, each with its time and "2 speakers · mm:ss"; search finds a word that was said. | **No.** Grouping and search are unit tested. |
+| M-MS2 | Meeting view | Open one; rename it; look at the transcript. | Bubbles per sentence, You on the right and Others on the left, each with its time; the new title shows in the list. | **No.** |
+| M-MS3 | Summary | Click **Write summary** on a meeting with a decision and a task, then on a chat with neither. | Three sections; the first lists the decision and the task with You or Others; the second says "None." for both, and no names or speakers appear that weren't said. | **Partly.** The explicit `MeetingSummarizerTests` ran the Small model on a synthetic chat on this PC (2026-11-01): 6.3 s, "None." for decisions and action items, no invented speakers, but one remark was credited to Others when You said it. |
+| M-MS4 | Export and delete | **Export Markdown...** to a file, open it; then **Delete**. | The file has the title, summary and timestamped turns; the meeting disappears from the list and its file from `%LOCALAPPDATA%\Naad\meetings`. | **No.** Markdown is unit tested. |
+
+**Status after P39:** M-MS1 to M-MS4 have **not been run** by a person.

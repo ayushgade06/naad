@@ -3,7 +3,13 @@ namespace Naad.Meetings;
 /// <summary>What the tray and the Meetings page do with meeting notes. Use on the UI thread.</summary>
 /// <param name="recorder">Records meetings.</param>
 /// <param name="store">The saved meetings.</param>
-internal sealed class MeetingActions(MeetingRecorder recorder, MeetingStore store)
+/// <param name="copy">Puts text on the clipboard, out of clipboard history.</param>
+/// <param name="languageModel">The language model in use, for summaries; null when none can run.</param>
+internal sealed class MeetingActions(
+    MeetingRecorder recorder,
+    MeetingStore store,
+    Func<string, Task<bool>> copy,
+    Func<LanguageModel.ILanguageModel?> languageModel)
 {
     private bool _exiting;
 
@@ -65,6 +71,54 @@ internal sealed class MeetingActions(MeetingRecorder recorder, MeetingStore stor
         }
 
         exit();
+    }
+
+    /// <summary>Whether a language model can write summaries now.</summary>
+    public bool CanSummarize => languageModel() is not null;
+
+    /// <summary>Puts <paramref name="text"/> on the clipboard; false if it was busy.</summary>
+    public Task<bool> CopyAsync(string text) => copy(text);
+
+    /// <summary>
+    /// Saves <paramref name="meeting"/> under a new title; null when the title is blank or unchanged.
+    /// </summary>
+    public MeetingRecord? Rename(MeetingRecord meeting, string typed)
+    {
+        if (meeting.Renamed(typed) is not { } title)
+        {
+            return null;
+        }
+
+        if (store.Update(meeting.Id, m => m with { Title = title }) is not { } renamed)
+        {
+            return null;
+        }
+
+        Log.Info(LogEvent.MeetingRenamed);
+        return renamed;
+    }
+
+    /// <summary>
+    /// Writes and saves the meeting's summary; null if no model can run, it failed, or the meeting
+    /// was deleted meanwhile. Only the summary is changed, so a rename made while it was being
+    /// written stays.
+    /// </summary>
+    public async Task<MeetingRecord?> SummarizeAsync(MeetingRecord meeting, CancellationToken cancellationToken)
+    {
+        if (languageModel() is not { } model
+            || await new MeetingSummarizer(model).SummarizeAsync(meeting, cancellationToken) is not { } summary)
+        {
+            return null;
+        }
+
+        return store.Update(meeting.Id, m => m with { Summary = summary });
+    }
+
+    /// <summary>Deletes one meeting and its recordings, at once.</summary>
+    public void Delete(MeetingRecord meeting)
+    {
+        store.Delete(meeting.Id);
+        Log.Info(LogEvent.MeetingDeleted);
     }
 
     /// <summary>Deletes every saved meeting and its recordings, at once.</summary>

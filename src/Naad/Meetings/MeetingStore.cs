@@ -26,6 +26,41 @@ internal sealed class MeetingStore(string folder)
     public bool Save(MeetingRecord meeting) =>
         TryWrite(meeting.Id + MeetingExtension, JsonSerializer.SerializeToUtf8Bytes(meeting));
 
+    /// <summary>
+    /// Changes a saved meeting with <paramref name="change"/>, reading and writing it under one
+    /// lock, so two changes never undo each other. Returns the changed meeting, or null when it
+    /// was deleted meanwhile (nothing is written: a deleted meeting stays deleted) or the disk
+    /// refused.
+    /// </summary>
+    public MeetingRecord? Update(Guid id, Func<MeetingRecord, MeetingRecord> change)
+    {
+        lock (_gate)
+        {
+            var file = Path.Combine(folder, id + MeetingExtension);
+            MeetingRecord? current;
+            try
+            {
+                current = File.Exists(file)
+                    ? JsonSerializer.Deserialize<MeetingRecord>(Unprotect(File.ReadAllBytes(file)))
+                    : null;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or CryptographicException
+                or JsonException)
+            {
+                Log.Warn(LogEvent.MeetingUnreadable);
+                return null;
+            }
+
+            if (current is null)
+            {
+                return null;
+            }
+
+            var changed = change(current);
+            return Save(changed) ? changed : null;
+        }
+    }
+
     /// <summary>Stores one recorded piece of a meeting, for a user who keeps meeting audio.</summary>
     public bool SaveAudio(Guid id, int piece, byte[] wav) =>
         TryWrite($"{id}.{piece:D5}{AudioExtension}", wav);
