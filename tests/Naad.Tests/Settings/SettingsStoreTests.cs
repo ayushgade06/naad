@@ -363,6 +363,30 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.False(result.Settings.FileLogging);
     }
 
+    [Theory]
+    [InlineData("\"Bogus\"")]
+    [InlineData("5")]
+    [InlineData("null")]
+    public void Load_Version4HandsFreeWithAnUnreadableShortcut_TogglesRightCtrl(string shortcut)
+    {
+        var result = LoadFrom($$"""{ "version": 4, "handsFree": true, "dictationShortcut": {{shortcut}} }""");
+
+        Assert.Null(result.Settings.HoldShortcut);
+        Assert.Equal(Chord.RightCtrl, result.Settings.ToggleShortcut);
+    }
+
+    [Fact]
+    public void Load_MigratedHandsFreeFile_StaysHandsFreeWhenReadAgain()
+    {
+        LoadFrom("""{ "version": 4, "handsFree": true, "dictationShortcut": "F9" }""");
+
+        var reloaded = new SettingsStore(SettingsPath).Load();
+
+        Assert.Equal(SettingsStatus.Loaded, reloaded.Status);
+        Assert.Null(reloaded.Settings.HoldShortcut);
+        Assert.Equal("F9", reloaded.Settings.ToggleShortcut?.ToString());
+    }
+
     [Fact]
     public void Load_Version4ManualWithShiftInTheShortcut_KeepsPasteAgainAndTheShortcut()
     {

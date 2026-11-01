@@ -101,7 +101,11 @@ internal sealed class SettingsStore(string path)
                 return;
             }
 
-            var shortcut = root["dictationShortcut"]?.DeepClone() ?? JsonValue.Create(Chord.RightCtrl.ToString());
+            // An unreadable shortcut was Right Ctrl in version 4 too; it keeps its role here.
+            var shortcut = root["dictationShortcut"] is JsonValue old && old.TryGetValue(out string? text)
+                && Chord.TryParse(text, out _)
+                ? old.DeepClone()
+                : JsonValue.Create(Chord.RightCtrl.ToString());
             var handsFree = root["handsFree"] is JsonValue value && value.TryGetValue(out bool on) && on;
             root.Remove("dictationShortcut");
             root.Remove("handsFree");

@@ -258,13 +258,15 @@ internal static class Program
             controller.MicrophoneClosed += () => PlayIf(settings.PlaySounds, s => s.PlayStop());
             controller.MicrophoneFailed += _ => PlayIf(settings.ErrorSound, s => s.PlayError());
             controller.TranscriptionFailed += _ => PlayIf(settings.ErrorSound, s => s.PlayError());
-            controller.StateChanged += state =>
+            controller.StateChanged += state => ApplyPending();
+            controller.StartPending += _ => ApplyPending();
+            void ApplyPending()
             {
-                if (state == DictationState.Idle && pending is { } next)
+                if (controller.IsIdle && pending is { } next)
                 {
                     Apply(next);
                 }
-            };
+            }
             controller.MicrophoneFailed += tray.ShowMicrophoneError;
             controller.NothingHeard += tray.ShowNothingHeard;
             controller.TranscriptionFailed += tray.ShowTranscriptionError;

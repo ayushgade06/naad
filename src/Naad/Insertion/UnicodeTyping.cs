@@ -90,8 +90,10 @@ internal static class UnicodeTyping
                 Scan = unit,
                 Flags = (vk == 0 ? User32.KeyEventFUnicode : 0) | (up ? User32.KeyEventFKeyUp : 0)
 
-                    // Without it, Windows takes an injected Right Ctrl or Right Shift for the left one,
-                    // and the right one would stay held.
+                    // Without it, Windows takes an injected Right Ctrl for the left one, and the right
+                    // one would stay held.
+                    // ponytail: Right Shift isn't an extended key; if a lifted Right Shift stays held
+                    // (M-FX1), send its scan code (0x36) with KEYEVENTF_SCANCODE.
                     | (vk is (ushort)System.Windows.Forms.Keys.RControlKey ? User32.KeyEventFExtendedKey : 0),
 
                 // Marks the keys as Naad's own, so the keyboard hook skips them.

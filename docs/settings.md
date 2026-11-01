@@ -110,7 +110,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `screenshotSize` | `512`, `640`, `768` or `1024` | `1024` | The longest side of the screenshot, in pixels. |
 | `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
 | `contextWindowTitle` | `true` or `false` | `false` | With `context` on, also send the window's title to the context model. Off by default: titles often hold names, email subjects and file names. Never logged, never kept. |
-| `contextModelName` | text or `null` | `null` | The cloud model that sums up what you are doing, one that reads images; `null` uses the service's suggestion (for Groq, `meta-llama/llama-4-scout-17b-16e-instruct`). On this PC, the language model there does it. |
+| `contextModelName` | text or `null` | `null` | The cloud model that sums up what you are doing, one that reads images; `null` uses the service's suggestion (for Groq, `meta-llama/llama-4-scout-17b-16e-instruct`). With a language model on this PC no summary is made: that model answers one request at a time, so cleanup would wait for it; cleanup gets the app's name and nearby text directly. |
 | `contextPrompt`, `contextPromptVersion` | text or `null` | `null` | Your own context instructions, and the default's version they were based on; `null` uses the default. Like `cleanupPrompt`. |
 | `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
 | `editModeKey` | `"Shift"` or `"Ctrl"` | `"Shift"` | With `editMode` `"Manual"`, the key (either side) held as you press the shortcut to edit the selection. It can't be part of a dictation shortcut. |
@@ -449,7 +449,8 @@ Nothing is read from a password field or an app in `contextExcludedApps`.
 With a language model on this PC it never leaves the PC; with **Cloud** it
 goes to the AI service with the transcript.
 
-As you start speaking, the **context model** sums up in two sentences what
+With a **Cloud** language model, as you start speaking, the **context
+model** sums up in two sentences what
 you are doing, from the app's name, the text near the cursor and, if you
 turned them on, the window's title (`contextWindowTitle`) and a screenshot
 of the window. It runs while you speak, so it adds at most a second after

@@ -228,4 +228,30 @@ public sealed class ContextTests
             return new("");
         }
     }
+
+    [Fact]
+    public async Task Summarize_ScreenshotRefused_AsksAgainWithTextAlone()
+    {
+        var model = new ImageRefusing();
+        var summarizer = new ContextSummarizer(model, () => null, TimeSpan.FromSeconds(1));
+
+        var summary = await summarizer.SummarizeAsync(
+            Task.FromResult(Read with { Screenshot = [0xFF, 0xD8] }), CancellationToken.None);
+
+        Assert.Equal("They write.", summary.Text);
+        Assert.Equal([true, false], model.WithImage);
+    }
+
+    private sealed class ImageRefusing : ILanguageModel
+    {
+        public List<bool> WithImage { get; } = [];
+
+        public Task<CompletionResult> CompleteAsync(ChatPrompt prompt, CancellationToken cancellationToken)
+        {
+            WithImage.Add(prompt.Image is not null);
+            return Task.FromResult(prompt.Image is null
+                ? new CompletionResult("They write.")
+                : new CompletionResult("", new(CompletionError.Rejected, 400)));
+        }
+    }
 }

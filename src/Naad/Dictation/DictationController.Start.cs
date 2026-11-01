@@ -131,8 +131,10 @@ internal sealed partial class DictationController
             return;
         }
 
-        // A Manual edit with nothing selected is refused before the microphone opens.
-        if (_preread is null && _editIntent?.Invoke() == EditIntent.EditRequired && _readContext is { } reader)
+        // A Manual edit with nothing selected is refused before the microphone opens; a press refused
+        // anyway (meeting notes, no transcriber) goes straight on, so nothing is read for it.
+        if (_preread is null && _editIntent?.Invoke() == EditIntent.EditRequired && _readContext is { } reader
+            && _busy?.Invoke() != true && _transcriber is not null)
         {
             var check = new PendingStart { Latch = latch };
             _pendingStart = check;

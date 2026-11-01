@@ -226,4 +226,41 @@ public sealed class SettingsInputTests
         Assert.Contains(
             "doesn't know the context model", SettingsInput.ContextTestMessage(test), StringComparison.Ordinal);
     }
+
+    private static readonly Uri Local = new("http://localhost:1234/v1");
+    private static readonly Uri Other = new("http://localhost:5678/v1");
+
+    [Fact]
+    public void EndpointsToCheck_UnchangedCustomWithoutAKey_ChecksNothing() =>
+        Assert.Empty(SettingsInput.EndpointsToCheck(
+            [(Custom(Local, key: null), Naad.Providers.CloudService.Custom, Local)]));
+
+    [Theory]
+    [InlineData("Groq", false, false)]
+    [InlineData("Custom", true, false)]
+    [InlineData("Custom", false, true)]
+    public void EndpointsToCheck_NewMovedOrNewKey_ChecksIt(string saved, bool moved, bool newKey)
+    {
+        var choice = Custom(moved ? Other : Local, newKey ? "fake-api-key-0123" : null);
+
+        var endpoints = SettingsInput.EndpointsToCheck(
+            [(choice, Enum.Parse<Naad.Providers.CloudService>(saved), Local)]);
+
+        Assert.Equal([choice], endpoints);
+    }
+
+    [Fact]
+    public void EndpointsToCheck_BothTabsOnOneAddress_ChecksItOnce()
+    {
+        var choice = Custom(Other, key: null);
+
+        Assert.Single(SettingsInput.EndpointsToCheck(
+        [
+            (choice, Naad.Providers.CloudService.Groq, Local),
+            (choice with { Model = "synthetic-chat" }, Naad.Providers.CloudService.Groq, Local),
+        ]));
+    }
+
+    private static CloudChoice Custom(Uri url, string? key) =>
+        new(Naad.Providers.CloudService.Custom, url, "synthetic-model", null, key);
 }

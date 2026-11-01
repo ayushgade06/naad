@@ -143,6 +143,7 @@ internal static class DictationFeatures
         controller.Finished += history.Record;
         tray.AddHistoryItems(
             () => HistoryRecorder.RecentTexts(history.Records, TrayIcon.HistoryItems),
+            () => controller.LastText,
             controller.CopyAsync,
             async () =>
             {

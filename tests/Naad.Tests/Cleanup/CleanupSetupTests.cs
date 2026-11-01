@@ -178,4 +178,20 @@ public sealed class CleanupSetupTests : IDisposable
             };
         }
     }
+
+    [Fact]
+    public void Summary_ModelOnThisPc_RunsNone()
+    {
+        using var http = new HttpClient();
+        var model = new OpenAiChatLanguageModel(
+            http, FakeKey, AppSettings.Defaults.LanguageModelBaseUrl, "m", Temperature());
+
+        Assert.Null(CleanupSetup.Summary(model, http, _ => FakeKey, AppSettings.Defaults, Temperature()));
+        Assert.NotNull(CleanupSetup.Summary(
+            model,
+            http,
+            _ => FakeKey,
+            AppSettings.Defaults with { LanguageModelProvider = LanguageModelProvider.Cloud },
+            Temperature()));
+    }
 }

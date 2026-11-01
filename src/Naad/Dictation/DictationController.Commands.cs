@@ -114,6 +114,11 @@ internal sealed partial class DictationController
     /// </summary>
     public Task<bool> PasteAgainAsync() => PasteAsync(_lastText);
 
+    /// <summary>
+    /// What Paste again pastes now; null before the first dictation. User content: shown, never logged.
+    /// </summary>
+    public string? LastText => _lastText;
+
     /// <summary>Pastes <paramref name="text"/> into the window that has focus now. Call on the UI thread.</summary>
     public async Task<bool> PasteAsync(string? text)
     {

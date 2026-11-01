@@ -47,7 +47,7 @@ internal sealed partial class RecordingOverlay
         // The stop button takes the right end; the bars centre in what is left.
         var stop = _handsFree ? OverlayLayout.StopButton(Bounds, DeviceDpi / 96.0) : Rectangle.Empty;
         var bars = band with { Width = _handsFree ? stop.Left - Left - (stop.Width / 4f) : band.Width };
-        if (_editing)
+        if (_editing && band.Height >= Scale(LogicalHeight))
         {
             DrawPencil(graphics, band);
         }

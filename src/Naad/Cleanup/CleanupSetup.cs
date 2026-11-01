@@ -112,12 +112,13 @@ internal static class CleanupSetup
 
     /// <summary>
     /// The summary to start with each recording, or null when context isn't read for AI cleanup
-    /// or no model runs.
+    /// or no cloud model runs. The model on this PC answers one prompt at a time, so a summary
+    /// would make cleanup wait for it; there, cleanup gets the app and nearby text directly.
     /// </summary>
     public static Func<Task<DictationContext>, CancellationToken, Task<ContextSummary>>? Summary(
         ILanguageModel? model, HttpClient http, Func<CloudService, string?> keyFor, AppSettings s,
         TemperatureSupport temperature) =>
-        s.Context && s.Cleanup == CleanupLevel.Ai
+        s.Context && s.Cleanup == CleanupLevel.Ai && s.LanguageModelProvider == LanguageModelProvider.Cloud
             && CreateContextSummarizer(model, http, keyFor, s, temperature, () => s.ContextPrompt) is { } summarizer
             ? summarizer.SummarizeAsync
             : null;

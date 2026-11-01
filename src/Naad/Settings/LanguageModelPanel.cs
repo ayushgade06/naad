@@ -159,8 +159,8 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         _windowTitle.Checked = current.ContextWindowTitle;
         Row(this, "", _windowTitle);
         Row(this, "Context model", Flow(_contextModel, _contextModelReset, _contextPromptButton));
-        Row(this, "", Note("Sums up what you are doing while you speak, as a hint for cleanup. In the cloud it is " +
-            "its own model, one that reads images for the screenshot; on this PC, the model there."));
+        Row(this, "", Note("With AI in the cloud, sums up what you are doing while you speak, as a hint for " +
+            "cleanup; choose one that reads images for the screenshot. On this PC, cleanup reads the app directly."));
         Row(this, "", _screenshot);
         Row(this, "Screenshot", Flow(_screenshotSize, _wholeDesktop));
         Row(this, "Wait up to", Flow(_timeout, Note("seconds for the AI, then paste as said")));

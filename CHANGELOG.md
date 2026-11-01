@@ -124,7 +124,7 @@ All notable changes to Naad are listed here. The format follows
   them, even after a crash. **Preview** warns when the speakers are muted
   or nearly silent.
 
-- **A context model**: as you start speaking, it sums up in two sentences
+- **A context model** (with AI in the cloud): as you start speaking, it sums up in two sentences
   what you're doing, from the app, the text near the cursor and, if you
   allow them, the window's title (off by default) and a screenshot of the
   window. It runs while you speak, so the paste waits at most a second for

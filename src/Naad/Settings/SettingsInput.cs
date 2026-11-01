@@ -70,6 +70,28 @@ internal static class SettingsInput
     };
 
     /// <summary>
+    /// The custom endpoints Save checks, each address once: one newly chosen, moved to another
+    /// address, or given a new key. One saved before and unchanged isn't asked again.
+    /// </summary>
+    /// <param name="choices">Each tab's choice, with the service and address saved before.</param>
+    public static IReadOnlyList<CloudChoice> EndpointsToCheck(
+        IReadOnlyList<(CloudChoice Choice, Providers.CloudService Saved, Uri SavedUrl)> choices)
+    {
+        var endpoints = new List<CloudChoice>();
+        foreach (var (choice, saved, url) in choices)
+        {
+            if (choice.Service == Providers.CloudService.Custom
+                && (saved != Providers.CloudService.Custom || choice.CustomUrl != url || choice.NewKey is not null)
+                && !endpoints.Any(e => e.CustomUrl == choice.CustomUrl))
+            {
+                endpoints.Add(choice);
+            }
+        }
+
+        return endpoints;
+    }
+
+    /// <summary>
     /// Why a custom endpoint can't be saved, or null to save it. Only a definite answer blocks the
     /// save: a rejected key, or an address that isn't an OpenAI-compatible API. One that can't be
     /// reached now may work later, and one that can't list models may still transcribe.

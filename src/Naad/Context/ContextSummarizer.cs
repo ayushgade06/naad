@@ -44,7 +44,14 @@ internal sealed class ContextSummarizer(ILanguageModel model, Func<string?> cust
             return ContextSummary.None;
         }
 
-        return await AskAsync(ContextPrompt.Build(customInstructions(), read), token);
+        var prompt = ContextPrompt.Build(customInstructions(), read);
+        var summary = await AskAsync(prompt, token);
+
+        // A model that can't read images refuses the screenshot; the text alone still helps. A key,
+        // model or rate-limit problem would fail the same way again, so it isn't retried.
+        return summary.Failure is ContextFailure.Unusable or ContextFailure.Server && prompt.Image is not null
+            ? await AskAsync(prompt with { Image = null }, token)
+            : summary;
     }
 
     /// <summary>Sends <paramref name="prompt"/> as it is, as Test context prompt does.</summary>

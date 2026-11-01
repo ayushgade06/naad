@@ -8,7 +8,7 @@ namespace Naad.Context;
 /// <param name="App">The app's process name, such as "notepad"; null when unknown.</param>
 /// <param name="NearbyText">Up to 2,000 characters around the caret, as spelling hints; null when not read.</param>
 /// <param name="Selection">The selected text when this dictation is an edit; null otherwise.</param>
-/// <param name="Screenshot">A PNG of the window, only when the user opted in for a cloud model.</param>
+/// <param name="Screenshot">A JPEG of the window, only when the user opted in for a cloud model.</param>
 /// <param name="NeedsSelection">Manual Edit Mode was asked for, but nothing was selected.</param>
 /// <param name="WindowTitle">The window's title, only when the user turned that on; null otherwise.</param>
 /// <param name="Summary">The context model's two sentences on what the user is doing; null for none.</param>

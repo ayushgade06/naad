@@ -335,20 +335,11 @@ internal sealed partial class SettingsWindow : Form
 
         // A custom endpoint that is new or moved is checked even without a key: a wrong address would
         // otherwise only fail at the next dictation. Its new key is checked with it.
-        var endpoints = new List<CloudChoice>();
-        foreach (var (choice, service, url) in new[]
-        {
+        var endpoints = SettingsInput.EndpointsToCheck(
+        [
             (transcription, _current.TranscriptionService, _current.TranscriptionBaseUrl),
             (languageModel, _current.LanguageModelService, _current.LanguageModelBaseUrl),
-        })
-        {
-            if (choice.Service == CloudService.Custom
-                && (service != CloudService.Custom || choice.CustomUrl != url || choice.NewKey is not null)
-                && !endpoints.Any(e => e.CustomUrl == choice.CustomUrl))
-            {
-                endpoints.Add(choice);
-            }
-        }
+        ]);
 
         _error.Text = newKeys.Count > 0 ? "Checking the new key..."
             : endpoints.Count > 0 ? "Checking the address..."

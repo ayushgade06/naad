@@ -205,11 +205,16 @@ internal sealed partial class TrayIcon : IDisposable
     /// ten newest dictations to copy, and Add copied words to dictionary. Call once, on the UI thread.
     /// </summary>
     /// <param name="recent">The newest dictations' text, newest first.</param>
+    /// <param name="last">What Paste again pastes now, or null: it may not be in the history.</param>
     /// <param name="copy">Puts text on the clipboard.</param>
     /// <param name="pasteAgain">Pastes the last text into the window in front once the menu closes.</param>
     /// <param name="addCopiedWords">Adds the clipboard's words to the dictionary.</param>
     public void AddHistoryItems(
-        Func<IReadOnlyList<string>> recent, Func<string, Task<bool>> copy, Func<Task> pasteAgain, Action addCopiedWords)
+        Func<IReadOnlyList<string>> recent,
+        Func<string?> last,
+        Func<string, Task<bool>> copy,
+        Func<Task> pasteAgain,
+        Action addCopiedWords)
     {
         _copyText = copy;
         var again = new ToolStripMenuItem("Paste again");
@@ -221,8 +226,9 @@ internal sealed partial class TrayIcon : IDisposable
             var texts = recent();
             _latest = texts.Count > 0 ? texts[0] : null;
             _copyLastTranscript.Enabled = CanCopyLast(texts, _hasKept);
-            again.Enabled = texts.Count > 0;
-            again.Text = texts.Count > 0 ? $"Paste again: “{Preview(texts[0], PasteAgainPreview)}”" : "Paste again";
+            var next = last() ?? (texts.Count > 0 ? texts[0] : null);
+            again.Enabled = next is not null;
+            again.Text = next is not null ? $"Paste again: “{Preview(next, PasteAgainPreview)}”" : "Paste again";
             history.DropDownItems.Clear();
             foreach (var text in texts.Take(HistoryItems))
             {
