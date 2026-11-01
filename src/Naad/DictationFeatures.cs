@@ -103,6 +103,45 @@ internal static class DictationFeatures
     }
 
     /// <summary>
+    /// Live preview: while a dictation records, each phrase is transcribed by Whisper on this PC
+    /// and shown in the overlay. Only when the setting is on and the model already runs on a
+    /// graphics card; otherwise the recording is transcribed in one pass on release.
+    /// </summary>
+    /// <param name="controller">The dictation.</param>
+    /// <param name="recorder">Its microphone, whose buffers feed the live transcript.</param>
+    /// <param name="overlay">Shows the words.</param>
+    /// <param name="ui">The UI thread, where the overlay is drawn.</param>
+    /// <param name="transcriber">The transcriber in use.</param>
+    /// <param name="settings">The settings in use.</param>
+    public static void ConnectLive(
+        DictationController controller,
+        Audio.AudioRecorder recorder,
+        RecordingOverlay overlay,
+        SynchronizationContext ui,
+        Func<Transcription.ITranscriber?> transcriber,
+        Func<AppSettings> settings)
+    {
+        Live.LiveTranscript? current = null;
+
+        // Raised on the capture thread; a recording without a live transcript ignores it.
+        recorder.PcmRecorded += pcm => Volatile.Read(ref current)?.Add(pcm);
+        controller.UseLiveTranscript(() =>
+        {
+            if (!settings().LivePreview
+                || transcriber() is not Transcription.LocalWhisperTranscriber { OnGraphicsCard: true } local)
+            {
+                Volatile.Write(ref current, null);
+                return null;
+            }
+
+            var live = new Live.LiveTranscript(local, Live.SpeechChunker.ForDictation());
+            live.TextChanged += text => ui.Post(_ => overlay.ShowLiveText(text), null);
+            Volatile.Write(ref current, live);
+            return live;
+        });
+    }
+
+    /// <summary>
     /// Transcribes a kept recording again with the settings in use, updates its record and copies
     /// the new text; null if it failed. An edit is redone on the selection it had.
     /// </summary>

@@ -35,6 +35,15 @@ internal sealed class RecordingOverlay : Form
     private const int LogicalMaxBarHeight = 20;
     private const int BarCount = 15;
 
+    // With live preview the pill widens to a line of about ten words above the bars.
+    private const int LogicalLiveWidth = 380;
+    private const int LogicalLiveTextHeight = 24;
+    private const int LogicalTextPadding = 14;
+
+    // The words' line sits this far below the pill's top edge, clear of its rounded corner.
+    private const int LogicalLiveTextTop = 6;
+    private const string Ellipsis = "…";
+
     // Long enough to read two words at a glance, short enough not to linger over the text.
     private const int FallbackNoticeMilliseconds = 2500;
 
@@ -53,6 +62,8 @@ internal sealed class RecordingOverlay : Form
     private long _recordingStarted;
 
     private bool _showTimer;
+    private string _liveText = "";
+    private Rectangle _area;
 
     public RecordingOverlay()
     {
@@ -105,6 +116,7 @@ internal sealed class RecordingOverlay : Form
             _label = "Transcribing";
             _microphoneOpen = false;
             _recordingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            _liveText = "";
             Array.Clear(_shown);
             _meter.Reset();
             _bars.Reset();
@@ -113,6 +125,27 @@ internal sealed class RecordingOverlay : Form
 
         // ShowWithoutActivation makes this SW_SHOWNOACTIVATE: focus stays where it is.
         Show();
+        Render();
+    }
+
+    /// <summary>
+    /// Shows the words heard so far above the bars, the newest at the right; the pill grows to fit
+    /// a line of them. User content: drawn only, never kept beyond this dictation.
+    /// </summary>
+    public void ShowLiveText(string text)
+    {
+        if (_state == DictationState.Idle || !Visible || text.Length == 0)
+        {
+            return;
+        }
+
+        var grow = _liveText.Length == 0;
+        _liveText = text;
+        if (grow)
+        {
+            Fit();
+        }
+
         Render();
     }
 
@@ -209,22 +242,23 @@ internal sealed class RecordingOverlay : Form
             graphics.DrawPath(edge, pill);
         }
 
+        // Live words on top; the bars or the label in the band below, where they always are.
+        var band = new RectangleF(0, Height - Scale(LogicalHeight), Width, Scale(LogicalHeight));
+        if (_liveText.Length > 0)
+        {
+            DrawLiveText(graphics);
+        }
+
         // The microphone can take a moment to open; until then there are no levels to show.
         if (_state == DictationState.Recording && !_microphoneOpen)
         {
-            DrawLabel(graphics, "Starting");
+            DrawLabel(graphics, "Starting", band);
             return;
         }
 
         if (_state != DictationState.Recording)
         {
-            using var text = new SolidBrush(TextColor);
-            using var format = new StringFormat
-            {
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center,
-            };
-            graphics.DrawString(_label, Font, text, new RectangleF(0, 0, Width, Height), format);
+            DrawLabel(graphics, _label, band);
             return;
         }
 
@@ -238,7 +272,8 @@ internal sealed class RecordingOverlay : Form
             // Halfway to the new level at each buffer, so the bars glide instead of jumping.
             _shown[i] += ((float)_bars.Height(i) - _shown[i]) * 0.5f;
             var height = Math.Max(barWidth, _shown[i] * Scale(LogicalMaxBarHeight));
-            using var bar = Capsule(new RectangleF(left + (i * step), (Height - height) / 2f, barWidth, height));
+            using var bar = Capsule(
+                new RectangleF(left + (i * step), band.Top + ((band.Height - height) / 2f), barWidth, height));
             graphics.FillPath(brush, bar);
         }
 
@@ -256,12 +291,12 @@ internal sealed class RecordingOverlay : Form
                 $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}",
                 small,
                 text,
-                new RectangleF(0, 0, Width - Scale(LogicalBarGap * 4), Height),
+                band with { Width = Width - Scale(LogicalBarGap * 4) },
                 format);
         }
     }
 
-    private void DrawLabel(Graphics graphics, string label)
+    private void DrawLabel(Graphics graphics, string label, RectangleF band)
     {
         using var text = new SolidBrush(TextColor);
         using var format = new StringFormat
@@ -269,7 +304,31 @@ internal sealed class RecordingOverlay : Form
             Alignment = StringAlignment.Center,
             LineAlignment = StringAlignment.Center
         };
-        graphics.DrawString(label, Font, text, new RectangleF(0, 0, Width, Height), format);
+        graphics.DrawString(label, Font, text, band, format);
+    }
+
+    // The newest words that fit on one line, cut at a word with an ellipsis in front.
+    private void DrawLiveText(Graphics graphics)
+    {
+        var line = new RectangleF(
+            Scale(LogicalTextPadding), Scale(LogicalLiveTextTop), Width - Scale(LogicalTextPadding * 2), Scale(LogicalLiveTextHeight));
+        var words = _liveText;
+        var cut = false;
+        while (graphics.MeasureString((cut ? Ellipsis : "") + words, Font).Width > line.Width
+            && words.IndexOf(' ', StringComparison.Ordinal) is var space and > 0)
+        {
+            words = words[(space + 1)..];
+            cut = true;
+        }
+
+        using var brush = new SolidBrush(BarColor);
+        using var format = new StringFormat
+        {
+            LineAlignment = StringAlignment.Center,
+            FormatFlags = StringFormatFlags.NoWrap,
+            Trimming = StringTrimming.None,
+        };
+        graphics.DrawString((cut ? Ellipsis : "") + words, Font, brush, line, format);
     }
 
     private void ShowLabel(string label)
@@ -311,11 +370,20 @@ internal sealed class RecordingOverlay : Form
     private void Place(nint target)
     {
         var screen = target == 0 ? Screen.PrimaryScreen! : Screen.FromHandle(target);
-        var area = screen.WorkingArea;
-        var size = new Size(Scale(LogicalWidth), Scale(LogicalHeight));
+        _area = screen.WorkingArea;
+        Fit();
+    }
+
+    // The pill's size for what it shows, centred on the bottom of the area chosen by Place.
+    private void Fit()
+    {
+        var live = _liveText.Length > 0;
+        var size = new Size(
+            Scale(live ? LogicalLiveWidth : LogicalWidth),
+            Scale(live ? LogicalHeight + LogicalLiveTextHeight : LogicalHeight));
         Bounds = new Rectangle(
-            area.Left + ((area.Width - size.Width) / 2),
-            area.Bottom - size.Height - Scale(LogicalBottomMargin),
+            _area.Left + ((_area.Width - size.Width) / 2),
+            _area.Bottom - size.Height - Scale(LogicalBottomMargin),
             size.Width,
             size.Height);
     }

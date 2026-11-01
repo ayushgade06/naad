@@ -32,6 +32,12 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
         _prompt = prompt;
     }
 
+    /// <summary>
+    /// Whether the model is loaded and runs on a graphics card, fast enough to transcribe phrases
+    /// while the user is still speaking. False until the first dictation loads it.
+    /// </summary>
+    public bool OnGraphicsCard { get; private set; }
+
     public async Task<TranscriptionResult> TranscribeAsync(byte[] wav, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -60,7 +66,7 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
         }
     }
 
-    private static WhisperFactory Load(string modelPath)
+    private WhisperFactory Load(string modelPath)
     {
         var started = Stopwatch.GetTimestamp();
 
@@ -70,6 +76,8 @@ internal sealed class LocalWhisperTranscriber : ITranscriber, IDisposable
         var devices = Ggml.DeviceTypes();
         var device = GpuChoice.Pick(devices);
         var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { GpuDevice = device });
+        OnGraphicsCard = RuntimeOptions.LoadedLibrary == RuntimeLibrary.Vulkan
+            && devices.Any(d => d is GgmlDeviceType.Gpu or GgmlDeviceType.IntegratedGpu);
         Log.Info(
             LogEvent.LocalModelLoaded,
             ("vulkan", RuntimeOptions.LoadedLibrary == RuntimeLibrary.Vulkan ? 1 : 0),

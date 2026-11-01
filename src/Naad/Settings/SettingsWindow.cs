@@ -13,7 +13,7 @@ namespace Naad.Settings;
 /// the messages, and Program's callbacks save and apply. The API key is write-only here: the
 /// window shows where the key comes from, never the key. Create, use and close it on the UI thread.
 /// </summary>
-internal sealed class SettingsWindow : Form
+internal sealed partial class SettingsWindow : Form
 {
     private const string WindowsDefaultMicrophone = "Windows default";
     private const string CapturePrompt = "Press the new shortcut, then release it. Esc cancels.";
@@ -22,6 +22,7 @@ internal sealed class SettingsWindow : Form
     private readonly SettingsWindowActions _actions;
     private readonly LanguageModelPanel _languageModel;
     private readonly GeneralPanel _general;
+    private readonly LivePanel _live;
     private readonly bool _embedded;
     private readonly CloudServiceFields _cloud;
     private readonly CancellationTokenSource _closing = new();
@@ -99,6 +100,7 @@ internal sealed class SettingsWindow : Form
 
         FillFields(microphones);
         _general = new(current, startsAtLogin);
+        _live = new(current);
         _languageModel = new(
             current,
             actions.KeyFor,
@@ -134,23 +136,6 @@ internal sealed class SettingsWindow : Form
             CancelCapture();
             _closing.Cancel();
         };
-    }
-
-    /// <summary>The hook finished a capture this window started. Call on the UI thread.</summary>
-    public void ShowCapture(CaptureStep step)
-    {
-        if (!_capturing)
-        {
-            return;
-        }
-
-        if (step.Chord is { } chord)
-        {
-            _shortcut = chord;
-        }
-
-        EndCapture();
-        _error.Text = step.Status == CaptureStatus.Rejected ? "That key can't be part of a shortcut. Try another." : "";
     }
 
     protected override void Dispose(bool disposing)
@@ -200,7 +185,7 @@ internal sealed class SettingsWindow : Form
         _timeout.Value = _current.TranscriptionTimeoutSeconds;
     }
 
-    // Two pages, so the window fits a laptop screen; Save and Cancel apply to both.
+    // Pages, so the window fits a laptop screen; Save and Cancel apply to all of them.
     private TableLayoutPanel BuildLayout()
     {
         var dictation = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Padding = new Padding(12) };
@@ -246,8 +231,9 @@ internal sealed class SettingsWindow : Form
         var tabs = new TabControl();
         tabs.TabPages.Add(Page("Dictation", dictation));
         tabs.TabPages.Add(Page("AI", _languageModel));
+        tabs.TabPages.Add(Page("Live", _live));
         tabs.TabPages.Add(Page("General", _general));
-        Control[] pages = [dictation, _languageModel, _general];
+        Control[] pages = [dictation, _languageModel, _live, _general];
         var largest = new Size(
             pages.Max(page => page.PreferredSize.Width), pages.Max(page => page.PreferredSize.Height));
         // The tab strip and border around the page, and a little room so nothing touches them.
@@ -275,34 +261,6 @@ internal sealed class SettingsWindow : Form
         var ready = model.IsReady();
         _modelStatus.Text = SettingsInput.ModelStatus(model.Size, ready);
         _downloadModelButton.Visible = !ready;
-    }
-
-    private void BeginCapture()
-    {
-        if (_capturing || !_actions.BeginCapture())
-        {
-            return;
-        }
-
-        _capturing = true;
-        _changeShortcut.Enabled = false;
-        _shortcutText.Text = CapturePrompt;
-    }
-
-    private void CancelCapture()
-    {
-        if (_capturing)
-        {
-            _actions.CancelCapture();
-            EndCapture();
-        }
-    }
-
-    private void EndCapture()
-    {
-        _capturing = false;
-        _changeShortcut.Enabled = true;
-        _shortcutText.Text = _shortcut.Describe();
     }
 
     // Fire-and-forget from a click: anything not caught here would vanish silently.
@@ -383,7 +341,7 @@ internal sealed class SettingsWindow : Form
             return;
         }
 
-        settings = general;
+        settings = _live.Apply(general);
         if (!IsDisposed && _actions.Save(new(settings, newKeys, _general.StartAtLogin)) is { } problem)
         {
             _error.Text = problem;

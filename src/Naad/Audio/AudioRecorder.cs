@@ -40,6 +40,12 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
     /// </summary>
     public event Action<double, TimeSpan>? LevelMeasured;
 
+    /// <summary>
+    /// A copy of each buffer as it arrives, in <see cref="Format"/>, for live transcription.
+    /// Raised on NAudio's capture thread; handlers must be quick. Audio: never logged or stored.
+    /// </summary>
+    public event Action<byte[]>? PcmRecorded;
+
     /// <summary>The recording devices' names, in Windows' device order.</summary>
     /// <exception cref="MmException">A device disappeared while the list was read.</exception>
     public static IReadOnlyList<string> DeviceNames() =>
@@ -87,18 +93,35 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
                 return new(MicrophoneError.NotFound);
             }
 
-            var recording = new Recording(ChooseDevice(), (rms, duration) => LevelMeasured?.Invoke(rms, duration));
+            Recording? recording = null;
+
+            // Only the current recording's buffers: a late one from a recording still closing
+            // would put the next live transcript's offsets out of step with its audio. Copied
+            // only when someone listens.
+            recording = new Recording(
+                ChooseDevice(),
+                (rms, duration) => LevelMeasured?.Invoke(rms, duration),
+                (buffer, count) =>
+                {
+                    if (PcmRecorded is { } handler && ReferenceEquals(Volatile.Read(ref _current), recording))
+                    {
+                        handler(buffer.AsSpan(0, count).ToArray());
+                    }
+                });
+
+            // Current before it starts, so its first buffer is never dropped.
+            _current = recording;
             try
             {
                 recording.Start();
             }
             catch (MmException e)
             {
+                _current = null;
                 recording.Dispose();
                 return MicrophoneFailure.FromResult(e.Result);
             }
 
-            _current = recording;
             return null;
         }
     }
@@ -203,7 +226,7 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
         private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly WaveIn _waveIn;
 
-        public Recording(int device, Action<double, TimeSpan> levelMeasured)
+        public Recording(int device, Action<double, TimeSpan> levelMeasured, Action<byte[], int> pcmRecorded)
         {
             _waveIn = new()
             {
@@ -220,6 +243,7 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
                     _pcm.Write(e.BufferSpan);
                 }
 
+                pcmRecorded(e.Buffer, e.BytesRecorded);
                 var samples = e.BytesRecorded / Format.BlockAlign;
                 levelMeasured(LevelMeter.Rms(e.BufferSpan), TimeSpan.FromSeconds((double)samples / Format.SampleRate));
             };

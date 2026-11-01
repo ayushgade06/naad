@@ -40,6 +40,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "screenshotSize": 1024,
   "screenshotWholeDesktop": false,
   "editMode": "Automatic",
+  "livePreview": false,
   "handsFree": false,
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
@@ -84,6 +85,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `screenshotSize` | `512`, `640`, `768` or `1024` | `1024` | The longest side of the screenshot, in pixels. |
 | `screenshotWholeDesktop` | `true` or `false` | `false` | Capture the whole screen when the window can't be captured on its own. |
 | `editMode` | `"Off"`, `"Automatic"` or `"Manual"` | `"Automatic"` | What speaking over selected text does. See [Context and Edit Mode](#context-and-edit-mode). |
+| `livePreview` | `true` or `false` | `false` | Transcribe each phrase while you speak and show the words in the overlay, so the text is ready sooner after you let go. Only with `transcriptionProvider` `"Local"` and Whisper running on a graphics card; it starts from the second dictation after Naad starts or settings are saved, once the model is loaded. On the processor alone it does nothing. The words are shown, never saved. |
 | `handsFree` | `true` or `false` | `false` | With `true`, press the shortcut once to start dictating and again to stop, instead of holding it. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |

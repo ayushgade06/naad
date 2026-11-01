@@ -148,6 +148,12 @@ internal sealed record AppSettings
     [JsonConverter(typeof(JsonStringEnumConverter<EditMode>))]
     public EditMode EditMode { get; init; } = EditMode.Automatic;
 
+    /// <summary>
+    /// Transcribe each phrase while still speaking and show it in the overlay. Only with Whisper on
+    /// this PC running on a graphics card: on the processor it would slow the dictation down.
+    /// </summary>
+    public bool LivePreview { get; init; }
+
     /// <summary>Press the shortcut once to start and again to stop, instead of holding it.</summary>
     public bool HandsFree { get; init; }
 

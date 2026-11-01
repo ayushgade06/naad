@@ -385,6 +385,7 @@ internal sealed class SettingsStore(string path)
             ScreenshotWholeDesktop = ReadBool(
                 root, "screenshotWholeDesktop", defaults.ScreenshotWholeDesktop, ref repaired),
             EditMode = ReadName(root, "editMode", defaults.EditMode, ref repaired),
+            LivePreview = ReadBool(root, "livePreview", defaults.LivePreview, ref repaired),
         };
         return (settings, repaired);
     }

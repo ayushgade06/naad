@@ -130,6 +130,9 @@ internal enum LogEvent
     HistoryEnforced,
     HistoryCleared,
 
+    LiveFinished,
+    LiveFellBack,
+
     UpdateNotAvailable,
     UpdateAvailable,
     UpdateCheckFailed,

@@ -1027,3 +1027,18 @@ run** by a person.
 | M-ED5 | No selection | In Manual, dictate with Shift and nothing selected. | A notice asks you to select text; nothing is pasted. | **No.** Unit tested. |
 
 **Status after P34:** M-ED1 to M-ED5 have **not been run** by a person.
+
+## Live preview (P35): M-LV1 to M-LV4
+
+Live preview needs Whisper on this PC running on a graphics card, and **Live > Show the words in
+the overlay while I speak** ticked. It starts from the second dictation after Naad starts or settings are saved, once the model is
+loaded.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-LV1 | Words while speaking | Hold the shortcut and say three sentences with a short pause after each. | After each pause the overlay widens and shows the words so far, newest on the right; the bars stay below them. | **No.** |
+| M-LV2 | Release to paste | Dictate the same 20 seconds with live preview off, then on; note the time from letting go to the paste. | Faster with it on. Measured on this PC's graphics card with a 21-second text-to-speech clip: 1,657 to 1,083 ms with Turbo and 652 to 435 ms with Base (the explicit `LiveTranscriptAccuracyTests`). | **Partly.** The explicit test measures it without the microphone. |
+| M-LV3 | Same text | Compare the pasted text with live preview on and off for the same speech. | At most 15% of words differ (the documented tolerance). The explicit test found 0% on the clip above. | **Partly.** Explicit test with synthetic speech. |
+| M-LV4 | Processor only | With **Base** and no graphics card (or Vulkan missing), dictate with the setting on. | The overlay shows only the bars; dictation works as before. | **No.** |
+
+**Status after P35:** M-LV1 to M-LV4 have **not been run** by a person.

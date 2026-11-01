@@ -57,6 +57,10 @@ Context (the app's name and the text near the cursor) and screenshots are
 read for one dictation, kept in memory only, and never logged. Naad never
 reads a password field or an app you excluded.
 
+With **Live preview** on, the words heard so far are shown in the overlay
+while you speak, kept in memory for that dictation only, and never logged.
+They are transcribed on this PC; nothing extra is sent anywhere.
+
 If a transcript can't be pasted, for example because you switched windows,
 Naad keeps the latest one in memory so you can choose **Copy last
 transcript**. Only one is kept, and it is gone when Naad exits.

@@ -156,6 +156,7 @@ internal sealed partial class DictationController(
         }
 
         _disposed = true;
+        TakeLive()?.Dispose();
         _shutdown.Cancel();
         _shutdown.Dispose();
     }
@@ -216,10 +217,12 @@ internal sealed partial class DictationController(
                 // Read while the user speaks; the reader keeps its own time limit.
                 _context = _readContext?.Invoke(_target) ?? Task.FromResult(DictationContext.None);
                 _cleanup?.Prepare();
+                StartLive();
                 _starting = StartRecordingAsync(step.Job, _stopped, time.GetTimestamp());
                 _ = StopAtMaxDurationAsync(step.Job, _shutdown.Token);
                 break;
             case DictationAction.Discard:
+                TakeLive()?.Dispose();
                 _ = DiscardAsync(e, step.Held);
                 break;
             case DictationAction.Transcribe:
@@ -331,6 +334,7 @@ internal sealed partial class DictationController(
         var service = _transcriber;
         var cleanup = _cleanup;
         var contextTask = _context;
+        using var live = TakeLive();
 
         // The window the user was in when they pressed the shortcut, never whatever has focus now.
         var target = _target;
@@ -369,8 +373,8 @@ internal sealed partial class DictationController(
 
             var requestStart = time.GetTimestamp();
             // A recording only starts with a transcriber, and one is never removed mid-dictation.
-            var result = await (service ?? throw new InvalidOperationException("No transcriber."))
-                .TranscribeAsync(wav, cancel);
+            var result = await TranscribeAsync(
+                service ?? throw new InvalidOperationException("No transcriber."), live, pcm, wav, cancel);
             report = report with { TranscribeMilliseconds = Milliseconds(time.GetElapsedTime(requestStart)) };
             if (result.Failure is { } failure)
             {

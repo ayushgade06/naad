@@ -221,6 +221,8 @@ internal static class Program
                 controller, hook, overlay, tray, clipboard, () => pending ?? settings, () => languageModel is not null,
                 SaveWords);
             enforceHistory = r => history.Enforce(r);
+            DictationFeatures.ConnectLive(
+                controller, recorder, overlay, ui, () => transcriber, () => pending ?? settings);
             controller.UseHandsFree(settings.HandsFree);
             UseLanguageModel(settings, replace: true);
             offline = () =>
