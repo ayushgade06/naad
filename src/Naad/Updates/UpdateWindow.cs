@@ -21,13 +21,14 @@ internal sealed class UpdateWindow : Form
     private readonly Button _close = new() { Text = "Not now", AutoSize = true };
     private CancellationTokenSource? _download;
 
-    /// <param name="updater">Has found the release, and downloads it.</param>
-    /// <param name="version">The release on offer, such as "2.0.1".</param>
+    /// <param name="updater">Downloads and applies the release.</param>
+    /// <param name="release">The release on offer, signed by Naad's publisher.</param>
     /// <param name="isIdle">Whether no dictation or meeting is running, so Naad may restart.</param>
     /// <param name="exit">Ends Naad the normal way; Velopack then applies the update.</param>
-    public UpdateWindow(AppUpdater updater, string version, Func<bool> isIdle, Action exit)
+    public UpdateWindow(AppUpdater updater, FoundRelease release, Func<bool> isIdle, Action exit)
     {
-        Version = version;
+        Release = release;
+        var version = release.Version;
         _updater = updater;
         _isIdle = isIdle;
         _exit = exit;
@@ -45,7 +46,7 @@ internal sealed class UpdateWindow : Form
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
             Dock = DockStyle.Fill,
-            Text = updater.Notes is { Length: > 0 } text
+            Text = updater.Notes(release) is { Length: > 0 } text
                 ? text.ReplaceLineEndings(Environment.NewLine)
                 : "This release has no notes. See the releases page on GitHub for what changed.",
         };
@@ -71,7 +72,16 @@ internal sealed class UpdateWindow : Form
     }
 
     /// <summary>The release this window offers.</summary>
-    public string Version { get; }
+    public FoundRelease Release { get; }
+
+    /// <summary>Starts the download, as Install does; nothing while one runs.</summary>
+    public void Install()
+    {
+        if (!_cancel.Visible)
+        {
+            _ = InstallAsync();
+        }
+    }
 
     protected override void Dispose(bool disposing)
     {
@@ -110,7 +120,7 @@ internal sealed class UpdateWindow : Form
                 _progress.Value = Math.Clamp(percent, 0, 100);
                 _status.Text = $"Downloading... {_progress.Value}%";
             });
-            var ready = await _updater.DownloadAsync(((IProgress<int>)progress).Report, _download.Token);
+            var result = await _updater.DownloadAsync(Release, ((IProgress<int>)progress).Report, _download.Token);
 
             // Closed meanwhile: nothing is applied; the next offer downloads again.
             if (IsDisposed)
@@ -118,7 +128,16 @@ internal sealed class UpdateWindow : Form
                 return;
             }
 
-            if (!ready)
+            if (result == DownloadResult.Refused)
+            {
+                // Not the file Naad's publisher signed: deleted, and never offered to install.
+                _status.Text = "The download isn't the release signed by Naad's publisher, so it wasn't installed.";
+                Downloading(false);
+                _install.Visible = false;
+                return;
+            }
+
+            if (result != DownloadResult.Ready)
             {
                 _status.Text = "The download failed. Check your internet connection and try again.";
                 _install.Text = "Retry";
@@ -132,7 +151,7 @@ internal sealed class UpdateWindow : Form
             else
             {
                 _status.Text = "Restarting Naad...";
-                _updater.ApplyOnExit();
+                _updater.ApplyOnExit(Release);
                 _exit();
                 return;
             }

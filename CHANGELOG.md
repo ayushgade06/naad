@@ -46,6 +46,19 @@ All notable changes to Naad are listed here. The format follows
   call and fades on its own after 20 seconds.
 - Settings for the apps that never get the meeting offer, and for the
   is-recording file.
+- **Signed updates**: every release carries a list of its files and their
+  SHA-256 hashes, signed with Naad's key. Naad installs a release only when
+  the list checks out with the key built into it and the downloaded package
+  matches the list; anything else is refused.
+- **Update settings**: check for updates automatically (on by default), the
+  time of the last check, and **Check now**. Checking by hand for a release
+  under three days old says how long ago it came out, with **Download now**,
+  **What's new** and **Wait**.
+- **Clipboard settings**: put back what was on the clipboard after a paste,
+  and keep dictations out of clipboard history. Both are on by default, as
+  before.
+- Settings shows whether Windows lets Naad use the microphone, with **Open
+  Windows settings**.
 
 ### Changed
 
@@ -64,6 +77,10 @@ All notable changes to Naad are listed here. The format follows
   supports it, so the other side is no longer written down as **You**.
 - A meeting piece ends at a 0.6-second pause once the other side has
   spoken, so each turn is its own line.
+- The three-day wait before an update is offered now counts from when the
+  release was published, not from when this PC first saw it.
+- Releases are published only from commits on `main`, and only once their
+  signed list is attached.
 
 ### Fixed
 
@@ -72,6 +89,10 @@ All notable changes to Naad are listed here. The format follows
 - **Delete all meetings** is greyed out while a meeting records or
   finishes, so it can't come back right after.
 - **Microphone blocked** is no longer shown twice for one problem.
+- Two update checks at once (the daily one and a click) can no longer mix
+  up which release is downloaded and installed.
+- Something you copy while Naad puts the clipboard back is no longer
+  overwritten.
 
 ## [2.1.0] - 2026-11-01
 

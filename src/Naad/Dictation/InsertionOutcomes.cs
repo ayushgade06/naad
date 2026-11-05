@@ -27,7 +27,8 @@ internal static class InsertionOutcomes
     public static KeptFor? ForFailure(InsertionOutcome outcome) => outcome switch
     {
         InsertionOutcome.Pasted or InsertionOutcome.PastedClipboardChanged or InsertionOutcome.PastedRestoreFailed
-            or InsertionOutcome.Typed or InsertionOutcome.Cancelled or InsertionOutcome.TargetChanged => null,
+            or InsertionOutcome.PastedNotRestored or InsertionOutcome.Typed or InsertionOutcome.Cancelled
+            or InsertionOutcome.TargetChanged => null,
         InsertionOutcome.ModifiersHeld => new(TranscriptKeptReason.NotInserted, LogEvent.PasteSkippedModifiersHeld),
         InsertionOutcome.PasteRejected => new(TranscriptKeptReason.NotInserted, LogEvent.PasteRejected),
         InsertionOutcome.ClipboardUnavailable => new(TranscriptKeptReason.NotInserted, LogEvent.ClipboardUnavailable),

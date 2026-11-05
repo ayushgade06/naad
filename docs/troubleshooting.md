@@ -146,6 +146,16 @@ while another app holds the clipboard; dictate again once it lets go.
 - **The stored key can't be read**, for example after copying the folder to
   another PC or Windows account (`ApiKeyUnreadable`). Enter it again in
   Settings.
+- **"It isn't signed by Naad's publisher."** A release was found whose
+  signed file list is missing or doesn't match, so Naad won't install it
+  (`UpdateRefused` in the log). Download the installer from the releases
+  page yourself only if you trust it; otherwise wait for the next release.
+- **No update is offered.** Check **Check for updates automatically** on
+  the General tab, or use **Check now**. The automatic check waits until a
+  release is three days old.
+- **The dictation stays on the clipboard.** **Put back what was on the
+  clipboard** is off on the General tab, or you (or a clipboard manager)
+  copied something during the paste, which Naad never overwrites.
 - **The Home stats start again from zero.** Their file, `stats.json`,
   couldn't be read (`StatsUnreadable`) and was started over. Delete it to
   reset the stats on purpose; the history is not affected.

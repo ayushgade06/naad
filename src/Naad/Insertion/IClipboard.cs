@@ -17,11 +17,16 @@ internal interface IClipboard
 
     /// <summary>
     /// Replaces the clipboard with <paramref name="text"/>, marked to stay out of clipboard
-    /// history and cloud sync. Returns the sequence number after the write, or null on failure;
-    /// a failure may leave the clipboard empty.
+    /// history and cloud sync unless <paramref name="keepOutOfHistory"/> is false. Returns the
+    /// sequence number after the write, or null on failure; a failure may leave the clipboard empty.
     /// </summary>
-    Task<uint?> SetTextAsync(string text);
+    Task<uint?> SetTextAsync(string text, bool keepOutOfHistory = true);
 
-    /// <summary>Puts a snapshot back. Returns false if the clipboard couldn't be opened or written.</summary>
-    Task<bool> RestoreAsync(ClipboardSnapshot snapshot);
+    /// <summary>
+    /// Puts a snapshot back, always kept out of clipboard history (it is there already). With
+    /// <paramref name="ifUnchanged"/>, only while the clipboard still holds that write: checked once
+    /// the clipboard is open, so nothing copied in the meantime is overwritten. Returns null when it
+    /// had changed, false if the clipboard couldn't be opened or written.
+    /// </summary>
+    Task<bool?> RestoreAsync(ClipboardSnapshot snapshot, uint? ifUnchanged = null);
 }

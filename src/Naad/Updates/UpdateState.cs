@@ -3,16 +3,14 @@ using System.Text.Json;
 namespace Naad.Updates;
 
 /// <summary>
-/// What Naad remembers about updates between runs, in %LOCALAPPDATA%\Naad\update-state.json: the
-/// newest version seen, when it was first seen, a version the user chose to skip, and the one the
-/// overlay last mentioned. No user content.
+/// What Naad remembers about updates between runs, in %LOCALAPPDATA%\Naad\update-state.json: a
+/// version the user chose to skip, the one the overlay last mentioned, and when GitHub last
+/// answered a check. No user content.
 /// </summary>
-/// <param name="Seen">The newest version a check found, such as "2.0.1"; null for none.</param>
-/// <param name="FirstSeen">When <paramref name="Seen"/> was first found.</param>
 /// <param name="Skipped">A version the user skipped; null for none.</param>
 /// <param name="Marked">The version the overlay already said is available, so it says so once.</param>
-internal sealed record UpdateState(
-    string? Seen = null, DateTimeOffset FirstSeen = default, string? Skipped = null, string? Marked = null)
+/// <param name="LastChecked">When a check last got an answer from GitHub; null before the first.</param>
+internal sealed record UpdateState(string? Skipped = null, string? Marked = null, DateTimeOffset? LastChecked = null)
 {
     public static string DefaultPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Naad", "update-state.json");
@@ -34,14 +32,16 @@ internal sealed record UpdateState(
     }
 
     /// <summary>
-    /// Writes it to <paramref name="path"/>; a failure only means a release waits or is offered again.
+    /// Writes it to <paramref name="path"/>; a failure only means a release is offered again.
     /// </summary>
     public void Save(string path)
     {
         try
         {
+            // Written whole, then swapped in: a crash mid-write never loses a skipped version.
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(path, JsonSerializer.SerializeToUtf8Bytes(this));
+            File.WriteAllBytes(path + ".tmp", JsonSerializer.SerializeToUtf8Bytes(this));
+            File.Move(path + ".tmp", path, overwrite: true);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

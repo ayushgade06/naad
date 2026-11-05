@@ -62,7 +62,7 @@ internal sealed class TranscriptDelivery(
         switch (outcome)
         {
             case InsertionOutcome.Pasted or InsertionOutcome.PastedClipboardChanged
-                or InsertionOutcome.PastedRestoreFailed or InsertionOutcome.Typed:
+                or InsertionOutcome.PastedRestoreFailed or InsertionOutcome.PastedNotRestored or InsertionOutcome.Typed:
                 // Only into the same window: a focus change since would send Enter elsewhere.
                 if (thenEnter && checkTarget(target) == InsertionDecision.Insert)
                 {

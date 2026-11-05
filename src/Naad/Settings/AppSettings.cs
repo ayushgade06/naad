@@ -51,6 +51,15 @@ internal sealed record AppSettings
     /// </summary>
     public bool ShowTrayIcon { get; init; } = true;
 
+    /// <summary>Check GitHub for a new release a minute after start and once a day (an installed copy only).</summary>
+    public bool AutomaticUpdateChecks { get; init; } = true;
+
+    /// <summary>Put back what was on the clipboard after a dictation is pasted.</summary>
+    public bool RestoreClipboard { get; init; } = true;
+
+    /// <summary>Mark what Naad puts on the clipboard to stay out of clipboard history and cloud sync.</summary>
+    public bool KeepOutOfClipboardHistory { get; init; } = true;
+
     /// <summary>
     /// The keys to hold while dictating, written like "RightCtrl" (see Chord); null when hold to
     /// talk is off. <see cref="Shortcuts.Problem"/> keeps it or <see cref="ToggleShortcut"/> on.

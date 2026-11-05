@@ -208,6 +208,26 @@ internal sealed class AudioRecorder : IAudioRecorder, IDisposable
         return device;
     }
 
+    /// <summary>
+    /// What Windows' privacy settings allow for the microphone, read from the registry only; the
+    /// device is never opened to find out.
+    /// </summary>
+    public static MicrophoneAccess Access()
+    {
+        try
+        {
+            return MicrophoneFailure.Access(
+                readable: true,
+                ReadConsent(Registry.LocalMachine, ConsentKey),
+                ReadConsent(Registry.CurrentUser, ConsentKey),
+                ReadConsent(Registry.CurrentUser, ConsentKey + @"\NonPackaged"));
+        }
+        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return MicrophoneFailure.Access(readable: false, null, null, null);
+        }
+    }
+
     private static bool IsBlockedByPrivacySettings()
     {
         try

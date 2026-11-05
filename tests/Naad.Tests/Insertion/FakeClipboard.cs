@@ -30,9 +30,15 @@ internal sealed class FakeClipboard(ClipboardSnapshot contents) : IClipboard
         return Task.FromResult(CaptureFails ? null : Contents);
     }
 
-    public Task<uint?> SetTextAsync(string text)
+    public List<bool> KeptOutOfHistory { get; } = [];
+
+    // Runs once the clipboard is "open" for a restore, as another app writing in that moment would.
+    public Action? BeforeRestore { get; set; }
+
+    public Task<uint?> SetTextAsync(string text, bool keepOutOfHistory = true)
     {
         Calls.Add("set");
+        KeptOutOfHistory.Add(keepOutOfHistory);
         Texts.Add(text);
         if (SetFails)
         {
@@ -45,16 +51,22 @@ internal sealed class FakeClipboard(ClipboardSnapshot contents) : IClipboard
         return Task.FromResult<uint?>(SequenceNumber);
     }
 
-    public Task<bool> RestoreAsync(ClipboardSnapshot snapshot)
+    public Task<bool?> RestoreAsync(ClipboardSnapshot snapshot, uint? ifUnchanged = null)
     {
         Calls.Add("restore");
+        BeforeRestore?.Invoke();
+        if (ifUnchanged is { } expected && SequenceNumber != expected)
+        {
+            return Task.FromResult<bool?>(null);
+        }
+
         if (RestoreFails)
         {
-            return Task.FromResult(false);
+            return Task.FromResult<bool?>(false);
         }
 
         Write(snapshot);
-        return Task.FromResult(true);
+        return Task.FromResult<bool?>(true);
     }
 
     public void Write(ClipboardSnapshot snapshot)

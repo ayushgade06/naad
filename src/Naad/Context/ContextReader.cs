@@ -251,7 +251,7 @@ internal sealed class ContextReader(Func<ContextOptions> options, IClipboard cli
             }
         }
 
-        if (!await clipboard.RestoreAsync(before))
+        if (await clipboard.RestoreAsync(before) != true)
         {
             Log.Warn(LogEvent.ClipboardRestoreFailed);
         }

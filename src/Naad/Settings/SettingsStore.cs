@@ -391,6 +391,11 @@ internal sealed class SettingsStore(string path)
             SoundVolume = ReadInt(root, "soundVolume", defaults.SoundVolume, AppSettings.IsValidVolume, ref repaired),
             Theme = ReadName(root, "theme", defaults.Theme, ref repaired),
             ShowTrayIcon = ReadBool(root, "showTrayIcon", defaults.ShowTrayIcon, ref repaired),
+            AutomaticUpdateChecks = ReadBool(
+                root, "automaticUpdateChecks", defaults.AutomaticUpdateChecks, ref repaired),
+            RestoreClipboard = ReadBool(root, "restoreClipboard", defaults.RestoreClipboard, ref repaired),
+            KeepOutOfClipboardHistory = ReadBool(
+                root, "keepOutOfClipboardHistory", defaults.KeepOutOfClipboardHistory, ref repaired),
             HistoryRetention = ReadName(root, "historyRetention", defaults.HistoryRetention, ref repaired),
             PressEnterCommand = ReadBool(root, "pressEnterCommand", defaults.PressEnterCommand, ref repaired),
             PasteAgainShortcut = ReadChord(root, "pasteAgainShortcut", ref repaired),

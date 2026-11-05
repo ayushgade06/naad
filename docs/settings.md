@@ -20,6 +20,9 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "soundVolume": 80,
   "theme": "System",
   "showTrayIcon": true,
+  "automaticUpdateChecks": true,
+  "restoreClipboard": true,
+  "keepOutOfClipboardHistory": true,
   "holdShortcut": "RightCtrl",
   "toggleShortcut": null,
   "customHoldShortcut": null,
@@ -87,6 +90,9 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `errorSound` | `true` or `false` | `false` | Play a low tone when a dictation fails. |
 | `soundVolume` | 0 to 100 | `80` | How loud the tones are. **Preview** on the General tab plays one. |
 | `theme` | `"System"`, `"Light"` or `"Dark"` | `"System"` | The look of Naad's window. `"System"` follows Windows' app mode. |
+| `automaticUpdateChecks` | `true` or `false` | `true` | In an installed copy, check GitHub Releases a minute after start and then daily. **Check now** on the General tab, and **Check for updates** in the tray, check whatever this says. See [Updates](#updates). |
+| `restoreClipboard` | `true` or `false` | `true` | After a dictation is pasted, put back what was on the clipboard (unless you copied something meanwhile). With `false` the dictation stays on the clipboard to paste again. When nothing could be pasted, the clipboard is always put back. |
+| `keepOutOfClipboardHistory` | `true` or `false` | `true` | Mark what Naad puts on the clipboard (dictations, **Copy**, meeting notes) so Windows leaves it out of clipboard history (Win+V) and cloud clipboard. A restored clipboard is always marked, so your own copy isn't listed twice. |
 | `showTrayIcon` | `true` or `false` | `true` | Show Naad in the notification area. When hidden, start Naad again (from the Start menu) to open its window. |
 | `holdShortcut` | text or `null` | `"RightCtrl"` | Hold to talk: the keys you hold while dictating. `null` turns it off. See [The shortcuts](#the-shortcuts). |
 | `toggleShortcut` | text or `null` | `null` | Toggle (hands-free): keys pressed once to start dictating and again to stop. `null` has none. Hold to talk or the toggle must have a shortcut. |
@@ -619,9 +625,20 @@ where you live.
 ## Updates
 
 An installed copy checks GitHub Releases a minute after it starts and then
-daily. The daily check offers a new release only once it has been out for
-three days (counted from when this PC first saw it), so a broken release can
-be replaced first; **Check for updates** in the tray offers it at once. While
+daily, while **Check for updates automatically** is ticked on the General
+tab. The tab shows when the last check got an answer, with **Check now**.
+The daily check offers a new release only once it has been out for three
+days (counted from when it was published), so a broken release can be
+replaced first. **Check for updates** in the tray (or **Check now**) offers
+it at once; a release less than three days old first says how long ago it
+came out, with **Download now**, **What's new** and **Wait**.
+
+Naad installs only releases signed by Naad's publisher: each release
+carries a signed list of its files and their SHA-256 hashes, and Naad
+checks the signature with a key built into it, then checks the downloaded
+package against the list. A release that fails either check is never
+installed, and the tray says so. [releasing.md](releasing.md) describes the
+signing. While
 an update is offered, **Skip version X** in the tray stops the daily check
 offering that version; a newer one is offered as usual. Nothing is downloaded
 until you click the notification, which opens a window with what's new in

@@ -107,7 +107,9 @@ Pushing a `v1.2.3` tag runs `.github/workflows/release.yml`. It tests,
 publishes a self-contained win-x64 build stamped with the tag's version,
 packs it with Velopack (package id `Naad.App`, installed per user to
 `%LOCALAPPDATA%\Naad.App`), and publishes a GitHub Release with the
-installer, a portable zip and the update feed. Installed copies find new
-releases through that feed. User data lives outside the install folder,
+installer, a portable zip, the update feed and a release list signed with
+Naad's key. Installed copies find new releases through that feed and
+install only those whose signed list checks out
+([releasing.md](releasing.md)). User data lives outside the install folder,
 in `%APPDATA%\Naad` and `%LOCALAPPDATA%\Naad`, so updates and uninstalls
 keep it.

@@ -5,46 +5,49 @@ namespace Naad.Tests.Updates;
 [Collection("Log")]
 public sealed class UpdatePolicyTests
 {
-    private static readonly DateTimeOffset Day0 = new(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Published = new(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void Offer_NewRelease_WaitsThreeDaysForTheDailyCheck()
+    public void Offer_NewRelease_WaitsThreeDaysFromPublishingForTheAutomaticCheck()
     {
-        var state = UpdatePolicy.Saw(new(), "2.0.1", Day0);
-
-        Assert.False(UpdatePolicy.Offer(state, "2.0.1", Day0, manual: false));
-        Assert.False(UpdatePolicy.Offer(state, "2.0.1", Day0.AddDays(2.9), manual: false));
-        Assert.True(UpdatePolicy.Offer(state, "2.0.1", Day0.AddDays(3), manual: false));
+        Assert.False(UpdatePolicy.Offer(new(), "2.0.1", Published, Published, manual: false));
+        Assert.False(UpdatePolicy.Offer(new(), "2.0.1", Published, Published.AddDays(2.9), manual: false));
+        Assert.True(UpdatePolicy.Offer(new(), "2.0.1", Published, Published.AddDays(3), manual: false));
     }
 
     [Fact]
-    public void Offer_CheckForUpdates_OffersAtOnce() =>
-        Assert.True(UpdatePolicy.Offer(UpdatePolicy.Saw(new(), "2.0.1", Day0), "2.0.1", Day0, manual: true));
+    public void Offer_PublishedAheadOfThisClock_Waits() =>
+        Assert.False(UpdatePolicy.Offer(new(), "2.0.1", Published.AddDays(1), Published, manual: false));
 
     [Fact]
-    public void Saw_SameVersionAgain_KeepsWhenItWasFirstSeen()
-    {
-        var state = UpdatePolicy.Saw(UpdatePolicy.Saw(new(), "2.0.1", Day0), "2.0.1", Day0.AddDays(2));
-
-        Assert.Equal(Day0, state.FirstSeen);
-    }
+    public void Offer_CheckForUpdates_OffersAtOnceEvenWhenSkipped() =>
+        Assert.True(UpdatePolicy.Offer(new(Skipped: "2.0.1"), "2.0.1", Published, Published, manual: true));
 
     [Fact]
-    public void Saw_NewerVersion_StartsItsOwnWait()
+    public void Offer_SkippedVersion_IsNeverOfferedByTheAutomaticCheck()
     {
-        var state = UpdatePolicy.Saw(UpdatePolicy.Saw(new(), "2.0.1", Day0), "2.0.2", Day0.AddDays(5));
+        var later = Published.AddDays(30);
 
-        Assert.False(UpdatePolicy.Offer(state, "2.0.2", Day0.AddDays(5), manual: false));
+        Assert.False(UpdatePolicy.Offer(new(Skipped: "2.0.1"), "2.0.1", Published, later, manual: false));
+        Assert.True(UpdatePolicy.Offer(new(Skipped: "2.0.1"), "2.0.2", Published, later, manual: false));
     }
 
-    [Fact]
-    public void Offer_SkippedVersion_IsNeverOfferedByTheDailyCheck()
-    {
-        var state = UpdatePolicy.Saw(new(Skipped: "2.0.1"), "2.0.1", Day0);
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(71.9, true)]
+    [InlineData(72, false)]
+    [InlineData(-5, true)]
+    public void IsRecent_HoursSincePublishing_IsTheFirstThreeDays(double hours, bool expected) =>
+        Assert.Equal(expected, UpdatePolicy.IsRecent(Published, Published.AddHours(hours)));
 
-        Assert.False(UpdatePolicy.Offer(state, "2.0.1", Day0.AddDays(30), manual: false));
-        Assert.True(UpdatePolicy.Offer(state with { Seen = "2.0.2" }, "2.0.2", Day0.AddDays(30), manual: false));
-    }
+    [Theory]
+    [InlineData(0.5, "less than an hour ago")]
+    [InlineData(1, "1 hour ago")]
+    [InlineData(5.9, "5 hours ago")]
+    [InlineData(24, "1 day ago")]
+    [InlineData(60, "2 days ago")]
+    public void Age_Hours_ReadsNaturally(double hours, string expected) =>
+        Assert.Equal(expected, UpdatePolicy.Age(TimeSpan.FromHours(hours)));
 
     [Fact]
     public void Mark_OncePerOfferedVersionAndNeverWhenSkipped()
@@ -63,10 +66,27 @@ public sealed class UpdatePolicyTests
         try
         {
             Assert.Equal(new UpdateState(), UpdateState.Load(path));
-            new UpdateState("2.0.1", Day0, "2.0.0", "2.0.1").Save(path);
-            Assert.Equal(new UpdateState("2.0.1", Day0, "2.0.0", "2.0.1"), UpdateState.Load(path));
+            new UpdateState("2.0.0", "2.0.1", Published).Save(path);
+            Assert.Equal(new UpdateState("2.0.0", "2.0.1", Published), UpdateState.Load(path));
+            Assert.False(File.Exists(path + ".tmp"));
             File.WriteAllText(path, "not json");
             Assert.Equal(new UpdateState(), UpdateState.Load(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Load_FileFromBeforeLastChecked_KeepsTheSkippedVersion()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"naad-update-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, """{"Seen":"2.0.1","FirstSeen":"2026-11-01T09:00:00+00:00","Skipped":"2.0.1"}""");
+
+            Assert.Equal(new UpdateState(Skipped: "2.0.1"), UpdateState.Load(path));
         }
         finally
         {

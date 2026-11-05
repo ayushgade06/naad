@@ -1196,6 +1196,17 @@ OpenAI-compatible realtime server if one is at hand.
 
 **Status after P47:** M-MX1 to M-MX5 have **not been run** by a person.
 
+## Updates and system settings (P48): M-UP1 to M-UP4
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-UP1 | Update settings | On an installed older copy, untick **Check for updates automatically**, restart Naad and wait two minutes; tick it again; click **Check now**. | No automatic check runs while it is off (the log has no `UpdateAvailable`/`UpdateNotAvailable`); **Check now** checks and **Last checked** shows the time. | **No.** |
+| M-UP2 | A new release | With a release less than three days old, choose **Check for updates**; try **What's new**, then again **Wait**, then **Download now**. | The dialog says "released N hours ago"; What's new opens the notes; Wait offers nothing more; Download now downloads, installs and restarts. The automatic check stays silent until the release is three days old. | **No.** The wait and age are unit tested. |
+| M-UP3 | Signed release | Push a test tag of a release made by the workflow; check that it has `naad-release.json` and `.sig`. Then, on a test fork, publish a release without them (or with a changed list) and check for updates from a copy built with that fork's key. | The real release installs. The unsigned or changed one is refused: the tray says it isn't signed by Naad's publisher, `UpdateRefused` is logged, nothing is downloaded. Replacing the downloaded `.nupkg` in `%LOCALAPPDATA%\Naad.App\packages` during the download makes the window say it wasn't installed. | **No.** Signature and hash checks are unit tested. |
+| M-UP4 | Clipboard and microphone settings | Copy a picture; dictate. Untick **Put back what was on the clipboard**, dictate, press Ctrl+V. Untick **Keep dictations out of clipboard history**, dictate, press Win+V. Turn the microphone off in Windows privacy settings, return to Naad's Settings, then click **Open Windows settings**. | The picture comes back with the option on; with it off, Ctrl+V pastes the dictation again; with history allowed, the dictation shows in Win+V. Settings shows the microphone as off after returning, and the button opens the microphone privacy page. | **No.** The restore choices and access words are unit tested. |
+
+**Status after P48:** M-UP1 to M-UP4 have **not been run** by a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical

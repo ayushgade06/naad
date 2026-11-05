@@ -31,6 +31,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The whole history, to check that the tagged commit is on main.
+          fetch-depth: 0
 
       - name: Set up .NET from global.json
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -46,6 +48,13 @@ jobs:
         run: |
           if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Version tags look like v1.2.3." }
           "value=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      # Only a commit already on main is released, whoever pushed the tag.
+      - name: Check the tag is on main
+        shell: pwsh
+        run: |
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) { throw "The tagged commit isn't on main." }
 
       - name: Test
         run: dotnet test --configuration Release
@@ -82,7 +91,60 @@ jobs:
           --mainExe Naad.exe --packTitle Naad --packAuthors "Naad contributors"
           --icon src/Naad/Assets/naad.ico --releaseNotes release-notes.md --outputDir releases
 
-      - name: Publish the GitHub Release
+      # The release list names every file with its size and SHA-256, and is signed with Naad's
+      # private key (ECDSA P-256), kept in the NAAD_UPDATE_SIGNING_KEY secret. Installed copies
+      # hold the public key and install only releases whose list checks out (docs/releasing.md).
+      - name: Sign the release list
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          SIGNING_KEY: ${{ secrets.NAAD_UPDATE_SIGNING_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:SIGNING_KEY) { throw "The NAAD_UPDATE_SIGNING_KEY secret is missing; see docs/releasing.md." }
+          $files = @(Get-ChildItem releases -File | ForEach-Object {
+            [ordered]@{
+              name = $_.Name
+              size = $_.Length
+              sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+          })
+          $list = [ordered]@{
+            packId = $env:PACK_ID
+            version = $env:VERSION
+            published = [DateTimeOffset]::UtcNow.ToString('o')
+            files = $files
+          }
+          $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($list | ConvertTo-Json -Depth 4 -Compress))
+          $key = [Security.Cryptography.ECDsa]::Create()
+          try {
+            $key.ImportFromPem($env:SIGNING_KEY)
+            $signature = $key.SignData($bytes, [Security.Cryptography.HashAlgorithmName]::SHA256)
+          } finally {
+            $key.Dispose()
+          }
+          # A secret that doesn't match a key built into Naad would publish a release that every
+          # installed copy refuses: check against the public keys in AppUpdater.cs first.
+          $source = Get-Content src/Naad/Updates/AppUpdater.cs -Raw
+          $keys = [regex]::Matches($source, '-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----')
+          $trusted = $false
+          foreach ($pem in $keys) {
+            $public = [Security.Cryptography.ECDsa]::Create()
+            try {
+              $public.ImportFromPem(($pem.Value -split "`n" | ForEach-Object { $_.Trim() }) -join "`n")
+              if ($public.VerifyData($bytes, $signature, [Security.Cryptography.HashAlgorithmName]::SHA256)) {
+                $trusted = $true
+              }
+            } finally {
+              $public.Dispose()
+            }
+          }
+          if (-not $trusted) { throw "NAAD_UPDATE_SIGNING_KEY matches no public key in AppUpdater.cs." }
+          New-Item -ItemType Directory signed | Out-Null
+          [IO.File]::WriteAllBytes("signed/naad-release.json", $bytes)
+          [IO.File]::WriteAllText("signed/naad-release.json.sig", [Convert]::ToBase64String($signature))
+
+      # Uploaded as a draft first: no installed copy sees the release before its list is there.
+      - name: Upload the GitHub Release as a draft
         env:
           VERSION: ${{ steps.version.outputs.value }}
           TAG: ${{ github.ref_name }}
@@ -90,4 +152,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           vpk upload github --outputDir releases --repoUrl $env:REPO_URL --token $env:GITHUB_TOKEN
-          --publish --releaseName "Naad $env:VERSION" --tag $env:TAG
+          --releaseName "Naad $env:VERSION" --tag $env:TAG
+
+      - name: Attach the signed list and publish
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload $env:TAG signed/naad-release.json signed/naad-release.json.sig --repo $env:GITHUB_REPOSITORY
+          gh release edit $env:TAG --draft=false --repo $env:GITHUB_REPOSITORY

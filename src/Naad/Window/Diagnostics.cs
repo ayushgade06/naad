@@ -29,6 +29,9 @@ internal static class Diagnostics
             $"paste again {OnOff(s.PasteAgainShortcut is not null)}, meeting {OnOff(s.MeetingShortcut is not null)}, " +
             $"start delay {s.StartDelayMilliseconds} ms",
         $"History {s.HistoryRetention}, meeting offers {s.MeetingDetection}",
+        $"Clipboard: restore {OnOff(s.RestoreClipboard)}, out of history {OnOff(s.KeepOutOfClipboardHistory)}; " +
+            $"automatic update checks {OnOff(s.AutomaticUpdateChecks)}",
+        $"Microphone access: {Audio.AudioRecorder.Access()}",
         $"Settings version {s.Version}",
     ]);
 

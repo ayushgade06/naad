@@ -110,7 +110,6 @@ public sealed class TextInserterTests
 
         Assert.Equal(InsertionOutcome.PastedClipboardChanged, outcome);
         Assert.Equal(copiedByUser, clipboard.Contents);
-        Assert.DoesNotContain("restore", clipboard.Calls);
     }
 
     [Fact]
@@ -386,6 +385,56 @@ public sealed class TextInserterTests
     }
 
     [Fact]
+    public async Task Paste_RestoreOff_LeavesTheTextOnTheClipboard()
+    {
+        var clipboard = new FakeClipboard(Original);
+        var inserter = Inserter(clipboard, options: new(Restore: false, KeepOutOfHistory: true));
+
+        var outcome = await inserter.PasteAsync(Transcript, Always, null, CancellationToken.None);
+
+        Assert.Equal(InsertionOutcome.PastedNotRestored, outcome);
+        Assert.Equal(Transcript, FakeClipboard.ReadText(clipboard.Contents));
+    }
+
+    [Fact]
+    public async Task Paste_RestoreOffButRejected_StillPutsTheClipboardBack()
+    {
+        var clipboard = new FakeClipboard(Original);
+        var inserter = Inserter(
+            clipboard, sendPaste: () => false, options: new(Restore: false, KeepOutOfHistory: true));
+
+        var outcome = await inserter.PasteAsync(Transcript, Always, null, CancellationToken.None);
+
+        Assert.Equal(InsertionOutcome.PasteRejected, outcome);
+        Assert.Equal(Original, clipboard.Contents);
+    }
+
+    [Fact]
+    public async Task Paste_HistoryAllowed_WritesWithoutThePrivacyMarks()
+    {
+        var clipboard = new FakeClipboard(Original);
+        var inserter = Inserter(clipboard, options: new(Restore: true, KeepOutOfHistory: false));
+
+        await inserter.PasteAsync(Transcript, Always, null, CancellationToken.None);
+        await inserter.CopyAsync(Transcript);
+
+        Assert.Equal([false, false], clipboard.KeptOutOfHistory);
+    }
+
+    [Fact]
+    public async Task Paste_SomeoneCopiesAsTheRestoreOpensTheClipboard_KeepsTheirContent()
+    {
+        var clipboard = new FakeClipboard(Original);
+        var theirs = FakeClipboard.TextSnapshot("synthetic copied meanwhile");
+        clipboard.BeforeRestore = () => clipboard.Write(theirs);
+
+        var outcome = await Inserter(clipboard).PasteAsync(Transcript, Always, null, CancellationToken.None);
+
+        Assert.Equal(InsertionOutcome.PastedClipboardChanged, outcome);
+        Assert.Equal(theirs, clipboard.Contents);
+    }
+
+    [Fact]
     public async Task Copy_Writes_LeavesTranscriptOnClipboard()
     {
         var clipboard = new FakeClipboard(Original);
@@ -404,8 +453,17 @@ public sealed class TextInserterTests
     }
 
     private static TextInserter Inserter(
-        FakeClipboard clipboard, Func<bool>? sendPaste = null, Func<string, TypingResult>? typeText = null) =>
-        new(clipboard, anyModifierDown: () => false, sendPaste ?? (() => true), typeText ?? NoTyping, TimeSpan.Zero);
+        FakeClipboard clipboard,
+        Func<bool>? sendPaste = null,
+        Func<string, TypingResult>? typeText = null,
+        ClipboardOptions? options = null) =>
+        new(
+            clipboard,
+            anyModifierDown: () => false,
+            sendPaste ?? (() => true),
+            typeText ?? NoTyping,
+            TimeSpan.Zero,
+            () => options ?? ClipboardOptions.Default);
 
     private static bool Always() => true;
 

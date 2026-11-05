@@ -184,6 +184,8 @@ internal enum LogEvent
     UpdateMarked,
     UpdateStateUnreadable,
     UpdateStateUnsaved,
+    UpdateRefused,
+    SettingsPageOpenFailed,
     DiagnosticsCopyFailed,
     RecordingFlagFailed,
     OutputMuted,

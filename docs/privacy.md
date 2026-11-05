@@ -22,7 +22,7 @@ HTTPS.
 | You click **Test key**, or **Save** with a new key or a new custom base URL | The chosen service, or the custom base URL | The key, if there is one, to ask whether the service accepts it (a request listing its models). No audio or text |
 | You click **Test** under **Transcription** | The transcription service | One second of generated silence. Nothing you said |
 | You click **Download model** | `huggingface.co`: whisper.cpp's model files, or the language models on the **AI** tab | An ordinary download request. No data about you |
-| An installed copy, a minute after it starts, then daily, and when you choose **Check for updates** | `github.com/ayushgade06/naad` releases | An ordinary request for the release list. No data about you or how you use Naad |
+| An installed copy, a minute after it starts, then daily (with **Check for updates automatically** on), and when you choose **Check for updates** or **Check now** | `github.com/ayushgade06/naad` releases | Ordinary requests for the release list and the new release's signed file list. No data about you or how you use Naad |
 
 Deepgram takes the vocabulary as key terms in the request's address,
 where the service's own logs may keep it; the other services get it in the
@@ -53,7 +53,7 @@ offline, which keeps your audio and text on the PC.
 | Rate limits | `%LOCALAPPDATA%\Naad\rate-limits.json` | Cloud model ids whose daily quota ran out, and when it resets. Nothing you said |
 | Speakers Naad muted, with **Mute other sound while dictating** on | `%LOCALAPPDATA%\Naad\muted-output.json` | The speaker device's Windows id, only while a dictation records, so a crash can be put right. Nothing you said |
 | Models that refuse a temperature | `%LOCALAPPDATA%\Naad\temperature-refused.json` | The cloud base URL and model id, and a date a week ahead. Nothing you said |
-| Update state | `%LOCALAPPDATA%\Naad\update-state.json` | The newest release seen, when it was first seen, and a version you skipped. Nothing about you |
+| Update state | `%LOCALAPPDATA%\Naad\update-state.json` | A version you skipped, the one the overlay last mentioned, and when a check last got an answer. Nothing about you |
 | Recording flag | `%LOCALAPPDATA%\Naad\is-recording` | Only with `recordingFlagFile` on, and only while a dictation records: the time it started. Nothing else |
 | Start at sign-in | A `Naad` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Only if you tick **Start Naad when I sign in** |
 | The installed app | `%LOCALAPPDATA%\Naad.App` | Removed when you uninstall |
@@ -96,11 +96,15 @@ Unit tests check this. The log is safe to attach to a bug report.
 
 ## The clipboard
 
-Naad pastes through the clipboard and then puts back what was on it. The
-transcript it places there is marked so that Windows leaves it out of
-clipboard history (Win+V), cloud clipboard, and clipboard monitors that
-honour the marker. If you copy something yourself while Naad is pasting,
-your copy wins and isn't overwritten.
+Naad pastes through the clipboard and then puts back what was on it
+(**Put back what was on the clipboard**, on by default). The transcript it
+places there is marked so that Windows leaves it out of clipboard history
+(Win+V), cloud clipboard, and clipboard monitors that honour the marker
+(**Keep dictations out of clipboard history**, on by default; turned off,
+dictations and copies can appear in Win+V and sync to your other PCs). If
+you copy something yourself while Naad is pasting, your copy wins and isn't
+overwritten. Settings also shows whether Windows lets Naad use the
+microphone; Naad reads that from the registry only.
 
 ## Removing everything
 

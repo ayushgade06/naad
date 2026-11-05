@@ -9,7 +9,7 @@ namespace Naad.Settings;
 /// The settings' General page: appearance, the tray icon, starting at sign-in, the log and the
 /// sounds. Create and use it on the UI thread.
 /// </summary>
-internal sealed class GeneralPanel : TableLayoutPanel
+internal sealed partial class GeneralPanel : TableLayoutPanel
 {
     private readonly ComboBox _theme = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly CheckBox _showTrayIcon = new()
@@ -88,7 +88,8 @@ internal sealed class GeneralPanel : TableLayoutPanel
 
     /// <param name="current">The settings in use.</param>
     /// <param name="startsAtLogin">Whether Naad starts when the user signs in.</param>
-    public GeneralPanel(AppSettings current, bool startsAtLogin)
+    /// <param name="checkForUpdates">Runs Check for updates; null when this copy can't update.</param>
+    public GeneralPanel(AppSettings current, bool startsAtLogin, Func<Task?>? checkForUpdates = null)
     {
         AutoSize = true;
         ColumnCount = 2;
@@ -136,6 +137,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "Show it on", _overlayMonitor);
         Row(this, "", _mute);
         Row(this, "", _flagFile);
+        AddSystemRows(current, checkForUpdates);
         Row(this, "", Note("Esc cancels a dictation. Pressing Space while holding the hold-to-talk shortcut " +
             "keeps recording after you let go; press a shortcut again to stop."));
         Row(this, "", new Label
@@ -163,7 +165,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
     public AppSettings? Apply(AppSettings chosen, out string? error)
     {
         error = null;
-        return Apply(chosen) with
+        return ApplySystem(Apply(chosen)) with
         {
             HistoryRetention = (Naad.History.HistoryRetention)_history.SelectedIndex,
             PressEnterCommand = _pressEnter.Checked,

@@ -77,6 +77,7 @@ internal sealed partial class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _status = new() { Enabled = false };
     private readonly ToolStripMenuItem _toggleDictation = new("Start dictating") { Visible = false };
     private readonly Func<Task<bool>> _copy;
+    private Func<Task>? _checkUpdates;
     private readonly Action _openSettings;
     private Action? _notificationClicked;
     private bool _wantVisible = true;
@@ -305,9 +306,10 @@ internal sealed partial class TrayIcon : IDisposable
     }
 
     /// <summary>Shows Check for updates in the menu; only an installed copy can update.</summary>
-    public void EnableUpdateChecks(Action check)
+    public void EnableUpdateChecks(Func<Task> check)
     {
-        _checkForUpdates.Click += (_, _) => check();
+        _checkUpdates = check;
+        _checkForUpdates.Click += (_, _) => _ = check();
         _checkForUpdates.Visible = true;
     }
 
@@ -317,6 +319,19 @@ internal sealed partial class TrayIcon : IDisposable
 
     /// <summary>Answers a check from the menu that found nothing new.</summary>
     public void ShowUpToDate() => Notify(UpdateTitle, UpToDateMessage, ToolTipIcon.Info, clicked: null);
+
+    /// <summary>Says a release was found that isn't signed by Naad's publisher, so it isn't offered.</summary>
+    public void ShowUpdateRefused() => Notify(
+        UpdateTitle,
+        "A new Naad release was found, but it isn't signed by Naad's publisher, so it won't be installed.",
+        ToolTipIcon.Warning,
+        clicked: null);
+
+    /// <summary>
+    /// Runs Check for updates, as the menu item does, and returns it to wait on; null in a copy that
+    /// can't update (one that wasn't installed).
+    /// </summary>
+    public Task? CheckForUpdatesNow() => _checkUpdates?.Invoke();
 
     /// <summary>Tells the user an update check or download failed.</summary>
     public void ShowUpdateFailed() => Notify(UpdateTitle, UpdateFailedMessage, ToolTipIcon.Warning, clicked: null);

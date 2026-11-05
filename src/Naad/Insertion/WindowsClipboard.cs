@@ -72,30 +72,44 @@ internal sealed class WindowsClipboard : IClipboard, IDisposable
         }
     }
 
-    public async Task<uint?> SetTextAsync(string text)
+    public async Task<uint?> SetTextAsync(string text, bool keepOutOfHistory = true)
     {
         var utf16 = Encoding.Unicode.GetBytes(text + "\0");
-        return await WriteAsync([new(UnicodeTextFormat, utf16)]) ? SequenceNumber : null;
+        // Read once the clipboard is closed, as later checks see it: closing can add formats of its own.
+        var (written, _) = await WriteAsync([new(UnicodeTextFormat, utf16)], keepOutOfHistory, null);
+        return written ? SequenceNumber : null;
     }
 
-    public Task<bool> RestoreAsync(ClipboardSnapshot snapshot) => WriteAsync(snapshot.Formats);
+    public async Task<bool?> RestoreAsync(ClipboardSnapshot snapshot, uint? ifUnchanged = null) =>
+        await WriteAsync(snapshot.Formats, keepOutOfHistory: true, ifUnchanged) switch
+        {
+            { Changed: true } => null,
+            { Written: var written } => written,
+        };
 
     public void Dispose() => _owner.DestroyHandle();
 
-    // Every write also carries the privacy formats. On a restore that keeps the user's own data
-    // from appearing twice in clipboard history.
-    private async Task<bool> WriteAsync(IReadOnlyList<ClipboardFormatData> formats)
+    // A restore always carries the privacy formats, which keeps the user's own data from appearing
+    // twice in clipboard history. The sequence check runs with the clipboard open, so nothing
+    // copied between the check and the write is overwritten.
+    private async Task<(bool Written, bool Changed)> WriteAsync(
+        IReadOnlyList<ClipboardFormatData> formats, bool keepOutOfHistory, uint? ifUnchanged)
     {
         if (!await OpenAsync())
         {
-            return false;
+            return (false, false);
         }
 
         try
         {
+            if (ifUnchanged is { } expected && SequenceNumber != expected)
+            {
+                return (false, true);
+            }
+
             if (!User32.EmptyClipboard())
             {
-                return false;
+                return (false, false);
             }
 
             var ok = true;
@@ -104,12 +118,12 @@ internal sealed class WindowsClipboard : IClipboard, IDisposable
                 ok &= Set(format.Format, format.Data);
             }
 
-            foreach (var format in PrivacyFormats)
+            foreach (var format in keepOutOfHistory ? PrivacyFormats : [])
             {
                 ok &= format == 0 || Set(format, new byte[sizeof(uint)]);
             }
 
-            return ok;
+            return (ok, false);
         }
         finally
         {

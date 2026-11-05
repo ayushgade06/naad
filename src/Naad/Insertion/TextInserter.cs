@@ -40,6 +40,18 @@ internal enum InsertionOutcome
 
     /// <summary>Another insertion was still running; nothing was done.</summary>
     Busy,
+
+    /// <summary>Pasted, and left on the clipboard: restoring is turned off.</summary>
+    PastedNotRestored,
+}
+
+/// <summary>The user's clipboard choices, read at each paste.</summary>
+/// <param name="Restore">Put back what was on the clipboard after a paste.</param>
+/// <param name="KeepOutOfHistory">Mark Naad's text to stay out of clipboard history and cloud sync.</param>
+internal readonly record struct ClipboardOptions(bool Restore, bool KeepOutOfHistory)
+{
+    /// <summary>Both on, as Naad has always worked.</summary>
+    public static ClipboardOptions Default { get; } = new(true, true);
 }
 
 /// <summary>
@@ -54,7 +66,8 @@ internal sealed class TextInserter(
     Func<bool> anyModifierDown,
     Func<bool> sendPaste,
     Func<string, TypingResult> typeText,
-    TimeSpan? restoreDelay = null)
+    TimeSpan? restoreDelay = null,
+    Func<ClipboardOptions>? options = null)
 {
     // The target reads the clipboard when it handles the Ctrl+V, not when it is sent, and
     // Electron apps (VS Code) read it asynchronously. Restoring earlier would paste the old text.
@@ -105,7 +118,10 @@ internal sealed class TextInserter(
     /// Leaves <paramref name="text"/> on the clipboard for the user to paste themselves, kept out
     /// of clipboard history. Returns false if the clipboard couldn't be written.
     /// </summary>
-    public async Task<bool> CopyAsync(string text) => await clipboard.SetTextAsync(text) is not null;
+    public async Task<bool> CopyAsync(string text) =>
+        await clipboard.SetTextAsync(text, Options.KeepOutOfHistory) is not null;
+
+    private ClipboardOptions Options => options?.Invoke() ?? ClipboardOptions.Default;
 
     /// <summary>Whether Shift, Ctrl, Alt or Windows is physically held.</summary>
     public static bool AnyModifierDown() => Modifiers.Any(IsDown);
@@ -177,10 +193,17 @@ internal sealed class TextInserter(
         }
 
         LastSkippedFormats = original.Skipped;
-        if (await clipboard.SetTextAsync(text) is not { } written)
+
+        // Read once: a choice saved during the paste applies to the next one.
+        var choice = Options;
+        if (await clipboard.SetTextAsync(text, choice.KeepOutOfHistory) is not { } written)
         {
             // The failed write may have emptied the clipboard already.
-            await clipboard.RestoreAsync(original);
+            if (await clipboard.RestoreAsync(original) != true)
+            {
+                Log.Warn(LogEvent.ClipboardRestoreFailed);
+            }
+
             return TypeInstead(text, canInsert, pasted, cancellationToken);
         }
 
@@ -203,6 +226,13 @@ internal sealed class TextInserter(
         }
 
         pasted?.Invoke();
+
+        // Restoring is off: the text stays for the user to paste again. Only after a paste: every
+        // path where nothing went in still puts the user's clipboard back.
+        if (!choice.Restore)
+        {
+            return InsertionOutcome.PastedNotRestored;
+        }
 
         try
         {
@@ -248,8 +278,8 @@ internal sealed class TextInserter(
     }
 
     // Null when the clipboard changed since Naad wrote it: that content is newer and stays.
-    private async Task<bool?> RestoreIfUnchangedAsync(ClipboardSnapshot original, uint written) =>
-        clipboard.SequenceNumber != written ? null : await clipboard.RestoreAsync(original);
+    private Task<bool?> RestoreIfUnchangedAsync(ClipboardSnapshot original, uint written) =>
+        clipboard.RestoreAsync(original, ifUnchanged: written);
 
     /// <summary>
     /// Waits until no modifier is physically held, for at most <paramref name="timeout"/>. Returns
@@ -257,10 +287,12 @@ internal sealed class TextInserter(
     /// </summary>
     public async Task<bool> WaitForModifiersReleasedAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        var deadline = DateTime.UtcNow + timeout;
+        // The monotonic clock: a wall-clock change mustn't stretch or cut the wait.
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         while (anyModifierDown())
         {
-            if (DateTime.UtcNow >= deadline || cancellationToken.IsCancellationRequested)
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= timeout
+                || cancellationToken.IsCancellationRequested)
             {
                 return false;
             }

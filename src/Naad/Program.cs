@@ -28,11 +28,11 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        // First, before anything else: the installer starts Naad.exe with its own arguments to
-        // run these hooks, and Run exits the process once they are done. A build that wasn't
-        // installed (dotnet run, CI) continues at once. Uninstalling stops Naad starting at sign-in;
-        // settings, the key, the model and logs are user data and stay (see README).
-        VelopackApp.Build()
+        // First: the installer starts Naad.exe with its own arguments to run these hooks, and Run
+        // exits once they are done; a build that wasn't installed continues at once. Uninstalling
+        // stops Naad starting at sign-in; user data stays (see README). A downloaded package is
+        // never applied at start: only the update window applies one, once it has been checked.
+        VelopackApp.Build().SetAutoApplyOnStartup(false)
             .OnBeforeUninstallFastCallback(_ => StartupEntry.ForThisApp().Set(false))
             .Run();
 
@@ -210,7 +210,8 @@ internal static class Program
                 settings.HoldShortcut, settings.ToggleShortcut, settings.PasteAgainShortcut, settings.MeetingShortcut);
             using var clipboard = new WindowsClipboard();
             var inserter = new TextInserter(
-                clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, text => UnicodeTyping.Type(text));
+                clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, text => UnicodeTyping.Type(text),
+                options: () => new(settings.RestoreClipboard, settings.KeepOutOfClipboardHistory));
             using var controller = new DictationController(
                 recorder,
                 transcriber = TranscriberSetup.Create(http, KeyFor, settings, Offline),
@@ -313,6 +314,7 @@ internal static class Program
                 new AppUpdater(),
                 tray,
                 () => controller.IsIdle && meetings?.Recorder.IsBusy != true,
+                () => settings.AutomaticUpdateChecks,
                 Application.ExitThread);
             controller.Finished += report => updates.MarkAfterDictation(
                 report.Outcome == HistoryOutcome.Pasted && !overlay.ShowingNotice, overlay.ShowNotice);
@@ -398,7 +400,7 @@ internal static class Program
                     hook.BeginCapture();
                     return true;
                 },
-                hook.CancelCapture);
+                hook.CancelCapture, tray.CheckForUpdatesNow);
 
             // Keys first, so a key that can't be stored changes nothing else.
             string? Save(SettingsChange change)

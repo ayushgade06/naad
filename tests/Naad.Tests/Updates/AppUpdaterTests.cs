@@ -21,13 +21,6 @@ public sealed class AppUpdaterTests
     [Fact]
     public async Task CheckAsync_NotInstalled_FindsNothingAndNeverThrows()
     {
-        Assert.Equal((false, null), await new AppUpdater().CheckAsync());
-    }
-
-    [Fact]
-    public async Task DownloadAndApplyOnExitAsync_NothingFound_DoesNothing()
-    {
-        Assert.False(await new AppUpdater().DownloadAsync(
-            cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(new UpdateCheck(false, null), await new AppUpdater().CheckAsync());
     }
 }

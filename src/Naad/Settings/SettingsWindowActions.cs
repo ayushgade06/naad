@@ -17,6 +17,7 @@ namespace Naad.Settings;
 /// <param name="Save">Saves and applies the change. Returns what went wrong, or null.</param>
 /// <param name="BeginCapture">Starts capturing a shortcut; false if a dictation is running.</param>
 /// <param name="CancelCapture">Stops a capture early.</param>
+/// <param name="CheckForUpdates">Runs Check for updates; null when this copy can't update.</param>
 internal sealed record SettingsWindowActions(
     Func<CloudService, ApiKeyResult> KeyFor,
     Func<LocalModel, IProgress<double>, CancellationToken, Task<ModelDownloadResult>> DownloadModel,
@@ -28,7 +29,8 @@ internal sealed record SettingsWindowActions(
     Func<string, Cooldown?> CooldownFor,
     Func<SettingsChange, string?> Save,
     Func<bool> BeginCapture,
-    Action CancelCapture);
+    Action CancelCapture,
+    Func<Task?>? CheckForUpdates = null);
 
 /// <param name="Milliseconds">How long the request took.</param>
 /// <param name="Failure">Why it failed, or null when the service answered.</param>
