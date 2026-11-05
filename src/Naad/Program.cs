@@ -255,10 +255,7 @@ internal static class Program
             // appears on that window's monitor.
             controller.StateChanged += state => overlay.ShowState(state, FocusGuard.Foreground().Handle);
             controller.CleanupFellBack += overlay.ShowCleanupFellBack;
-            controller.MicrophoneOpened += () => PlayIf(settings.PlaySounds, s => s.PlayStart());
-            controller.MicrophoneClosed += () => PlayIf(settings.PlaySounds, s => s.PlayStop());
-            controller.MicrophoneFailed += _ => PlayIf(settings.ErrorSound, s => s.PlayError());
-            controller.TranscriptionFailed += _ => PlayIf(settings.ErrorSound, s => s.PlayError());
+            DictationFeatures.ConnectSounds(controller, () => settings, () => sounds);
             controller.StateChanged += state => ApplyPending();
             controller.StartPending += _ => ApplyPending();
             void ApplyPending()
@@ -335,14 +332,6 @@ internal static class Program
 
             // Closed before the hook is unhooked, so a capture in progress ends cleanly.
             windows.CloseAll();
-
-            void PlayIf(bool wanted, Action<SoundCues> play)
-            {
-                if (wanted && sounds is { } cues)
-                {
-                    play(cues);
-                }
-            }
 
             // A new model only when its settings or key changed, or none could run before (a model
             // downloaded since): replacing a model on this PC unloads it.
@@ -433,6 +422,15 @@ internal static class Program
                 }
 
                 pending = null;
+
+                // Only the window's place changed (it was closed): nothing needs reloading, and a
+                // model on this PC stays loaded.
+                if (next with { WindowPlacements = settings.WindowPlacements } == settings)
+                {
+                    settings = next;
+                    return;
+                }
+
                 if (next.FileLogging != settings.FileLogging)
                 {
                     if (next.FileLogging)

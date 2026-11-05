@@ -36,6 +36,13 @@ internal static class HistoryDetails
             : cleaned.Text.Length == 0 ? HistoryOutcome.Empty
             : HistoryOutcome.Kept;
 
+    /// <summary>
+    /// Whether a retry that ended <paramref name="retried"/> replaces <paramref name="record"/>: a
+    /// retry that came to nothing never replaces text that went in or was kept.
+    /// </summary>
+    public static bool RetryReplaces(HistoryRecord record, HistoryOutcome retried) =>
+        retried == HistoryOutcome.Kept || !HasText(record);
+
     /// <summary>Whether the record has text to copy, paste or add to the dictionary.</summary>
     public static bool HasText(HistoryRecord record) =>
         record.Outcome is HistoryOutcome.Pasted or HistoryOutcome.Kept;

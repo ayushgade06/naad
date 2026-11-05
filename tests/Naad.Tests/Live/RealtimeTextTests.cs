@@ -27,6 +27,32 @@ public sealed class RealtimeTextTests
     }
 
     [Fact]
+    public void EndedQuietly_AfterTheEnd_KeepsWhatWasSentAndCompletes()
+    {
+        var text = new RealtimeText();
+        text.Apply(new(RealtimeEventKind.Final, null, "synthetic one."));
+        text.Apply(new(RealtimeEventKind.Partial, null, "synthetic two"));
+        text.FinishSent();
+
+        text.EndedQuietly();
+
+        Assert.True(text.Complete);
+        Assert.Equal("synthetic one. synthetic two", text.Stable);
+    }
+
+    [Fact]
+    public void EndedQuietly_BeforeTheEnd_ChangesNothing()
+    {
+        var text = new RealtimeText();
+        text.Apply(new(RealtimeEventKind.Partial, null, "synthetic"));
+
+        text.EndedQuietly();
+
+        Assert.False(text.Complete);
+        Assert.Equal("", text.Stable);
+    }
+
+    [Fact]
     public void Apply_DeepgramResults_AppendsFinalsAndReplacesInterims()
     {
         var text = new RealtimeText();

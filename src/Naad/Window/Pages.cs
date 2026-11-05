@@ -50,7 +50,7 @@ internal static class Pages
         var title = Heading(fresh ? "Welcome to Naad" : Greeting.Heading(firstName));
         title.Margin = new Thickness(0, 0, 10, 0);
         heading.Children.Add(title);
-        if (!fresh && firstName is not null)
+        if (!fresh)
         {
             heading.Children.Add(Keycap(shortcut.Describe(), palette));
         }

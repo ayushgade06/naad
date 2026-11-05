@@ -282,6 +282,13 @@ internal static class DictationFeatures
             : cleanup is null ? new Cleanup.CleanupResult(heard.Text, Cleanup.CleanupOutcome.Unchanged)
             : await cleanup.CleanAsync(heard.Text, context, CancellationToken.None);
         var outcome = Window.HistoryDetails.RetryOutcome(cleaned);
+
+        // A retry that comes to nothing never replaces text that went in or was kept.
+        if (!Window.HistoryDetails.RetryReplaces(record, outcome))
+        {
+            return null;
+        }
+
         await history.UpdateAsync(record with
         {
             // Hearing nothing this time keeps what was heard before.
@@ -298,6 +305,27 @@ internal static class DictationFeatures
 
         await controller.CopyAsync(cleaned.Text);
         return cleaned.Text;
+    }
+
+    /// <summary>The start and stop tones, and the error tone, as the settings in use ask.</summary>
+    /// <param name="controller">The dictation.</param>
+    /// <param name="settings">The settings applied now.</param>
+    /// <param name="sounds">The sound cues in use, or null.</param>
+    public static void ConnectSounds(
+        DictationController controller, Func<AppSettings> settings, Func<SoundCues?> sounds)
+    {
+        void Play(bool wanted, Action<SoundCues> play)
+        {
+            if (wanted && sounds() is { } cues)
+            {
+                play(cues);
+            }
+        }
+
+        controller.MicrophoneOpened += () => Play(settings().PlaySounds, s => s.PlayStart());
+        controller.MicrophoneClosed += () => Play(settings().PlaySounds, s => s.PlayStop());
+        controller.MicrophoneFailed += _ => Play(settings().ErrorSound, s => s.PlayError());
+        controller.TranscriptionFailed += _ => Play(settings().ErrorSound, s => s.PlayError());
     }
 
     // The clipboard's words, split on commas, semicolons and new lines, minus those already known.

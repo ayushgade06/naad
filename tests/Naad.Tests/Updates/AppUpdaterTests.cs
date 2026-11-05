@@ -19,6 +19,18 @@ public sealed class AppUpdaterTests
     }
 
     [Fact]
+    public void PublicKeys_Each_IsAP256Key()
+    {
+        foreach (var pem in AppUpdater.PublicKeys)
+        {
+            using var key = System.Security.Cryptography.ECDsa.Create();
+            key.ImportFromPem(pem);
+
+            Assert.Equal(256, key.KeySize);
+        }
+    }
+
+    [Fact]
     public async Task CheckAsync_NotInstalled_FindsNothingAndNeverThrows()
     {
         Assert.Equal(new UpdateCheck(false, null), await new AppUpdater().CheckAsync());

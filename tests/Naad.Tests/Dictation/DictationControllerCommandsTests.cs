@@ -60,6 +60,19 @@ public sealed class DictationControllerCommandsTests : IDisposable
     }
 
     [Fact]
+    public async Task Dictate_TranscriberHeardNothing_KeepsTheRunToRetry()
+    {
+        _h.Transcriber.Respond = _ => Task.FromResult(new TranscriptionResult(""));
+
+        await _h.DictateAsync(LongHold);
+
+        var report = Assert.Single(_reports);
+        Assert.Equal((HistoryOutcome.Empty, ""), (report.Outcome, report.Raw));
+        Assert.NotNull(report.Wav);
+        Assert.Equal(0, _h.Pastes);
+    }
+
+    [Fact]
     public async Task PasteAgain_AfterADictation_PastesTheSameText()
     {
         await _h.DictateAsync(LongHold);

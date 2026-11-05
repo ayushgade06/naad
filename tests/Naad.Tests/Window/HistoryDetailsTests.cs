@@ -41,6 +41,19 @@ public sealed class HistoryDetailsTests
         Assert.Equal(Enum.Parse<HistoryOutcome>(expected), HistoryDetails.RetryOutcome(cleaned));
     }
 
+    [Theory]
+    [InlineData(nameof(HistoryOutcome.Pasted), nameof(HistoryOutcome.Empty), false)]
+    [InlineData(nameof(HistoryOutcome.Kept), nameof(HistoryOutcome.Failed), false)]
+    [InlineData(nameof(HistoryOutcome.Pasted), nameof(HistoryOutcome.Kept), true)]
+    [InlineData(nameof(HistoryOutcome.Empty), nameof(HistoryOutcome.Empty), true)]
+    [InlineData(nameof(HistoryOutcome.Failed), nameof(HistoryOutcome.Kept), true)]
+    public void RetryReplaces_Outcomes_NeverLosesText(string before, string retried, bool expected)
+    {
+        var record = Record(Enum.Parse<HistoryOutcome>(before));
+
+        Assert.Equal(expected, HistoryDetails.RetryReplaces(record, Enum.Parse<HistoryOutcome>(retried)));
+    }
+
     [Fact]
     public void Cleanup_EveryOutcome_HasWords()
     {

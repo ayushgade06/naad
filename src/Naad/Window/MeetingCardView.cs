@@ -41,6 +41,7 @@ internal sealed class MeetingCardView : Border, IDisposable
     private readonly StackPanel _lines = new();
     private readonly ScrollViewer _scroll;
     private int _shown = -1;
+    private string? _shownPlaceholder;
     private readonly TextBlock _dot = new() { Text = "● " };
 
     public MeetingCardView(MeetingRecorder recorder, Palette palette)
@@ -98,13 +99,15 @@ internal sealed class MeetingCardView : Border, IDisposable
         _banner.Visibility = state.Banner is null ? Visibility.Collapsed : Visibility.Visible;
         _banner.Foreground = MainWindow.Brush(state.Finishing ? _palette.Muted : Red);
         _dot.Visibility = state.Finishing ? Visibility.Hidden : Visibility.Visible;
-        if (count == _shown)
+        // Also when only the placeholder changed, as when Listening gives way to Finishing.
+        if (count == _shown && state.Placeholder == _shownPlaceholder)
         {
             return;
         }
 
         // Rebuilt only when a line arrives; turns of one speaker read as one.
         _shown = count;
+        _shownPlaceholder = state.Placeholder;
         _lines.Children.Clear();
         if (state.Placeholder is { } placeholder)
         {

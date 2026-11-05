@@ -34,6 +34,10 @@ internal sealed class RealtimeTranscript(
     // A server that refuses the model does so within this long of the first audio.
     private static readonly TimeSpan TestSettle = TimeSpan.FromSeconds(1.5);
 
+    // Gemini and xAI send what is left within a few hundred milliseconds of the end, if anything;
+    // this much quiet after it means there is nothing more.
+    private static readonly TimeSpan QuietAfterEnd = TimeSpan.FromSeconds(1.2);
+
     // How often the end is checked while waiting for it.
     private static readonly TimeSpan EndPoll = TimeSpan.FromMilliseconds(100);
 
@@ -47,6 +51,7 @@ internal sealed class RealtimeTranscript(
     private readonly ClientWebSocket _socket = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _run;
+    private long _lastMessage;
     private string _shownPreview = "";
 
     /// <inheritdoc/>
@@ -245,10 +250,17 @@ internal sealed class RealtimeTranscript(
     private async Task WaitForEndAsync(Task receiving)
     {
         var deadline = Environment.TickCount64 + (long)LongestFinish.TotalMilliseconds;
+        var quietFrom = Environment.TickCount64;
         while (Environment.TickCount64 < deadline && !receiving.IsCompleted)
         {
+            var quiet = Environment.TickCount64 - Math.Max(quietFrom, Volatile.Read(ref _lastMessage));
             lock (_gate)
             {
+                if (RealtimeProtocol.MayEndQuietly(service) && quiet >= QuietAfterEnd.TotalMilliseconds)
+                {
+                    _text.EndedQuietly();
+                }
+
                 if (_text.Complete || _text.Failed)
                 {
                     return;
@@ -296,6 +308,7 @@ internal sealed class RealtimeTranscript(
                 string stable;
                 string preview;
                 bool changed;
+                Volatile.Write(ref _lastMessage, Environment.TickCount64);
                 lock (_gate)
                 {
                     changed = _text.Apply(e);

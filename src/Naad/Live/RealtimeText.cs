@@ -47,6 +47,28 @@ internal sealed class RealtimeText
     /// <summary>The end of the audio was sent; the server's answer to it is awaited.</summary>
     public void FinishSent() => _finishSent = true;
 
+    /// <summary>
+    /// The server went quiet after the end of the audio without saying the stream is over, as
+    /// Gemini and xAI may when the last turn already ended at a pause: what it sent counts, words
+    /// still marked as changing included, and the stream is complete. Nothing before the end.
+    /// </summary>
+    public void EndedQuietly()
+    {
+        if (!_finishSent || Failed)
+        {
+            return;
+        }
+
+        foreach (var (item, text) in _partial)
+        {
+            Add(item);
+            _final[item] = text;
+        }
+
+        _partial.Clear();
+        _endAcknowledged = true;
+    }
+
     /// <summary>The connection closed or broke: a failure unless the stream had already ended.</summary>
     public void Closed()
     {

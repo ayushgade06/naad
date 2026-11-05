@@ -93,6 +93,12 @@ All notable changes to Naad are listed here. The format follows
   up which release is downloaded and installed.
 - Something you copy while Naad puts the clipboard back is no longer
   overwritten.
+- Gemini and xAI streams that end quietly after the last pause no longer
+  wait 8 seconds and report "Live failed".
+- A dictation where nothing was heard is kept in the history, so it can be
+  retried; a retry that comes to nothing never replaces text that went in.
+- Closing the main window no longer reloads the speech model.
+- Home shows the shortcut's keycap even when Windows has no name for you.
 
 ## [2.1.0] - 2026-11-01
 

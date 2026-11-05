@@ -38,6 +38,19 @@ public sealed class MeetingTranscriberTests
     }
 
     [Fact]
+    public async Task Add_OtherSideOnlyOverlapsTheStart_KeepsOnePiece()
+    {
+        var meeting = new MeetingTranscriber(Numbered(), keepAudio: null);
+
+        // Their last words end 0.2 s into ours: crosstalk at the turn, not a new turn.
+        meeting.Add(Speaker.Others, Loud(0.2), TimeSpan.FromSeconds(0.2));
+        meeting.Add(Speaker.You, [.. Loud(2), .. Quiet(1), .. Loud(1), .. Quiet(3)], TimeSpan.FromSeconds(7));
+        var segments = await meeting.FinishAsync();
+
+        Assert.Single(segments, s => s.Speaker == Speaker.You);
+    }
+
+    [Fact]
     public async Task Add_ShortPauseWithNobodyElse_KeepsOnePiece()
     {
         var meeting = new MeetingTranscriber(Numbered(), keepAudio: null);

@@ -21,7 +21,7 @@ internal static class Greeting
         return string.IsNullOrEmpty(first) ? null : first;
     }
 
-    /// <summary>The heading: by name when one is known, followed on the page by the shortcut's keycap.</summary>
+    /// <summary>The heading, by name when one is known, followed on the page by the shortcut's keycap.</summary>
     public static string Heading(string? firstName) =>
-        firstName is null ? "Welcome back" : $"Hey {firstName}, get back into it with";
+        firstName is null ? "Welcome back, get back into it with" : $"Hey {firstName}, get back into it with";
 }

@@ -21,7 +21,7 @@ public sealed class GreetingTests
     [Fact]
     public void Heading_NoName_WelcomesBack()
     {
-        Assert.Equal("Welcome back", Greeting.Heading(null));
+        Assert.Equal("Welcome back, get back into it with", Greeting.Heading(null));
     }
 
     [Fact]

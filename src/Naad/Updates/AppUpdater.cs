@@ -45,7 +45,7 @@ internal sealed class AppUpdater
     // Naad's release-signing keys (ECDSA P-256): a release signed by any of them is trusted. The
     // private half is the repository's NAAD_UPDATE_SIGNING_KEY secret. Rotating means shipping
     // the new key here beside the old one first (docs/releasing.md).
-    private static readonly string[] PublicKeys =
+    internal static readonly string[] PublicKeys =
     [
         """
         -----BEGIN PUBLIC KEY-----

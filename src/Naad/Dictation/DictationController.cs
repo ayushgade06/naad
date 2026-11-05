@@ -401,9 +401,10 @@ internal sealed partial class DictationController(
                 Log.Info(LogEvent.TranscriptionEmpty);
                 Apply(DictationEvent.TranscribedEmpty, step.Job);
 
-                // Words cleanup found nothing in are kept too: a retry may find them. A bare
-                // "press enter" is a command, not a dictation.
-                if (raw.Length > 0 && !thenEnter)
+                // Kept, with its recording, whether the transcriber heard nothing or cleanup found
+                // nothing worth pasting: a retry may find words. A bare "press enter" is a command,
+                // not a dictation.
+                if (!thenEnter)
                 {
                     Finished?.Invoke(report with { Raw = raw, Outcome = HistoryOutcome.Empty, Wav = wav });
                 }

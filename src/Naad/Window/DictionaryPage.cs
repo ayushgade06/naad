@@ -127,6 +127,7 @@ internal static class DictionaryPage
             var duplicates = TranscriptCommands.DuplicateTriggers(complete);
             note.Text = !actions.Snippets.Save(complete) ? "The snippets couldn't be saved."
                 : duplicates.Count > 0 ? $"More than one snippet uses \"{duplicates[0]}\"; only the first is used."
+                : complete.Count < items.Count ? "Saved. Give each snippet a trigger and a text to keep it."
                 : "Saved.";
             actions.SnippetsChanged();
         }

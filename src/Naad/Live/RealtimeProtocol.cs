@@ -89,6 +89,12 @@ internal static class RealtimeProtocol
     public static bool NeedsReady(LiveService service) => service is LiveService.Gemini or LiveService.XAI;
 
     /// <summary>
+    /// Whether the server may say nothing more after the end of the audio when its last turn ended
+    /// at a pause, so quiet after the end means the stream is over.
+    /// </summary>
+    public static bool MayEndQuietly(LiveService service) => service is LiveService.Gemini or LiveService.XAI;
+
+    /// <summary>
     /// The WebSocket address for <paramref name="model"/> and the spoken language (null detects
     /// it), or null when <paramref name="baseUrl"/> can't be turned into one.
     /// </summary>

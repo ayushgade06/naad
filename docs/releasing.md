@@ -34,7 +34,9 @@ downloads the list and its signature from the same release and:
 - refuses the release unless the signature checks out with one of its
   keys and the list names the package Velopack found, with the same
   version, size and SHA-256;
-- counts the three-day wait from the list's `published` time;
+- counts the three-day wait from the list's `published` time, which is
+  when the workflow signed it, minutes before the release goes public (a
+  draft published by hand days later would skip the wait);
 - after downloading, checks the package against the list again, byte for
   byte, and deletes it instead of installing it if it differs.
 
