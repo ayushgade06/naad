@@ -99,7 +99,8 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
             editing: true);
         return result.Outcome == CleanupOutcome.Cleaned
             ? (result with { Outcome = CleanupOutcome.Edited }, reason)
-            : (new("", CleanupOutcome.EditFailed), reason == FallbackReason.None ? FallbackReason.Rejected : reason);
+            : (new("", CleanupOutcome.EditFailed, Prompt: result.Prompt),
+                reason == FallbackReason.None ? FallbackReason.Rejected : reason);
     }
 
     /// <summary>Translates without tidying, for when cleanup is off. Needs <see cref="Translates"/>.</summary>
@@ -107,8 +108,20 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
         string transcript, CancellationToken token) =>
         RunAsync(CleanupPrompt.Translate(options.OutputLanguage!, transcript), transcript, token);
 
+    // The result, with the prompt that was sent for the history to show.
     private async Task<(CleanupResult, FallbackReason)> RunAsync(
         ChatPrompt prompt, string transcript, CancellationToken token, bool editing = false)
+    {
+        var (result, reason) = await AskAsync(prompt, transcript, editing, token);
+
+        // Every model cooling down means nothing was sent.
+        return reason == FallbackReason.CoolingDown
+            ? (result, reason)
+            : (result with { Prompt = prompt.Instructions + "\n\n" + prompt.Text }, reason);
+    }
+
+    private async Task<(CleanupResult, FallbackReason)> AskAsync(
+        ChatPrompt prompt, string transcript, bool editing, CancellationToken token)
     {
         var reason = FallbackReason.CoolingDown;
         for (var i = 0; i < models.Count; i++)

@@ -55,4 +55,28 @@ public sealed class TranscriptCommandsTests
 
         Assert.Equal("Regards, sig team and S", TranscriptCommands.Expand("my sig and sig", snippets));
     }
+
+    [Theory]
+    [InlineData("My address.", "1 Example Street, Testville")]
+    [InlineData("  my, ADDRESS!  ", "1 Example Street, Testville")]
+    [InlineData("send it to my address", null)]
+    [InlineData("", null)]
+    public void WholeMatch_Raw_MatchesOnlyAWholeTrigger(string raw, string? expected)
+    {
+        Assert.Equal(expected, TranscriptCommands.WholeMatch(raw, Snippets)?.Text);
+    }
+
+    [Fact]
+    public void WholeMatch_HalfFilledSnippet_IsIgnored()
+    {
+        Assert.Null(TranscriptCommands.WholeMatch("my address", [new("my address", "")]));
+    }
+
+    [Fact]
+    public void DuplicateTriggers_SameWordsAnyCaseOrPunctuation_AreFound()
+    {
+        Snippet[] snippets = [new("My Address", "a"), new("my, address", "b"), new("sig", "c"), new("sig", "")];
+
+        Assert.Equal(["My Address"], TranscriptCommands.DuplicateTriggers(snippets));
+    }
 }

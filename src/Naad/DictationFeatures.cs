@@ -97,6 +97,11 @@ internal static class DictationFeatures
         controller.WentHandsFree += overlay.ShowHandsFree;
         controller.EditRecording += overlay.ShowEditing;
 
+        controller.MicrophoneFailed += tray.ShowMicrophoneError;
+        controller.NothingHeard += tray.ShowNothingHeard;
+        controller.TranscriptionFailed += tray.ShowTranscriptionError;
+        controller.TranscriptKept += tray.ShowTranscriptKept;
+        controller.TranscriberMissing += tray.ShowApiKeyNeeded;
         controller.MicrophoneOpened += overlay.ShowMicrophoneOpen;
         controller.CleaningUp += overlay.ShowCleaningUp;
         controller.Cancelled += () => overlay.ShowNotice("Cancelled");
@@ -139,7 +144,8 @@ internal static class DictationFeatures
         var history = new HistoryRecorder(
             new HistoryStore(HistoryStore.DefaultFolder, TimeProvider.System),
             () => settings().HistoryRetention,
-            TimeProvider.System);
+            TimeProvider.System,
+            HistoryRecorder.DefaultStatsPath);
         controller.Finished += history.Record;
         tray.AddHistoryItems(
             () => HistoryRecorder.RecentTexts(history.Records, TrayIcon.HistoryItems),
@@ -151,12 +157,14 @@ internal static class DictationFeatures
 
                 // After a restart, the newest dictation in the history.
                 if (!await controller.PasteAgainAsync()
-                    && history.Records.FirstOrDefault(r => r.Outcome != HistoryOutcome.Failed) is { } latest)
+                    && history.Records.FirstOrDefault(r => r.Outcome is HistoryOutcome.Pasted or HistoryOutcome.Kept)
+                        is { } latest)
                 {
                     await controller.PasteAsync(latest.Text);
                 }
             },
-            () => _ = AddCopiedWordsAsync(clipboard, tray, settings, saveWords));
+            () => _ = AddCopiedWordsAsync(clipboard, tray, settings, saveWords),
+            () => settings().PasteAgainShortcut);
         return history;
     }
 
@@ -245,8 +253,10 @@ internal static class DictationFeatures
     }
 
     /// <summary>
-    /// Transcribes a kept recording again with the settings in use, updates its record and copies
-    /// the new text; null if it failed. An edit is redone on the selection it had.
+    /// Transcribes a kept recording again with the settings in use and the context it had (summary,
+    /// selection, how an edit was asked for), updates its record and copies the new text; null when
+    /// nothing came of it. A run that ends empty or with a failed edit is saved as such, so it can be
+    /// tried again.
     /// </summary>
     public static async Task<string?> RetryAsync(
         HistoryRecord record,
@@ -255,29 +265,39 @@ internal static class DictationFeatures
         HistoryRecorder history,
         DictationController controller)
     {
-        if (transcriber is null || history.Store.Audio(record.Id) is not { } wav)
+        if (transcriber is null || await Task.Run(() => history.Store.Audio(record.Id)) is not { } wav)
         {
             return null;
         }
 
         var heard = await transcriber.TranscribeAsync(wav, CancellationToken.None);
-        if (heard.Failure is not null || heard.Text.Length == 0)
+        if (heard.Failure is not null)
         {
             return null;
         }
 
-        var context = new DictationContext(record.App, null, record.Selection, null, Invocation: record.Invocation);
-        var text = cleanup is null
-            ? heard.Text
-            : (await cleanup.CleanAsync(heard.Text, context, CancellationToken.None)).Text;
-        if (text.Length == 0)
+        var context = new DictationContext(
+            record.App, null, record.Selection, null, Summary: record.Summary, Invocation: record.Invocation);
+        var cleaned = heard.Text.Length == 0 ? new Cleanup.CleanupResult("", Cleanup.CleanupOutcome.Empty)
+            : cleanup is null ? new Cleanup.CleanupResult(heard.Text, Cleanup.CleanupOutcome.Unchanged)
+            : await cleanup.CleanAsync(heard.Text, context, CancellationToken.None);
+        var outcome = Window.HistoryDetails.RetryOutcome(cleaned);
+        await history.UpdateAsync(record with
+        {
+            // Hearing nothing this time keeps what was heard before.
+            Raw = heard.Text.Length > 0 ? heard.Text : record.Raw,
+            Text = outcome == HistoryOutcome.Kept ? cleaned.Text : "",
+            Outcome = outcome,
+            Prompt = cleaned.Prompt,
+            Cleanup = cleaned.Outcome,
+        });
+        if (outcome != HistoryOutcome.Kept)
         {
             return null;
         }
 
-        await history.UpdateAsync(record with { Raw = heard.Text, Text = text, Outcome = HistoryOutcome.Kept });
-        await controller.CopyAsync(text);
-        return text;
+        await controller.CopyAsync(cleaned.Text);
+        return cleaned.Text;
     }
 
     // The clipboard's words, split on commas, semicolons and new lines, minus those already known.

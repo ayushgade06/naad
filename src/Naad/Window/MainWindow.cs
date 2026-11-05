@@ -37,14 +37,15 @@ internal sealed class MainWindow : System.Windows.Window
     /// <param name="pages">The pages, in navigation order.</param>
     /// <param name="palette">The colours to draw with.</param>
     /// <param name="dark">Whether the title bar should be dark.</param>
-    public MainWindow(IReadOnlyList<MainPage> pages, Palette palette, bool dark)
+    /// <param name="bounds">Where to open, in screen pixels; null to open in the middle of the screen.</param>
+    public MainWindow(IReadOnlyList<MainPage> pages, Palette palette, bool dark, Rectangle? bounds)
     {
         _pages = pages;
         _palette = palette;
         Title = "Naad";
         Width = StartWidth;
         Height = StartHeight;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        WindowStartupLocation = bounds is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.Manual;
         Background = Brush(palette.Background);
         Foreground = Brush(palette.Text);
         FontFamily = new FontFamily("Segoe UI");
@@ -68,15 +69,30 @@ internal sealed class MainWindow : System.Windows.Window
         layout.Children.Add(_content);
         Content = layout;
 
-        // Esc closes the window, as in Naad's dialogs.
+        // Esc closes the window, as in Naad's dialogs, unless it belongs to what is being typed.
         KeyDown += (_, e) =>
         {
-            if (e.Key == System.Windows.Input.Key.Escape)
+            if (e.Key == System.Windows.Input.Key.Escape
+                && EscapeKey.Closes(System.Windows.Input.Keyboard.FocusedElement))
             {
                 Close();
             }
         };
-        SourceInitialized += (_, _) => Dwmapi.SetDarkTitleBar(new WindowInteropHelper(this).Handle, dark);
+        SourceInitialized += (_, _) =>
+        {
+            var handle = new WindowInteropHelper(this).Handle;
+            Dwmapi.SetDarkTitleBar(handle, dark);
+
+            // In pixels, before the window shows: WPF's own units would shift on a scaled monitor.
+            // ponytail: moving onto a monitor with another scale makes WPF resize by the ratio, so
+            // the size can drift between monitors of different scaling; set it again after
+            // DpiChanged if users see it (M-UI1).
+            if (bounds is { } b)
+            {
+                _ = User32.SetWindowPos(
+                    handle, 0, b.X, b.Y, b.Width, b.Height, User32.SwpNoZOrder | User32.SwpNoActivate);
+            }
+        };
 
         // A hosted settings form holds a capture and timers; it goes with the window.
         Closed += (_, _) => (_content.Content as IDisposable)?.Dispose();
@@ -103,6 +119,26 @@ internal sealed class MainWindow : System.Windows.Window
                 return;
             }
         }
+    }
+
+    /// <summary>The page shown, by name; null before one is.</summary>
+    public string? CurrentPage => _navigation.SelectedIndex >= 0 ? _pages[_navigation.SelectedIndex].Name : null;
+
+    /// <summary>
+    /// Where the window is now, in screen pixels, on which monitor; null while it is minimised or
+    /// maximised, so only a place the user chose is kept.
+    /// </summary>
+    public SavedWindow? Placement()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (WindowState != WindowState.Normal || !User32.GetWindowRect(handle, out var r))
+        {
+            return null;
+        }
+
+        var place = new SavedWindow(
+            Screen.FromHandle(handle).DeviceName, r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+        return place.IsValid ? place : null;
     }
 
     /// <summary>Naad's icon, for a WPF window's title bar.</summary>

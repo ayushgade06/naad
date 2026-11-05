@@ -24,12 +24,18 @@ internal enum CleanupOutcome
 
     /// <summary>The rewrite failed: nothing is pasted, so the selection stays as it was.</summary>
     EditFailed,
+
+    /// <summary>The whole transcript was a snippet's trigger: its text is pasted exactly.</summary>
+    Snippet,
 }
 
 /// <param name="Text">What to paste.</param>
 /// <param name="Outcome">How it was made.</param>
 /// <param name="PressEnter">Whether Enter is pressed after the paste ("press enter" was said).</param>
-internal readonly record struct CleanupResult(string Text, CleanupOutcome Outcome, bool PressEnter = false)
+/// <param name="Prompt">What the language model was sent, for the history; null when none was asked.
+/// User content: kept encrypted, never logged.</param>
+internal readonly record struct CleanupResult(
+    string Text, CleanupOutcome Outcome, bool PressEnter = false, string? Prompt = null)
 {
     // The generated ToString would print the text.
     public override string ToString() => $"CleanupResult {{ Chars = {Text.Length}, Outcome = {Outcome} }}";

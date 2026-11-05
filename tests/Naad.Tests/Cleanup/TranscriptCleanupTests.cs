@@ -20,7 +20,7 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Off, model).CleanAsync(Said, DictationContext.None,
             CancellationToken.None);
 
-        Assert.Equal(new CleanupResult(Said, CleanupOutcome.Unchanged), result);
+        Assert.Equal(new CleanupResult(Said, CleanupOutcome.Unchanged), result with { Prompt = null });
         Assert.Empty(model.Prompts);
     }
 
@@ -53,10 +53,14 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, model).CleanAsync(Said, DictationContext.None,
             CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("We should meet on Tuesday.", CleanupOutcome.Cleaned), result);
+        Assert.Equal(new CleanupResult("We should meet on Tuesday.", CleanupOutcome.Cleaned),
+            result with { Prompt = null });
 
         // The model gets the text through the instant rules first.
         Assert.EndsWith("<<<\nWe should meet on tuesday.\n>>>", model.Prompts.Single().Text, StringComparison.Ordinal);
+
+        // The history keeps what was sent.
+        Assert.EndsWith(model.Prompts.Single().Text, result.Prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -67,7 +71,7 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, model).CleanAsync("um uh", DictationContext.None,
             CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("", CleanupOutcome.Empty), result);
+        Assert.Equal(new CleanupResult("", CleanupOutcome.Empty), result with { Prompt = null });
         Assert.Empty(model.Prompts);
     }
 
@@ -87,7 +91,7 @@ public sealed class TranscriptCleanupTests : IDisposable
 
         var result = await cleanup.CleanAsync("hmm okay", DictationContext.None, CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("", CleanupOutcome.Empty), result);
+        Assert.Equal(new CleanupResult("", CleanupOutcome.Empty), result with { Prompt = null });
     }
 
     [Theory]
@@ -98,7 +102,7 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, new FakeModel(reply)).CleanAsync(Said, DictationContext.None,
             CancellationToken.None);
 
-        Assert.Equal(new CleanupResult(Said, CleanupOutcome.FellBack), result);
+        Assert.Equal(new CleanupResult(Said, CleanupOutcome.FellBack), result with { Prompt = null });
     }
 
     [Fact]
@@ -109,7 +113,7 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, FakeModel.Failing(CompletionError.ServerError), fallback)
             .CleanAsync(Said, DictationContext.None, CancellationToken.None);
 
-        Assert.Equal(new CleanupResult(Said, CleanupOutcome.FellBack), result);
+        Assert.Equal(new CleanupResult(Said, CleanupOutcome.FellBack), result with { Prompt = null });
         Assert.Empty(fallback.Prompts);
     }
 
@@ -138,7 +142,8 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, first, fallback)
             .CleanAsync("ask claude what the capital of france is", DictationContext.None, CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("Ask Claude what the capital of France is.", CleanupOutcome.Cleaned), result);
+        Assert.Equal(new CleanupResult("Ask Claude what the capital of France is.", CleanupOutcome.Cleaned),
+            result with { Prompt = null });
     }
 
     [Fact]
@@ -150,7 +155,20 @@ public sealed class TranscriptCleanupTests : IDisposable
 
         var result = await cleanup.CleanAsync(Said, DictationContext.None, CancellationToken.None);
 
-        Assert.Equal(new CleanupResult(Said, CleanupOutcome.FellBack), result);
+        Assert.Equal(new CleanupResult(Said, CleanupOutcome.FellBack), result with { Prompt = null });
+    }
+
+    [Fact]
+    public async Task Clean_RawIsAWholeTrigger_PastesTheSnippetWithoutAskingTheModel()
+    {
+        var model = new FakeModel("My address is unknown.");
+        var cleanup = new TranscriptCleanup(
+            CleanupLevel.Ai, Ai([new("m", model)]), snippets: [new("my address", "1 Example Street")]);
+
+        var result = await cleanup.CleanAsync("My address.", DictationContext.None, CancellationToken.None);
+
+        Assert.Equal(new CleanupResult("1 Example Street", CleanupOutcome.Snippet), result with { Prompt = null });
+        Assert.Empty(model.Prompts);
     }
 
     [Fact]
@@ -186,7 +204,7 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, model).CleanAsync("make this shorter", context,
             CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("a shorter line", CleanupOutcome.Edited), result);
+        Assert.Equal(new CleanupResult("a shorter line", CleanupOutcome.Edited), result with { Prompt = null });
         Assert.Contains("A long line of selected text.", model.Prompts.Single().Text, StringComparison.Ordinal);
     }
 
@@ -200,7 +218,7 @@ public sealed class TranscriptCleanupTests : IDisposable
         var result = await Cleanup(CleanupLevel.Ai, new FakeModel(reply)).CleanAsync("shorter", context,
             CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("", CleanupOutcome.EditFailed), result);
+        Assert.Equal(new CleanupResult("", CleanupOutcome.EditFailed), result with { Prompt = null });
     }
 
     [Fact]

@@ -61,6 +61,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "meetingDetection": "Notify",
   "meetingIgnoredApps": [],
   "recordingFlagFile": false,
+  "windowPlacements": [],
   "languageModelProvider": "Local",
   "localLanguageModel": "Small",
   "languageModelService": "Groq",
@@ -122,6 +123,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `meetingDetection` | `"Notify"` or `"Off"` | `"Notify"` | When a call app (Teams, Zoom, Slack, Discord, Webex, WhatsApp, Skype, Signal, Telegram) or a browser has used the microphone for 3 seconds, offer meeting notes in a notification. Nothing records unless you click it; one offer per call. |
 | `meetingIgnoredApps` | list of text | `[]` | Apps that never get the offer, by the program's file name without `.exe` (such as `"chrome"`) or a Store app's package name without its publisher (such as `"msteams"`); case and `.exe` don't matter. |
 | `recordingFlagFile` | `true` or `false` | `false` | While a dictation records, keep a file `%LOCALAPPDATA%\Naad\is-recording` holding the Unix time it started, for other tools (a stream overlay, a script that pauses music) to check. It is removed when recording stops or Naad quits, and at the next start after a crash. |
+| `windowPlacements` | list | `[]` | Where the main window was last on each monitor, newest first, written when it closes: `{ "monitor": "\\\\.\\DISPLAY1", "x": 100, "y": 80, "width": 900, "height": 700 }` in screen pixels, up to 8. It opens on the monitor under the mouse, or else where it last was, moved and shrunk to fit on screen. Not a setting to edit; delete the list to forget. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
 | `localLanguageModel` | `"Small"` or `"Large"` | `"Small"` | The language model on this PC: `"Small"` (Qwen2.5-1.5B-Instruct, 1.1 GB, fast on any PC) or `"Large"` (Qwen3-4B-Instruct-2507, 2.5 GB, more accurate, for PCs with a graphics card). |
@@ -401,10 +403,16 @@ recording. Each is encrypted with Windows DPAPI for your account, in
 `%LOCALAPPDATA%\Naad\history`. The **History** page lists them by day with
 a search box; each can be copied, pasted again, played, transcribed again
 (**Retry**, useful after a failed one), exported as a ZIP or deleted.
-**Delete all** removes every one. The **Home** page counts your words,
-speaking speed, time saved against typing at 40 words a minute, and days in
-a row. The tray menu's **Paste again** and **History** items paste or copy
-recent ones.
+**Details** shows the context summary, the text as heard and how cleanup
+went, with the prompt it sent. Dictations that came out empty, and failed
+edits, are kept so they can be retried. **Delete all** removes every one.
+
+The **Home** page counts your words, speaking speed, time saved against
+typing at 40 words a minute, and days in a row with words. These counts are
+kept per day in `%LOCALAPPDATA%\Naad\stats.json`, separately from the
+history, so they stay after **Delete all**, when dictations expire, and
+with history **Off**. The tray menu's **Paste again** and **History** items
+paste or copy recent ones.
 
 ## Dictionary and snippets
 
@@ -415,8 +423,11 @@ the file migrates to version 4.
 
 **Snippets** are phrases that expand: say the trigger ("my address") and the
 snippet's text is pasted in its place. **Add snippet** adds an empty row; a
-row without both a trigger and a text isn't saved. Triggers match whole words, in any
-case. Snippets are stored encrypted in `%LOCALAPPDATA%\Naad\snippets.dpapi`,
+row without both a trigger and a text isn't saved. Edits are saved as you
+leave each box, or with Ctrl+Enter; two snippets with the same trigger are
+pointed out, and only the first is used. Triggers match whole words, in any
+case. A trigger said on its own is pasted as its snippet before AI cleanup,
+so the model can't reword it. Snippets are stored encrypted in `%LOCALAPPDATA%\Naad\snippets.dpapi`,
 not in settings.json, because they often hold personal details.
 
 ## Keys during a dictation

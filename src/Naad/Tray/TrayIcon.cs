@@ -107,7 +107,7 @@ internal sealed partial class TrayIcon : IDisposable
         {
             Enabled = false,
         };
-        _status.Text = _idleTooltip;
+        _status.Text = StatusLine(DictationState.Idle, _idleTooltip, _version);
         _menu.Items.Add(_status);
         _menu.Items.Add(_toggleDictation);
         _menu.Items.Add(new ToolStripSeparator());
@@ -151,7 +151,7 @@ internal sealed partial class TrayIcon : IDisposable
         _idleTooltip = Tooltip(shortcut, handsFree);
         _recordingTooltip = RecordingTooltip(shortcut, handsFree);
         _icon.Text = _idleTooltip;
-        _status.Text = _idleTooltip;
+        _status.Text = StatusLine(_state, _idleTooltip, _version);
     }
 
     /// <summary>
@@ -162,14 +162,14 @@ internal sealed partial class TrayIcon : IDisposable
     /// <param name="microphones">The connected recording devices, read when the submenu opens.</param>
     /// <param name="microphone">The chosen device, or null for the Windows default.</param>
     /// <param name="chooseMicrophone">Saves a new choice (null for the Windows default).</param>
-    /// <param name="openWindow">Opens Naad's main window.</param>
+    /// <param name="openWindow">Opens Naad's main window at a page, such as Home or History.</param>
     /// <param name="rerunSetup">Opens the setup guide again.</param>
     public void AddItems(
         Action toggleDictation,
         Func<IReadOnlyList<string>> microphones,
         Func<string?> microphone,
         Action<string?> chooseMicrophone,
-        Action openWindow,
+        Action<string> openWindow,
         Action rerunSetup)
     {
         _toggleDictation.Click += (_, _) => toggleDictation();
@@ -192,12 +192,14 @@ internal sealed partial class TrayIcon : IDisposable
         var at = _menu.Items.IndexOf(_toggleDictation) + 1;
         _menu.Items.Insert(at, devices);
         var settings = _menu.Items.Cast<ToolStripItem>().First(item => item.Text == SettingsText);
-        var window = new ToolStripMenuItem("Open Naad", null, (_, _) => openWindow());
+        var window = new ToolStripMenuItem("Open Naad", null, (_, _) => openWindow(Window.Pages.Home));
         window.Font = _boldFont = new Font(window.Font, FontStyle.Bold);
         _menu.Items.Insert(_menu.Items.IndexOf(settings), window);
+        var history = new ToolStripMenuItem("Open History", null, (_, _) => openWindow(Window.Pages.History));
+        _menu.Items.Insert(_menu.Items.IndexOf(settings), history);
         var setup = new ToolStripMenuItem("Re-run setup...", null, (_, _) => rerunSetup());
         _menu.Items.Insert(_menu.Items.IndexOf(settings), setup);
-        _icon.DoubleClick += (_, _) => openWindow();
+        _icon.DoubleClick += (_, _) => openWindow(Window.Pages.Home);
     }
 
     /// <summary>
@@ -209,12 +211,14 @@ internal sealed partial class TrayIcon : IDisposable
     /// <param name="copy">Puts text on the clipboard.</param>
     /// <param name="pasteAgain">Pastes the last text into the window in front once the menu closes.</param>
     /// <param name="addCopiedWords">Adds the clipboard's words to the dictionary.</param>
+    /// <param name="pasteAgainShortcut">The Paste again shortcut, named in its item; null when off.</param>
     public void AddHistoryItems(
         Func<IReadOnlyList<string>> recent,
         Func<string?> last,
         Func<string, Task<bool>> copy,
         Func<Task> pasteAgain,
-        Action addCopiedWords)
+        Action addCopiedWords,
+        Func<Chord?> pasteAgainShortcut)
     {
         _copyText = copy;
         var again = new ToolStripMenuItem("Paste again");
@@ -228,7 +232,8 @@ internal sealed partial class TrayIcon : IDisposable
             _copyLastTranscript.Enabled = CanCopyLast(texts, _hasKept);
             var next = last() ?? (texts.Count > 0 ? texts[0] : null);
             again.Enabled = next is not null;
-            again.Text = next is not null ? $"Paste again: “{Preview(next, PasteAgainPreview)}”" : "Paste again";
+            again.Text = PasteAgainLabel(
+                next is not null ? Preview(next, PasteAgainPreview) : null, pasteAgainShortcut());
             history.DropDownItems.Clear();
             foreach (var text in texts.Take(HistoryItems))
             {
@@ -255,12 +260,20 @@ internal sealed partial class TrayIcon : IDisposable
     public static bool CanCopyLast(IReadOnlyList<string> recent, bool hasKept) => recent.Count > 0 || hasKept;
 
     /// <summary>Says how many words went into the dictionary, or why none did.</summary>
-    public void ShowWordsAdded(int added) => Notify(
-        "Naad dictionary",
-        added > 0 ? $"Added {added} word{(added == 1 ? "" : "s")} to the dictionary." :
-            "No new words: copy names or terms separated by commas or new lines first.",
-        ToolTipIcon.Info,
-        clicked: null);
+    public void ShowWordsAdded(int added)
+    {
+        if (added > 0)
+        {
+            FlashCheck();
+        }
+
+        Notify(
+            "Naad dictionary",
+            added > 0 ? $"Added {added} word{(added == 1 ? "" : "s")} to the dictionary." :
+                "No new words: copy names or terms separated by commas or new lines first.",
+            ToolTipIcon.Info,
+            clicked: null);
+    }
 
     /// <summary>Says an edit couldn't be made, and why, leaving the selection as it was.</summary>
     /// <param name="needsSelection">Nothing was selected for a Manual edit.</param>
@@ -315,6 +328,8 @@ internal sealed partial class TrayIcon : IDisposable
     /// <summary>Shows the dictation state in the icon and its tooltip.</summary>
     public void ShowState(DictationState state)
     {
+        _state = state;
+        _status.Text = StatusLine(state, _idleTooltip, _version);
         _toggleDictation.Text = state == DictationState.Recording ? "Stop dictating" : "Start dictating";
         _toggleDictation.Enabled = state is DictationState.Idle or DictationState.Recording;
         _icon.Icon = state switch
@@ -384,6 +399,10 @@ internal sealed partial class TrayIcon : IDisposable
     private void Notify(string title, string message, ToolTipIcon kind, Action? clicked)
     {
         _notificationClicked = clicked;
+        if (kind == ToolTipIcon.Warning)
+        {
+            RememberError(title);
+        }
 
         // Windows shows a notification only for a visible icon: a hidden one appears for it.
         _icon.Visible = true;
@@ -420,5 +439,7 @@ internal sealed partial class TrayIcon : IDisposable
         _recordingImage.Dispose();
         _transcribingImage.Dispose();
         _boldFont?.Dispose();
+        _checkFlash?.Dispose();
+        _checkImage?.Dispose();
     }
 }

@@ -267,13 +267,8 @@ internal static class Program
                     Apply(next);
                 }
             }
-            controller.MicrophoneFailed += tray.ShowMicrophoneError;
-            controller.NothingHeard += tray.ShowNothingHeard;
-            controller.TranscriptionFailed += tray.ShowTranscriptionError;
-            controller.TranscriptKept += tray.ShowTranscriptKept;
-            controller.TranscriberMissing += tray.ShowApiKeyNeeded;
 
-            hook.CaptureEnded += step => windows?.SettingsForm?.ShowCapture(step);
+            hook.CaptureEnded += step => windows?.ShowCapture(step);
             windows = new WindowHost(
                 () => pending ?? settings,
                 AudioRecorder.ConnectedNames,
@@ -293,7 +288,8 @@ internal static class Program
                         snippets = snippetStore.Load();
                         UseLanguageModel(pending ?? settings, replace: false);
                     },
-                    meetings));
+                    meetings,
+                    controller));
             tray.AddItems(
                 controller.Toggle,
                 AudioRecorder.ConnectedNames,
@@ -301,7 +297,7 @@ internal static class Program
                 microphone => Save(new(
                     (pending ?? settings) with { Microphone = microphone }, new Dictionary<CloudService, string>(),
                     startup.IsEnabled())),
-                () => windows.Open(Pages.Home),
+                windows.Open,
                 windows.OpenSetup);
             tray.AddShortcutMenus(
                 () => pending ?? settings,

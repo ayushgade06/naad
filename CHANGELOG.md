@@ -13,6 +13,29 @@ All notable changes to Naad are listed here. The format follows
   and Deepgram. OpenAI's address is built from its base URL. The Live tab
   has a model field with suggestions and **Reset**, and **Test
   connection**.
+- **History details**: each dictation shows the context summary, what was
+  heard (with **Copy raw**), and how cleanup went, the prompt it sent
+  (**Show prompt**) and the cleaned text (**Copy cleaned**). **Play**
+  becomes **Stop** with a progress bar, and copying says **Copied**.
+  **Export** adds the prompt and warns first that the ZIP isn't encrypted.
+- **Lifetime stats**: the Home page's words, pace, time saved and streak
+  come from daily counts that stay when the history is deleted or expires.
+  The streak counts only days with words. Home greets you by first name,
+  with your shortcut as a keycap and a line about your streak.
+- **Setup guide** steps for the shortcuts, Edit Mode, the overlay style and
+  an AI key, which can be checked. The test dictation shows **Listening**,
+  **Transcribing** and the result, or says no speech was picked up.
+- **Snippets**: search, an empty state, a warning when two snippets share a
+  trigger, and edits saved as you make them (or with Ctrl+Enter). A trigger
+  said on its own is pasted as its snippet before AI cleanup, so it can't be
+  reworded.
+- **Dictionary**: Enter adds, with a word count and an empty state.
+- **Tray**: the status line says **Recording…** or **Transcribing…** and
+  shows the version; the last three problems are listed; **Paste again**
+  names its shortcut; **Open History**; a check flashes on the icon after
+  **Add copied words to dictionary**.
+- The main window reopens where it was on each monitor, and a new theme
+  applies at once.
 
 ### Changed
 
@@ -20,6 +43,12 @@ All notable changes to Naad are listed here. The format follows
   overlay says so and the history marks the dictation. Live preview on
   this PC is greyed out, with the reason, when Whisper runs without a
   graphics card.
+- Dictations that came out empty, and failed edits, are kept in the
+  history so they can be retried. **Retry** reuses the dictation's context
+  and can't be clicked twice at once.
+- Esc closes the main window and the setup guide only when you aren't
+  typing in a box.
+- Closing the setup guide before **Finish** puts the old shortcuts back.
 
 ## [2.1.0] - 2026-11-01
 

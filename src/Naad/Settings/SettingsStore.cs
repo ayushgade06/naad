@@ -418,6 +418,7 @@ internal sealed class SettingsStore(string path)
             MeetingDetection = ReadName(root, "meetingDetection", defaults.MeetingDetection, ref repaired),
             MeetingIgnoredApps = ReadList(root, "meetingIgnoredApps", AppSettings.IsValidWord, ref repaired),
             RecordingFlagFile = ReadBool(root, "recordingFlagFile", defaults.RecordingFlagFile, ref repaired),
+            WindowPlacements = ReadWindows(root, "windowPlacements", ref repaired),
         };
         // Shortcuts that can't work together, as written by hand: off is safer than a clash.
         if (Shortcuts.Problem(settings) is not null)

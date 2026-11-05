@@ -16,6 +16,9 @@ namespace Naad.Dictation;
 /// <param name="Outcome">How it ended.</param>
 /// <param name="Wav">The recording.</param>
 /// <param name="Invocation">How an edit was asked for; null for a dictation.</param>
+/// <param name="Summary">The context summary cleanup was given, or null.</param>
+/// <param name="Prompt">What the language model was sent, or null.</param>
+/// <param name="Cleanup">How cleanup went, or null when none ran.</param>
 /// <param name="LiveFellBack">Live transcription failed, so the recording was transcribed in one pass.</param>
 internal sealed record DictationReport(
     uint ProcessId,
@@ -28,7 +31,10 @@ internal sealed record DictationReport(
     HistoryOutcome Outcome = HistoryOutcome.Failed,
     byte[]? Wav = null,
     Naad.Context.EditInvocation? Invocation = null,
-    bool LiveFellBack = false)
+    bool LiveFellBack = false,
+    string? Summary = null,
+    string? Prompt = null,
+    Naad.Cleanup.CleanupOutcome? Cleanup = null)
 {
     // The generated ToString would print what was said.
     public override string ToString() => $"DictationReport {{ Outcome = {Outcome}, Chars = {Text.Length} }}";

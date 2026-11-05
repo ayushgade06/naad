@@ -1171,6 +1171,19 @@ OpenAI-compatible realtime server if one is at hand.
 
 **Status after P45:** M-LP1 to M-LP4 have **not been run** by a person.
 
+## Window, history, setup and tray polish (P46): M-UI1 to M-UI6
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-UI1 | Window place and keys | Open Naad, move and resize it, close it, open it again; repeat on a second monitor with the mouse there, also with the two monitors at different scaling. Click in the History search box and press Esc, then click a button and press Esc. Change **Theme** on the General tab and save. | It reopens where it was on each monitor, and never off screen after a monitor is unplugged. Esc in the search box does nothing; Esc on a button closes. The window reopens on Settings in the new colours. | **No.** The placement and Esc rules are unit tested. |
+| M-UI2 | Setup guide | **Re-run setup**: choose a different hold shortcut, Edit Mode, the compact overlay, paste an AI key and **Check key**; at **Try it**, dictate, then stay silent once. Run it again, change the shortcut, reach **Try it** and close the guide. | The key check answers; **Try it** shows **Listening...**, **Transcribing...**, then "It works", and "No speech was picked up" for the silent one. After closing early, the old shortcut works again. | **No.** |
+| M-UI3 | History details | Dictate with AI cleanup and context on; open History, **Details**, **Show prompt**, **Copy raw**, **Copy cleaned**, **Play** then **Stop**; **Export**. | The three blocks show the summary, the raw text and the cleanup; each Copy says **Copied** for a moment; the bar moves and Stop silences it; Export warns first and the ZIP holds `dictation.json`, `prompt.txt` and `recording.wav`. | **No.** The labels are unit tested. |
+| M-UI4 | Retry and kept runs | Dictate only "um"; select text and dictate an edit with the AI service offline. In History, click **Retry** twice quickly on each. | Both runs are listed (nothing heard, edit failed) with **Retry**; the second click does nothing while the first runs; the result replaces the record. | **No.** |
+| M-UI5 | Lifetime stats and Home | Note the Home numbers, **Delete all** in History, reopen Home; set History to **Off** and dictate. | The numbers stay after Delete all and grow with history Off; Home greets you by first name with the shortcut keycap and a streak line. `%LOCALAPPDATA%\Naad\stats.json` holds counts only. | **No.** The counts and streak are unit tested. |
+| M-UI6 | Snippets, dictionary and tray | Add two snippets with the same trigger; search; edit one and click away; say only a trigger. On Dictionary type a word and press Enter. Open the tray menu during a dictation and after an error; **Add copied words to dictionary**. | The duplicate is pointed out; edits are saved; the lone trigger pastes its snippet exactly; Enter adds the word and the count grows. The menu says **Recording…**/**Transcribing…** with the version, lists the error, shows **Paste again (keys)** and **Open History**; a check flashes on the icon. | **No.** Snippet matching is unit tested. |
+
+**Status after P46:** M-UI1 to M-UI6 have **not been run** by a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical

@@ -31,8 +31,8 @@ internal static class Diagnostics
         $"Settings version {s.Version}",
     ]);
 
-    // The version a release is stamped with, and the commit when the build recorded one.
-    private static string Build()
+    /// <summary>The version a release is stamped with, and the commit when the build recorded one.</summary>
+    public static string Build()
     {
         var version = typeof(Diagnostics).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";

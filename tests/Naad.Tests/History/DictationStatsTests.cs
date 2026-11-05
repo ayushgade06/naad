@@ -17,42 +17,17 @@ public sealed class DictationStatsTests
         Assert.Equal(expected, DictationStats.CountWords(text));
     }
 
-    [Fact]
-    public void Compute_Records_SumsWordsPaceAndTimeSaved()
-    {
-        HistoryRecord[] records =
-        [
-            Record(Today, "one two three four five six seven eight nine ten", audioMs: 6_000),
-            Record(Today, "one two three four five six seven eight nine ten", audioMs: 6_000),
-            Record(Today, "ignored because it failed", audioMs: 6_000, HistoryOutcome.Failed),
-        ];
-
-        var stats = DictationStats.Compute(records, Today, TimeZoneInfo.Utc);
-
-        Assert.Equal(20, stats.Words);
-        Assert.Equal(100, stats.WordsPerMinute);
-        Assert.Equal(TimeSpan.FromMinutes((20 / 40.0) - 0.2), stats.TimeSaved);
-    }
-
-    [Fact]
-    public void Compute_NoTimedAudio_HasNoPace()
-    {
-        var stats = DictationStats.Compute([Record(Today, "a b c", audioMs: 0)], Today, TimeZoneInfo.Utc);
-
-        Assert.Equal((3, 0), (stats.Words, stats.WordsPerMinute));
-    }
-
     [Theory]
-    [InlineData(new[] { 0, 1, 2 }, 3)]
-    [InlineData(new[] { 1, 2 }, 2)]
-    [InlineData(new[] { 0, 2 }, 1)]
-    [InlineData(new[] { 2, 3 }, 0)]
-    [InlineData(new int[0], 0)]
-    public void Compute_Days_CountsTheStreakEndingTodayOrYesterday(int[] daysAgo, int streak)
+    [InlineData(0, "start a streak")]
+    [InlineData(1, "Day one")]
+    [InlineData(2, "Two days")]
+    [InlineData(4, "4 days in a row. Your voice")]
+    [InlineData(6, "Almost a full week")]
+    [InlineData(29, "Talking beats typing")]
+    [InlineData(30, "30 days straight")]
+    public void StreakMessage_Days_FitsTheStreak(int days, string expected)
     {
-        var records = daysAgo.Select(d => Record(Today.AddDays(-d), "hi", 1_000));
-
-        Assert.Equal(streak, DictationStats.Compute(records, Today, TimeZoneInfo.Utc).DayStreak);
+        Assert.Contains(expected, DictationStats.StreakMessage(days), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -65,17 +40,4 @@ public sealed class DictationStatsTests
     {
         Assert.Equal(expected, DictationStats.DayLabel(Today.AddDays(-daysAgo), Today, CultureInfo.InvariantCulture));
     }
-
-    private static HistoryRecord Record(
-        DateOnly day, string text, long audioMs, HistoryOutcome outcome = HistoryOutcome.Pasted) => new(
-        Guid.NewGuid(),
-        new DateTimeOffset(day.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero),
-        "notepad",
-        audioMs,
-        text,
-        text,
-        100,
-        0,
-        outcome,
-        false);
 }

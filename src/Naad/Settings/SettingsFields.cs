@@ -10,6 +10,8 @@ namespace Naad.Settings;
 /// </summary>
 internal static class SettingsFields
 {
+    private static readonly JsonSerializerOptions CaseInsensitive = new() { PropertyNameCaseInsensitive = true };
+
     // Absent means the default. A name of one of the enum's members, in any casing, selects it;
     // anything else falls back to the default and marks the settings repaired. Names only:
     // Enum.TryParse would also take "1" or "Cloud, Local".
@@ -83,6 +85,49 @@ internal static class SettingsFields
 
         // The shared empty list, so settings without entries compare equal to the defaults.
         return items.Count == 0 ? (IReadOnlyList<string>)[] : items;
+    }
+
+    // Absent or null means none; an array keeps its valid places, one per monitor, up to the limit.
+    // Anything else, or an invalid entry, marks the settings repaired.
+    public static IReadOnlyList<Naad.Window.SavedWindow> ReadWindows(JsonObject root, string name, ref bool repaired)
+    {
+        if (!root.TryGetPropertyValue(name, out var node) || node is null)
+        {
+            return [];
+        }
+
+        if (node is not JsonArray array)
+        {
+            repaired = true;
+            return [];
+        }
+
+        var places = new List<Naad.Window.SavedWindow>();
+        foreach (var item in array)
+        {
+            Naad.Window.SavedWindow? place = null;
+            try
+            {
+                place = item?.Deserialize<Naad.Window.SavedWindow>(CaseInsensitive);
+            }
+            catch (JsonException)
+            {
+                // Marked repaired below.
+            }
+
+            if (place is { IsValid: true } && places.Count < Naad.Window.WindowPlacement.MaxSaved
+                && places.All(p => p.Monitor != place.Monitor))
+            {
+                places.Add(place);
+            }
+            else
+            {
+                repaired = true;
+            }
+        }
+
+        // The shared empty list, so settings without entries compare equal to the defaults.
+        return places.Count == 0 ? (IReadOnlyList<Naad.Window.SavedWindow>)[] : places;
     }
 
     // Absent or null means none; text that isn't a chord marks the settings repaired.

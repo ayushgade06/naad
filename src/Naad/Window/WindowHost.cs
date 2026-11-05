@@ -21,6 +21,10 @@ internal sealed class WindowHost(
     Action exit,
     PageActions pages)
 {
+    // Asked of Windows once, off the UI thread: on a work PC it can ask a domain controller and take
+    // seconds. Until it answers, Home says "Welcome back". Shown only, never logged.
+    private static readonly Task<string?> FirstName = Task.Run(() => Greeting.FirstName(Native.Secur32.DisplayName()));
+
     private MainWindow? _main;
     private SetupWizard? _wizard;
 
@@ -39,7 +43,12 @@ internal sealed class WindowHost(
             _main = new MainWindow(
                 [
                     new(Pages.Home, () => Pages.HomePage(
-                        settings(), pages.History.Records, palette, exit, OpenSetup)),
+                        settings(),
+                        pages.History.Stats(DateOnly.FromDateTime(DateTime.Now)),
+                        FirstName.IsCompletedSuccessfully ? FirstName.Result : null,
+                        palette,
+                        exit,
+                        OpenSetup)),
                     new(Pages.History, () => new HistoryPage(PasteFromWindow(), palette)),
                     new(Pages.Dictionary, () => DictionaryPage.Words(pages, palette)),
                     new(Pages.Snippets, () => DictionaryPage.Snippets(pages, palette)),
@@ -49,8 +58,11 @@ internal sealed class WindowHost(
                     new(Pages.Settings, () => Pages.SettingsPage(SettingsForm = SettingsPage(dark ? palette : null))),
                 ],
                 palette,
-                dark);
-            _main.Closed += (_, _) =>
+                dark,
+                WindowPlacement.Fit(settings().WindowPlacements, Screens(), MouseMonitor()));
+            var main = _main;
+            main.Closing += (_, _) => RememberPlace(main);
+            main.Closed += (_, _) =>
             {
                 _main = null;
                 SettingsForm = null;
@@ -82,11 +94,28 @@ internal sealed class WindowHost(
         },
     };
 
-    // Forgotten once disposed, so the shortcut capture never reaches a page that is gone.
+    // Forgotten once disposed, so the shortcut capture never reaches a page that is gone. A new
+    // theme reopens the window on the same page, drawn in the new colours.
     private SettingsWindow SettingsPage(Palette? palette)
     {
+        var inner = actions();
+        var withTheme = inner with
+        {
+            Save = change =>
+            {
+                var theme = settings().Theme;
+                var error = inner.Save(change);
+                if (error is null && change.Settings.Theme != theme && _main is { } main)
+                {
+                    // After the click that saved: the form doing the saving goes with the window.
+                    _ = main.Dispatcher.BeginInvoke(() => Reopen(main));
+                }
+
+                return error;
+            },
+        };
         var form = new SettingsWindow(
-            settings(), microphones(), startsAtLogin(), actions(), palette, embedded: true);
+            settings(), microphones(), startsAtLogin(), withTheme, palette, embedded: true);
         form.Disposed += (_, _) =>
         {
             if (SettingsForm == form)
@@ -103,13 +132,54 @@ internal sealed class WindowHost(
         if (_wizard is null)
         {
             var (palette, dark) = Colours();
-            _wizard = new SetupWizard(settings, microphones(), startsAtLogin(), actions(), palette, dark);
+            _wizard = new SetupWizard(
+                settings, microphones(), startsAtLogin(), actions(), pages.Dictation, palette, dark);
             _wizard.Closed += (_, _) => _wizard = null;
             ElementHost.EnableModelessKeyboardInterop(_wizard);
             _wizard.Show();
         }
 
         _wizard.Activate();
+    }
+
+    private void Reopen(MainWindow main)
+    {
+        var page = main.CurrentPage;
+        main.Close();
+        Open(page ?? Pages.Settings);
+    }
+
+    // Saved through the settings, like any other choice; a failure only loses the place.
+    private void RememberPlace(MainWindow main)
+    {
+        if (main.Placement() is not { } place)
+        {
+            return;
+        }
+
+        var s = settings();
+        var places = WindowPlacement.Remember(s.WindowPlacements, place);
+        if (places.SequenceEqual(s.WindowPlacements))
+        {
+            return;
+        }
+
+        _ = actions().Save(new(
+            s with { WindowPlacements = places },
+            new Dictionary<Providers.CloudService, string>(),
+            startsAtLogin()));
+    }
+
+    private static List<Tray.OverlayScreen> Screens() =>
+        [.. Screen.AllScreens.Select(s => new Tray.OverlayScreen(s.DeviceName, s.WorkingArea, s.Primary))];
+
+    private static string MouseMonitor() => Screen.FromPoint(Cursor.Position).DeviceName;
+
+    /// <summary>The hook finished a capture: it goes to whichever window started one.</summary>
+    public void ShowCapture(Hotkey.CaptureStep step)
+    {
+        SettingsForm?.ShowCapture(step);
+        _wizard?.ShowCapture(step);
     }
 
     /// <summary>Closes both windows, as at exit.</summary>

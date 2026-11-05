@@ -20,6 +20,7 @@ internal static class DictionaryPage
         var search = new TextBox { Width = 220, Margin = new Thickness(0, 0, 16, 0) };
         var add = new TextBox { Width = 220, Margin = new Thickness(0, 0, 8, 0) };
         var note = Muted(palette, "");
+        var count = Muted(palette, "");
         void Save(IReadOnlyList<string> words)
         {
             note.Text = actions.SaveWords(words) ?? "";
@@ -29,8 +30,18 @@ internal static class DictionaryPage
         void Fill()
         {
             list.Children.Clear();
-            foreach (var word in actions.Words().Where(w => w.Contains(search.Text.Trim(),
-                StringComparison.CurrentCultureIgnoreCase)))
+            var all = actions.Words();
+            count.Text = all.Count == 1 ? "1 word" : $"{all.Count} words";
+            var shown = all.Where(w => w.Contains(search.Text.Trim(), StringComparison.CurrentCultureIgnoreCase))
+                .ToList();
+            if (shown.Count == 0)
+            {
+                list.Children.Add(Muted(palette, all.Count == 0
+                    ? "No words yet. Add names and terms above, or select them in the History."
+                    : "No matches."));
+            }
+
+            foreach (var word in shown)
             {
                 var box = new TextBox { Text = word, Width = 260, Margin = new Thickness(0, 0, 8, 0) };
                 box.LostFocus += (_, _) =>
@@ -62,7 +73,7 @@ internal static class DictionaryPage
         top.Children.Add(new TextBlock { Text = "Search ", VerticalAlignment = VerticalAlignment.Center });
         top.Children.Add(search);
         top.Children.Add(add);
-        top.Children.Add(Button("Add", () =>
+        void Add()
         {
             var words = AppSettings.SplitWords(add.Text);
             var fresh = words.Where(w => !actions.Words().Contains(w, StringComparer.OrdinalIgnoreCase)).ToList();
@@ -76,7 +87,17 @@ internal static class DictionaryPage
             {
                 note.Text = "Already in the dictionary.";
             }
-        }));
+        }
+
+        top.Children.Add(Button("Add", Add));
+        add.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                Add();
+                e.Handled = true;
+            }
+        };
         search.TextChanged += (_, _) => Fill();
         Fill();
         return Page(
@@ -85,40 +106,84 @@ internal static class DictionaryPage
             "each dictation.",
             palette,
             top,
+            count,
             note,
             Scroll(list));
     }
 
-    /// <summary>The snippets: a spoken trigger and the text it expands into.</summary>
+    /// <summary>
+    /// The snippets: a spoken trigger and the text it expands into. Searchable; each edit is saved
+    /// when its box loses focus or on Ctrl+Enter, and a trigger used twice is pointed out.
+    /// </summary>
     public static UIElement Snippets(PageActions actions, Palette palette)
     {
         var list = new StackPanel();
         var note = Muted(palette, "");
+        var search = new TextBox { Width = 220, Margin = new Thickness(0, 0, 16, 0) };
         var items = actions.Snippets.Load().ToList();
         void Save()
         {
-            var valid = items.Where(s => s.IsComplete).ToList();
-            note.Text = actions.Snippets.Save(valid) ? "Saved." : "The snippets couldn't be saved.";
+            var complete = items.Where(s => s.IsComplete).ToList();
+            var duplicates = TranscriptCommands.DuplicateTriggers(complete);
+            note.Text = !actions.Snippets.Save(complete) ? "The snippets couldn't be saved."
+                : duplicates.Count > 0 ? $"More than one snippet uses \"{duplicates[0]}\"; only the first is used."
+                : "Saved.";
             actions.SnippetsChanged();
         }
 
         void Fill()
         {
             list.Children.Clear();
+            var query = search.Text.Trim();
+            var shown = 0;
             for (var i = 0; i < items.Count; i++)
             {
                 var index = i;
-                var trigger = new TextBox { Text = items[i].Trigger, Width = 180, Margin = new Thickness(0, 0, 8, 0) };
+                var snippet = items[i];
+                if (query.Length > 0 && !snippet.Trigger.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+                    && !snippet.Text.Contains(query, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    continue;
+                }
+
+                shown++;
+                var trigger = new TextBox { Text = snippet.Trigger, Width = 180, Margin = new Thickness(0, 0, 8, 0) };
                 var text = new TextBox
                 {
-                    Text = items[i].Text,
+                    Text = snippet.Text,
                     Width = 320,
                     AcceptsReturn = true,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 0, 8, 0),
                 };
-                trigger.LostFocus += (_, _) => items[index] = items[index] with { Trigger = trigger.Text.Trim() };
-                text.LostFocus += (_, _) => items[index] = items[index] with { Text = text.Text };
+
+                // Saved as each box is left, so nothing typed is lost to a closed window.
+                void Commit()
+                {
+                    var edited = new Snippet(trigger.Text.Trim(), text.Text);
+                    if (index < items.Count && edited != items[index])
+                    {
+                        items[index] = edited;
+                        Save();
+                    }
+                }
+
+                trigger.LostFocus += (_, _) => Commit();
+                text.LostFocus += (_, _) => Commit();
+
+                // Enter makes a new line in the text, so Ctrl+Enter is the way to save from the keyboard.
+                void SaveOnCtrlEnter(object sender, System.Windows.Input.KeyEventArgs e)
+                {
+                    if (e.Key == System.Windows.Input.Key.Enter
+                        && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+                    {
+                        Commit();
+                        e.Handled = true;
+                    }
+                }
+
+                trigger.PreviewKeyDown += SaveOnCtrlEnter;
+                text.PreviewKeyDown += SaveOnCtrlEnter;
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
                 row.Children.Add(trigger);
                 row.Children.Add(text);
@@ -130,20 +195,29 @@ internal static class DictionaryPage
                 }));
                 list.Children.Add(row);
             }
+
+            if (shown == 0)
+            {
+                list.Children.Add(Muted(palette, items.Count == 0 ? "No snippets yet." : "No matches."));
+            }
         }
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        buttons.Children.Add(new TextBlock { Text = "Search ", VerticalAlignment = VerticalAlignment.Center });
+        buttons.Children.Add(search);
         buttons.Children.Add(Button("Add snippet", () =>
         {
+            search.Text = "";
             items.Add(Snippet.Blank);
             Fill();
         }));
-        buttons.Children.Add(Button("Save", Save));
+        search.TextChanged += (_, _) => Fill();
         Fill();
         return Page(
             "Snippets",
             "Say a trigger, such as \"my address\", and its text is pasted instead. Triggers match whole words, " +
-            "in any case. Snippets are stored encrypted for your Windows account.",
+            "in any case; a trigger said on its own is pasted exactly, without AI cleanup. Edits are saved as " +
+            "you make them. Snippets are stored encrypted for your Windows account.",
             palette,
             buttons,
             note,
@@ -182,8 +256,7 @@ internal static class DictionaryPage
         {
             Content = label,
             Padding = new Thickness(10, 2, 10, 2),
-            Margin = new Thickness(0, 0,
-            6, 0)
+            Margin = new Thickness(0, 0, 6, 0),
         };
         button.Click += (_, _) => click();
         return button;

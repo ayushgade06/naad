@@ -134,6 +134,8 @@ internal enum LogEvent
     HistoryDeleteFailed,
     HistoryEnforced,
     HistoryCleared,
+    StatsWriteFailed,
+    StatsUnreadable,
 
     LiveFinished,
     LiveFellBack,

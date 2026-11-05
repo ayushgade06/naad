@@ -51,6 +51,13 @@ internal sealed class TranscriptCleanup(
     public async Task<CleanupResult> CleanAsync(
         string transcript, DictationContext context, CancellationToken cancellationToken)
     {
+        // A trigger said on its own goes in as its snippet, before the model could reword it.
+        if (!context.IsEdit && snippets is { Count: > 0 } && TranscriptCommands.WholeMatch(transcript, snippets)
+            is { } whole)
+        {
+            return new(whole.Text, CleanupOutcome.Snippet);
+        }
+
         var started = Stopwatch.GetTimestamp();
         var (result, reason) = context.IsEdit
             ? await EditAsync(context.Selection!, transcript, context, cancellationToken)

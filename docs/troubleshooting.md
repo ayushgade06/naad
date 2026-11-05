@@ -139,6 +139,12 @@ while another app holds the clipboard; dictate again once it lets go.
 - **The stored key can't be read**, for example after copying the folder to
   another PC or Windows account (`ApiKeyUnreadable`). Enter it again in
   Settings.
+- **The Home stats start again from zero.** Their file, `stats.json`,
+  couldn't be read (`StatsUnreadable`) and was started over. Delete it to
+  reset the stats on purpose; the history is not affected.
+- **The main window opens off to one side.** Its place is remembered per
+  monitor; move it and close it, or delete `windowPlacements` in
+  settings.json.
 
 ## Reporting a bug
 

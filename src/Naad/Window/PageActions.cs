@@ -14,6 +14,7 @@ namespace Naad.Window;
 /// <param name="Snippets">The saved snippets.</param>
 /// <param name="SnippetsChanged">Called after the snippets are saved, so dictation uses them.</param>
 /// <param name="Meetings">Meeting notes: recording, and the saved meetings.</param>
+/// <param name="Dictation">The dictation, whose progress the setup guide's test shows.</param>
 internal sealed record PageActions(
     HistoryRecorder History,
     Func<string, Task<bool>> Copy,
@@ -23,4 +24,5 @@ internal sealed record PageActions(
     Func<IReadOnlyList<string>, string?> SaveWords,
     SnippetStore Snippets,
     Action SnippetsChanged,
-    MeetingActions Meetings);
+    MeetingActions Meetings,
+    Naad.Dictation.DictationController Dictation);

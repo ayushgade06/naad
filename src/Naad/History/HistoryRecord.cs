@@ -9,8 +9,11 @@ internal enum HistoryOutcome
     /// <summary>The text couldn't go in (focus moved, for example) and was kept to copy.</summary>
     Kept,
 
-    /// <summary>Transcription failed; the audio, if kept, can be tried again.</summary>
+    /// <summary>Transcription failed, or an edit did; the audio, if kept, can be tried again.</summary>
     Failed,
+
+    /// <summary>Nothing worth pasting was heard or left after cleanup; it can be tried again.</summary>
+    Empty,
 }
 
 /// <summary>
@@ -31,6 +34,9 @@ internal enum HistoryOutcome
 /// <param name="Invocation">How that edit was asked for: Automatic or Manual. Null for a dictation, and for
 /// edits recorded before Naad kept it.</param>
 /// <param name="LiveFellBack">Live transcription failed and the recording was transcribed in one pass.</param>
+/// <param name="Summary">The context model's account of what the user was doing, or null.</param>
+/// <param name="Prompt">What the language model was sent, or null; user content, kept only here.</param>
+/// <param name="Cleanup">How cleanup went, or null for records from before Naad kept it.</param>
 internal sealed record HistoryRecord(
     Guid Id,
     DateTimeOffset Time,
@@ -44,7 +50,10 @@ internal sealed record HistoryRecord(
     bool HasAudio,
     string? Selection = null,
     Naad.Context.EditInvocation? Invocation = null,
-    bool LiveFellBack = false)
+    bool LiveFellBack = false,
+    string? Summary = null,
+    string? Prompt = null,
+    Naad.Cleanup.CleanupOutcome? Cleanup = null)
 {
     // The generated ToString would print what was said.
     public override string ToString() => $"HistoryRecord {{ Id = {Id}, Outcome = {Outcome}, Chars = {Text.Length} }}";

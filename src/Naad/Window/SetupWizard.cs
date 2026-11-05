@@ -19,18 +19,21 @@ using TextBox = System.Windows.Controls.TextBox;
 namespace Naad.Window;
 
 /// <summary>
-/// The first-run guide: microphone, speech model, AI cleanup, an optional cloud key, vocabulary,
-/// starting at sign-in, then a real dictation into a box. Settings are saved before the test, so
-/// the test uses them. Closing it part-way changes nothing; it can be run again from the tray.
-/// Create and use it on the UI thread.
+/// The first-run guide: microphone, speech model, AI cleanup, optional cloud and AI keys,
+/// shortcuts, Edit Mode, the overlay, vocabulary, starting at sign-in, then a real dictation into a
+/// box. Settings are saved before the test, so the test uses them. Closing it before that changes
+/// nothing, and closing it before Finish puts the old shortcuts back; it can be run again from the
+/// tray. Create and use it on the UI thread.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Reliability",
     "CA1001:Types that own disposable fields should be disposable",
     Justification = "A WPF window isn't disposable, and a handler still running may read the token after " +
         "the window closes, so the source is only cancelled.")]
-internal sealed class SetupWizard : System.Windows.Window
+internal sealed partial class SetupWizard : System.Windows.Window
 {
+    private const string NothingHeard = "No speech was picked up. Check the microphone, then try again.";
+
     // A short check: long enough to say a sentence and watch the bar move.
     private static readonly TimeSpan MicrophoneTest = TimeSpan.FromSeconds(5);
 
@@ -43,15 +46,21 @@ internal sealed class SetupWizard : System.Windows.Window
     private readonly CancellationTokenSource _closing = new();
     private readonly IReadOnlyList<string> _microphones;
     private readonly Func<AppSettings> _latest;
+    private readonly AppSettings _opened;
+    private readonly TextBlock _shortcutNote;
     private AppSettings _settings;
     private bool _startAtLogin;
     private string? _newKey;
+    private string? _aiKey;
+    private bool _savedForTest;
+    private bool _finished;
     private int _step;
 
     /// <param name="current">The settings in use, read again when saving.</param>
     /// <param name="microphones">The connected recording devices.</param>
     /// <param name="startsAtLogin">Whether Naad starts at sign-in now.</param>
-    /// <param name="actions">Downloads and saving, as in Settings.</param>
+    /// <param name="actions">Downloads, key checks, shortcut capture and saving, as in Settings.</param>
+    /// <param name="dictation">The dictation, whose progress the test step shows.</param>
     /// <param name="palette">The colours.</param>
     /// <param name="dark">Whether the title bar should be dark.</param>
     public SetupWizard(
@@ -59,15 +68,17 @@ internal sealed class SetupWizard : System.Windows.Window
         IReadOnlyList<string> microphones,
         bool startsAtLogin,
         SettingsWindowActions actions,
+        Dictation.DictationController dictation,
         Palette palette,
         bool dark)
     {
         _latest = current;
-        _settings = current();
+        _settings = _opened = current();
         _microphones = microphones;
         _startAtLogin = startsAtLogin;
         _actions = actions;
         _palette = palette;
+        _shortcutNote = Muted("");
         Title = "Set up Naad";
         Icon = MainWindow.AppIcon();
         Width = 560;
@@ -78,7 +89,10 @@ internal sealed class SetupWizard : System.Windows.Window
         Foreground = MainWindow.Brush(palette.Text);
         FontFamily = new System.Windows.Media.FontFamily("Segoe UI");
         FontSize = 14;
-        _steps.AddRange([Welcome, Microphone, Speech, Cleanup, Cloud, Vocabulary, SignIn, TryIt, Done]);
+        _steps.AddRange([
+            Welcome, Microphone, Speech, Cleanup, Cloud, AiKey, ShortcutsStep, EditModeStep, OverlayStep,
+            Vocabulary, SignIn, TryIt, Done,
+        ]);
 
         var buttons = new StackPanel
         {
@@ -99,12 +113,27 @@ internal sealed class SetupWizard : System.Windows.Window
         _next.Click += (_, _) => Go(_step + 1);
         KeyDown += (_, e) =>
         {
-            if (e.Key == System.Windows.Input.Key.Escape)
+            if (e.Key == System.Windows.Input.Key.Escape
+                && EscapeKey.Closes(System.Windows.Input.Keyboard.FocusedElement))
             {
                 Close();
             }
         };
-        Closed += (_, _) => _closing.Cancel();
+        dictation.StateChanged += ShowTryState;
+        dictation.Finished += ShowTryResult;
+        dictation.NothingHeard += ShowNothingHeard;
+        Closed += (_, _) =>
+        {
+            _closing.Cancel();
+            CancelCapture();
+            dictation.StateChanged -= ShowTryState;
+            dictation.Finished -= ShowTryResult;
+            dictation.NothingHeard -= ShowNothingHeard;
+            if (_savedForTest && !_finished)
+            {
+                RestoreShortcuts();
+            }
+        };
         SourceInitialized += (_, _) => Dwmapi.SetDarkTitleBar(new WindowInteropHelper(this).Handle, dark);
         Go(0);
     }
@@ -113,18 +142,30 @@ internal sealed class SetupWizard : System.Windows.Window
     {
         if (step >= _steps.Count)
         {
+            _finished = true;
             Close();
             return;
         }
 
         // Saved before the test, so the dictation into the box uses the choices just made.
-        if (step < _steps.Count && _steps[step] == (Func<UIElement>)TryIt && step > _step && Save() is { } problem)
+        if (step < _steps.Count && _steps[step] == (Func<UIElement>)TryIt && step > _step)
         {
-            System.Windows.MessageBox.Show(this, problem, "Naad");
-            return;
+            if (Save() is { } problem)
+            {
+                System.Windows.MessageBox.Show(this, problem, "Naad");
+                return;
+            }
+
+            _savedForTest = true;
         }
 
+        // A capture left running would take the next keys pressed on another step.
+        CancelCapture();
+        _tryStatus = null;
         _step = Math.Max(0, step);
+
+        // The last step only says goodbye: reaching it is finishing, even if the window is closed.
+        _finished |= _step == _steps.Count - 1;
         _back.Visibility = _step == 0 ? Visibility.Hidden : Visibility.Visible;
         _next.Content = _step == _steps.Count - 1 ? "Finish" : "Next";
         _page.Content = _steps[_step]();
@@ -138,6 +179,11 @@ internal sealed class SetupWizard : System.Windows.Window
             keys[_settings.TranscriptionService] = key;
         }
 
+        if (_aiKey is { Length: > 0 } aiKey)
+        {
+            keys[_settings.LanguageModelService] = aiKey;
+        }
+
         // Only the guide's own choices go on top of the settings in use now, so a change saved in
         // Settings while the guide was open survives.
         var s = _latest() with
@@ -149,6 +195,18 @@ internal sealed class SetupWizard : System.Windows.Window
             LocalLanguageModel = _settings.LocalLanguageModel,
             TranscriptionService = _settings.TranscriptionService,
             Words = _settings.Words,
+            LanguageModelService = _settings.LanguageModelService,
+            LanguageModelProvider = _aiKey is null ? _settings.LanguageModelProvider
+                : LanguageModel.LanguageModelProvider.Cloud,
+            HoldShortcut = _settings.HoldShortcut,
+            ToggleShortcut = _settings.ToggleShortcut,
+            PasteAgainShortcut = _settings.PasteAgainShortcut,
+            CustomHoldShortcut = _settings.CustomHoldShortcut,
+            CustomToggleShortcut = _settings.CustomToggleShortcut,
+            CustomPasteAgainShortcut = _settings.CustomPasteAgainShortcut,
+            EditMode = _settings.EditMode,
+            EditModeKey = _settings.EditModeKey,
+            OverlayStyle = _settings.OverlayStyle,
         };
         return _actions.Save(new(s, keys, _startAtLogin));
     }
@@ -313,25 +371,6 @@ internal sealed class SetupWizard : System.Windows.Window
         box.Click += (_, _) => _startAtLogin = box.IsChecked == true;
         return Page(
             "Always ready", "Naad waits in the notification area, using almost nothing until you dictate.", box);
-    }
-
-    private StackPanel TryIt()
-    {
-        var box = new TextBox
-        {
-            Height = 120,
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-        var result = Muted("");
-        box.TextChanged += (_, _) => result.Text = box.Text.Length > 0 ? "It works. Your words arrived." : "";
-        box.Loaded += (_, _) => box.Focus();
-        var (shortcut, handsFree) = Shortcuts.Primary(_settings);
-        var how = handsFree
-            ? $"Click in the box, press {shortcut.Describe()}, say a sentence, and press it again."
-            : $"Click in the box, hold {shortcut.Describe()}, say a sentence, and let go.";
-        return Page("Try it", how + " The first dictation can take a minute while models load.", box, result);
     }
 
     private StackPanel Done() => Page(

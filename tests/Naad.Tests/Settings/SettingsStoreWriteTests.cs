@@ -77,6 +77,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
               "meetingDetection": "Notify",
               "meetingIgnoredApps": [],
               "recordingFlagFile": false,
+              "windowPlacements": [],
               "languageModelProvider": "Local",
               "localLanguageModel": "Small",
               "languageModelService": "Groq",
@@ -259,7 +260,7 @@ public sealed class SettingsStoreWriteTests : IDisposable
                 "screenshotWholeDesktop",
                 "showTrayIcon", "soundVolume", "startDelayMilliseconds", "theme", "toggleShortcut",
                 "transcriptionBaseUrl", "transcriptionModel", "transcriptionProvider", "transcriptionService",
-                "transcriptionTimeoutSeconds", "version", "vocabulary",
+                "transcriptionTimeoutSeconds", "version", "vocabulary", "windowPlacements",
             ],
             System.Text.Json.Nodes.JsonNode.Parse(written)!.AsObject().Select(p => p.Key).Order());
     }

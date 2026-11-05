@@ -20,19 +20,23 @@ internal static class Pages
     public const string Settings = "Settings";
 
     /// <summary>
-    /// A greeting, how to dictate, the stats from the history (words, pace, time saved, streak),
-    /// and Quit for when the tray icon is hidden.
+    /// A greeting with the shortcut's keycap, how to dictate, the lifetime stats (words, pace, time
+    /// saved, streak) with a line about the streak, and Quit for when the tray icon is hidden.
     /// </summary>
+    /// <param name="s">The settings, for the shortcut.</param>
+    /// <param name="stats">The lifetime stats.</param>
+    /// <param name="firstName">The user's first name, or null to greet without one.</param>
+    /// <param name="palette">The colours.</param>
+    /// <param name="exit">Quits Naad.</param>
+    /// <param name="setup">Opens the setup guide.</param>
     public static UIElement HomePage(
-        AppSettings s, IReadOnlyList<HistoryRecord> records, Palette palette, Action exit, Action setup)
+        AppSettings s, Stats stats, string? firstName, Palette palette, Action exit, Action setup)
     {
-        var stats = DictationStats.Compute(
-            records, DateOnly.FromDateTime(DateTime.Now), TimeZoneInfo.Local);
         var (shortcut, handsFree) = Shortcuts.Primary(s);
         var how = handsFree
             ? $"Press {shortcut.Describe()} to start dictating into any app, and again to stop."
             : $"Hold {shortcut.Describe()} and speak; let go and your words appear where you are typing.";
-        var row = new WrapPanel { Margin = new Thickness(0, 8, 0, 16) };
+        var row = new WrapPanel { Margin = new Thickness(0, 8, 0, 4) };
         row.Children.Add(Stat("Words dictated", stats.Words.ToString("N0", CultureInfo.CurrentCulture), palette));
         row.Children.Add(Stat("Words per minute", stats.WordsPerMinute > 0 ? stats.WordsPerMinute.ToString(
             CultureInfo.CurrentCulture) : "—", palette));
@@ -41,14 +45,38 @@ internal static class Pages
         var buttons = new WrapPanel();
         buttons.Children.Add(Button("Run setup again", setup));
         buttons.Children.Add(Button("Quit Naad", exit));
+        var fresh = stats.Words == 0;
+        var heading = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var title = Heading(fresh ? "Welcome to Naad" : Greeting.Heading(firstName));
+        title.Margin = new Thickness(0, 0, 10, 0);
+        heading.Children.Add(title);
+        if (!fresh && firstName is not null)
+        {
+            heading.Children.Add(Keycap(shortcut.Describe(), palette));
+        }
+
         return Stack(
             palette,
-            Heading(records.Count == 0 ? "Welcome to Naad" : "Welcome back"),
+            heading,
             Text(how),
-            records.Count == 0 ? Muted("Your words will gather here as you dictate.") : row,
-            Muted("Time saved compares your speaking time with typing at 40 words a minute."),
+            fresh ? Muted("Your words will gather here as you dictate.") : row,
+            fresh ? Muted("") : Text(DictationStats.StreakMessage(stats.DayStreak)),
+            Muted("Time saved compares your speaking time with typing at 40 words a minute. These counts " +
+                "stay when the history is deleted; they never hold what you said."),
             buttons);
     }
+
+    // The shortcut drawn as a key on a keyboard.
+    private static Border Keycap(string keys, Palette palette) => new()
+    {
+        Child = new TextBlock { Text = keys, FontSize = 18, FontWeight = FontWeights.SemiBold },
+        Padding = new Thickness(10, 2, 10, 2),
+        VerticalAlignment = VerticalAlignment.Center,
+        Background = MainWindow.Brush(palette.Surface),
+        BorderBrush = MainWindow.Brush(palette.Border),
+        BorderThickness = new Thickness(1, 1, 1, 3),
+        CornerRadius = new CornerRadius(6),
+    };
 
     private static Border Stat(string label, string value, Palette palette)
     {

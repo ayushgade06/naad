@@ -77,7 +77,7 @@ public sealed class CleanupSetupTests : IDisposable
 
         var result = await cleanup.CleanAsync("hello there", DictationContext.None, CancellationToken.None);
 
-        Assert.Equal(new CleanupResult("hello there", CleanupOutcome.FellBack), result);
+        Assert.Equal(new CleanupResult("hello there", CleanupOutcome.FellBack), result with { Prompt = null });
     }
 
     [Fact]

@@ -250,6 +250,9 @@ internal sealed record AppSettings
     /// </summary>
     public bool RecordingFlagFile { get; init; }
 
+    /// <summary>Where the main window was last, on each monitor, newest first.</summary>
+    public IReadOnlyList<Naad.Window.SavedWindow> WindowPlacements { get; init; } = [];
+
     /// <summary>
     /// Whether AI steps run on a language model on this PC or a cloud chat API. On this PC by
     /// default, like transcription: free, offline, and the text never leaves the PC.

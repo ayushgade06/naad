@@ -364,10 +364,25 @@ internal sealed partial class DictationController(
                 context = await WithSummaryAsync(context, summaryTask, cancel);
                 var cleanStart = time.GetTimestamp();
                 var cleaned = await CleanAsync(cleanup, raw, context, cancel);
-                report = report with { CleanupMilliseconds = Milliseconds(time.GetElapsedTime(cleanStart)) };
+                report = report with
+                {
+                    CleanupMilliseconds = Milliseconds(time.GetElapsedTime(cleanStart)),
+                    Summary = context.Summary,
+                    Prompt = cleaned.Prompt,
+                    Cleanup = cleaned.Outcome,
+                };
                 if (cleaned.Outcome == CleanupOutcome.EditFailed)
                 {
+                    // Kept with its recording and selection, so the edit can be tried again.
                     EditFailed?.Invoke(false);
+                    Finished?.Invoke(report with
+                    {
+                        Raw = raw,
+                        Selection = context.Selection,
+                        Invocation = context.Invocation,
+                        Outcome = HistoryOutcome.Failed,
+                        Wav = wav,
+                    });
                     return;
                 }
 
@@ -385,6 +400,14 @@ internal sealed partial class DictationController(
 
                 Log.Info(LogEvent.TranscriptionEmpty);
                 Apply(DictationEvent.TranscribedEmpty, step.Job);
+
+                // Words cleanup found nothing in are kept too: a retry may find them. A bare
+                // "press enter" is a command, not a dictation.
+                if (raw.Length > 0 && !thenEnter)
+                {
+                    Finished?.Invoke(report with { Raw = raw, Outcome = HistoryOutcome.Empty, Wav = wav });
+                }
+
                 return;
             }
 
