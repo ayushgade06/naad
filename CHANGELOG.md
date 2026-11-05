@@ -6,6 +6,12 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-05
+
+Live preview streams to more services, the main window, history, setup
+guide and tray feel finished, meeting notes get a shortcut, a live card and
+echo cancellation, and Naad installs only updates signed by its publisher.
+
 ### Added
 
 - **More live services**: Gemini Live, xAI streaming, and any
