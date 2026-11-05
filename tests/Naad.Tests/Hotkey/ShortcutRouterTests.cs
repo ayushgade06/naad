@@ -30,6 +30,17 @@ public sealed class ShortcutRouterTests
     }
 
     [Fact]
+    public void Route_Meeting_ActsOnItsPressOnly()
+    {
+        var meeting = Parse("RightAlt+M");
+        IReadOnlyList<ShortcutAction> Meeting(params ChordEvent[] events) =>
+            ShortcutRouter.Route(events, Hold, Toggle, Paste, meeting);
+
+        Assert.Equal([ShortcutAction.MeetingPressed], Meeting(Event(ChordEventKind.Pressed, meeting)));
+        Assert.Empty(Meeting(Event(ChordEventKind.Released, meeting), Event(ChordEventKind.Cancelled, meeting)));
+    }
+
+    [Fact]
     public void Route_ToggleKeysJoinTheHeldHold_LatchesInsteadOfCancelling() =>
         Assert.Equal(
             [ShortcutAction.Latched],

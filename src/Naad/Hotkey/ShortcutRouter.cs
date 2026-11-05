@@ -13,6 +13,7 @@ internal enum ShortcutAction
     /// <summary>Another key joined the toggle shortcut as it went down.</summary>
     ToggleCancelled,
     PasteAgainPressed,
+    MeetingPressed,
     Escape,
 
     /// <summary>The recording held with hold to talk carries on hands-free.</summary>
@@ -31,8 +32,9 @@ internal static class ShortcutRouter
     /// <param name="hold">Hold to talk's chord, or null when off.</param>
     /// <param name="toggle">The toggle's chord, or null when off.</param>
     /// <param name="pasteAgain">Paste again's chord, or null when off.</param>
+    /// <param name="meeting">The meeting shortcut's chord, or null when off; it acts on its press only.</param>
     public static IReadOnlyList<ShortcutAction> Route(
-        IReadOnlyList<ChordEvent> events, Chord? hold, Chord? toggle, Chord? pasteAgain)
+        IReadOnlyList<ChordEvent> events, Chord? hold, Chord? toggle, Chord? pasteAgain, Chord? meeting = null)
     {
         var actions = new List<ShortcutAction>(events.Count);
         for (var i = 0; i < events.Count; i++)
@@ -79,6 +81,10 @@ internal static class ShortcutRouter
             else if (e.Chord == pasteAgain && e.Kind == ChordEventKind.Pressed)
             {
                 actions.Add(ShortcutAction.PasteAgainPressed);
+            }
+            else if (e.Chord == meeting && e.Kind == ChordEventKind.Pressed)
+            {
+                actions.Add(ShortcutAction.MeetingPressed);
             }
         }
 

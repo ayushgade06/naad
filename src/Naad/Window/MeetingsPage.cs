@@ -31,11 +31,13 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
 
     // Decrypted once per reload, so typing in Search filters in memory.
     private IReadOnlyList<MeetingRecord> _all = [];
+    private readonly MeetingCardView _card;
 
     public MeetingsPage(MeetingActions meetings, Palette palette)
     {
         _meetings = meetings;
         _palette = palette;
+        _card = new MeetingCardView(meetings.Recorder, palette);
         var top = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
         top.Children.Add(new TextBlock
         {
@@ -57,6 +59,7 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
         row.Children.Add(_toggle);
         row.Children.Add(_status);
         top.Children.Add(row);
+        top.Children.Add(_card);
         var tools = new StackPanel { Orientation = Orientation.Horizontal };
         tools.Children.Add(new TextBlock { Text = "Search ", VerticalAlignment = VerticalAlignment.Center });
         tools.Children.Add(_search);
@@ -91,6 +94,7 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
 
     public void Dispose()
     {
+        _card.Dispose();
         (_content.Content as IDisposable)?.Dispose();
         _meetings.Recorder.RecordingChanged -= OnRecordingChanged;
         _meetings.Finished -= OnFinished;
@@ -99,8 +103,11 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
     private void OnRecordingChanged(bool recording)
     {
         var finishing = !recording && _meetings.Recorder.IsBusy;
-        _toggle.Content = recording ? "Stop and copy" : "Start meeting notes";
+        _toggle.Content = recording ? "Stop and copy" : finishing ? "Finishing..." : "Start meeting notes";
         _toggle.IsEnabled = !finishing;
+
+        // Deleting everything while a meeting runs would see it saved again when it finishes.
+        _deleteAll.IsEnabled = _all.Count > 0 && !_meetings.Recorder.IsBusy;
         _status.Text = recording ? "Recording" : finishing ? "Finishing the last pieces..." : "";
     }
 
@@ -126,7 +133,7 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
     private void ShowList()
     {
         var all = _all;
-        _deleteAll.IsEnabled = all.Count > 0;
+        _deleteAll.IsEnabled = all.Count > 0 && !_meetings.Recorder.IsBusy;
         var list = new StackPanel();
         var shown = all.Where(m => MeetingList.Matches(m, _search.Text)).ToList();
         if (shown.Count == 0)

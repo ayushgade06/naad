@@ -113,7 +113,8 @@ internal sealed partial class SetupWizard
         void Refill()
         {
             rows.Children.Clear();
-            foreach (var role in Shortcuts.Roles)
+            // Meeting notes are set up in Settings, beside the rest of meetings.
+            foreach (var role in Shortcuts.Roles.Where(r => r != ShortcutRole.Meeting))
             {
                 rows.Children.Add(new TextBlock { Text = Shortcuts.Name(role), Margin = new Thickness(0, 0, 0, 4) });
                 rows.Children.Add(ShortcutPicker(role));

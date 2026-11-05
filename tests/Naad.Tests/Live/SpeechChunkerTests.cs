@@ -29,6 +29,30 @@ public sealed class SpeechChunkerTests
     }
 
     [Fact]
+    public void Add_OtherSpeakingAndATurnPause_CutsAtTheShorterPause()
+    {
+        var chunker = new SpeechChunker(
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15), turnPause: TimeSpan.FromSeconds(0.6))
+        {
+            OtherSpeaking = true,
+        };
+
+        var cuts = chunker.Add([.. Loud(1), .. Quiet(1)]);
+
+        Assert.Equal([(long)(1.6 * BytesPerSecond)], cuts);
+    }
+
+    [Fact]
+    public void Add_TurnPauseWithNobodyElseSpeaking_WaitsForTheLongPause()
+    {
+        var chunker = new SpeechChunker(
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15), turnPause: TimeSpan.FromSeconds(0.6));
+
+        Assert.Empty(chunker.Add([.. Loud(1), .. Quiet(1)]));
+        Assert.Equal(BytesPerSecond, chunker.LastVoiced);
+    }
+
+    [Fact]
     public void Add_ShortPauseBetweenWords_KeepsOnePiece()
     {
         var chunker = SpeechChunker.ForDictation();

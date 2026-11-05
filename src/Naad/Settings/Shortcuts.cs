@@ -15,6 +15,9 @@ internal enum ShortcutRole
 
     /// <summary>Pastes the last dictation again.</summary>
     PasteAgain,
+
+    /// <summary>Starts or stops meeting notes.</summary>
+    Meeting,
 }
 
 /// <summary>
@@ -23,7 +26,8 @@ internal enum ShortcutRole
 /// </summary>
 internal static class Shortcuts
 {
-    public static readonly ShortcutRole[] Roles = [ShortcutRole.Hold, ShortcutRole.Toggle, ShortcutRole.PasteAgain];
+    public static readonly ShortcutRole[] Roles =
+        [ShortcutRole.Hold, ShortcutRole.Toggle, ShortcutRole.PasteAgain, ShortcutRole.Meeting];
 
     // A few chords that are free on most keyboards and in most apps. Right Alt is AltGr on many
     // layouts, so it is offered but isn't the default.
@@ -31,6 +35,10 @@ internal static class Shortcuts
         [Chord.RightCtrl, Parse("RightAlt"), Parse("LeftCtrl+LeftWin"), Parse("F9"), Parse("F10")];
 
     private static readonly Chord[] PastePresets = [Parse("RightAlt+V"), Parse("RightCtrl+RightShift+V"), Parse("F10")];
+
+    // M for meeting; F8 sits beside the dictation keys and is free in most apps.
+    private static readonly Chord[] MeetingPresets =
+        [Parse("RightAlt+M"), Parse("RightCtrl+RightShift+M"), Parse("F8")];
 
     // Typing keys that would stop working in every app if a shortcut were made of them alone.
     private static readonly Key[] TypingKeys = [Key.Space, Key.Enter, Key.Tab, Key.Back, Key.Escape];
@@ -40,12 +48,20 @@ internal static class Shortcuts
     {
         ShortcutRole.Hold => "Hold to talk",
         ShortcutRole.Toggle => "Toggle (hands-free)",
-        _ => "Paste again",
+        ShortcutRole.PasteAgain => "Paste again",
+        _ => "Meeting notes",
     };
 
+    /// <summary>Whether the role acts on a press alone, so a modifier on its own would fire it in Ctrl+C.</summary>
+    public static bool IsPressedOnly(ShortcutRole role) => role is ShortcutRole.PasteAgain or ShortcutRole.Meeting;
+
     /// <summary>The chords offered for <paramref name="role"/>, besides Disabled and a custom one.</summary>
-    public static IReadOnlyList<Chord> Presets(ShortcutRole role) =>
-        role == ShortcutRole.PasteAgain ? PastePresets : DictationPresets;
+    public static IReadOnlyList<Chord> Presets(ShortcutRole role) => role switch
+    {
+        ShortcutRole.PasteAgain => PastePresets,
+        ShortcutRole.Meeting => MeetingPresets,
+        _ => DictationPresets,
+    };
 
     /// <summary>
     /// The shortcut to tell people about, and whether it is pressed rather than held: hold to talk
@@ -59,7 +75,8 @@ internal static class Shortcuts
     {
         ShortcutRole.Hold => s.HoldShortcut,
         ShortcutRole.Toggle => s.ToggleShortcut,
-        _ => s.PasteAgainShortcut,
+        ShortcutRole.PasteAgain => s.PasteAgainShortcut,
+        _ => s.MeetingShortcut,
     };
 
     /// <summary>The last chord captured for the role that isn't a preset, or null.</summary>
@@ -67,7 +84,8 @@ internal static class Shortcuts
     {
         ShortcutRole.Hold => s.CustomHoldShortcut,
         ShortcutRole.Toggle => s.CustomToggleShortcut,
-        _ => s.CustomPasteAgainShortcut,
+        ShortcutRole.PasteAgain => s.CustomPasteAgainShortcut,
+        _ => s.CustomMeetingShortcut,
     };
 
     /// <summary>
@@ -90,10 +108,15 @@ internal static class Shortcuts
                 ToggleShortcut = chord,
                 CustomToggleShortcut = custom ? chord : s.CustomToggleShortcut,
             },
-            _ => s with
+            ShortcutRole.PasteAgain => s with
             {
                 PasteAgainShortcut = chord,
                 CustomPasteAgainShortcut = custom ? chord : s.CustomPasteAgainShortcut,
+            },
+            _ => s with
+            {
+                MeetingShortcut = chord,
+                CustomMeetingShortcut = custom ? chord : s.CustomMeetingShortcut,
             },
         };
         return Problem(next) is { } error ? (null, error) : (next, null);
@@ -119,10 +142,11 @@ internal static class Shortcuts
                 return $"{Name(role)} can't be {chord.Describe()} alone: that key would stop typing in every app.";
             }
 
-            // Pressed and done, paste again would fire each time the modifier is used, as in Ctrl+C.
-            if (role == ShortcutRole.PasteAgain && chord.Keys.All(Chord.IsModifier))
+            // Pressed and done, these would fire each time the modifier is used, as in Ctrl+C.
+            if (IsPressedOnly(role) && chord.Keys.All(Chord.IsModifier))
             {
-                return "Paste again needs a key besides Ctrl, Shift, Alt or Windows, such as Right Alt+V.";
+                return $"{Name(role)} needs a key besides Ctrl, Shift, Alt or Windows, such as " +
+                    $"{Presets(role)[0].Describe()}.";
             }
         }
 
@@ -141,7 +165,7 @@ internal static class Shortcuts
         if (s.EditMode == EditMode.Manual)
         {
             var sides = EditKeySides(s.EditModeKey);
-            foreach (var (role, chord) in used.Where(u => u.Role != ShortcutRole.PasteAgain))
+            foreach (var (role, chord) in used.Where(u => !IsPressedOnly(u.Role)))
             {
                 if (chord.Keys.Any(sides.Contains))
                 {
@@ -156,25 +180,34 @@ internal static class Shortcuts
 
     /// <summary>
     /// <paramref name="s"/> with only what makes <see cref="Problem"/> fail undone, the rest kept: a
-    /// typing key alone or a modifier-only paste again is turned off, a clash drops paste again
-    /// before the toggle, an Edit Mode key inside a dictation shortcut makes Edit Mode Automatic,
+    /// typing key alone or a modifier-only paste again or meeting shortcut is turned off, a clash
+    /// drops the meeting shortcut, then paste again, before the toggle,
+    /// an Edit Mode key inside a dictation shortcut makes Edit Mode Automatic,
     /// and with no dictation shortcut left, hold to talk gets Right Ctrl.
     /// </summary>
     public static AppSettings Repair(AppSettings s)
     {
         bool Unusable(Chord? chord, ShortcutRole role) => chord is not null && (
             (chord.Keys.Count == 1 && (TypingKeys.Contains(chord.Keys[0]) || IsCharacterKey(chord.Keys[0])))
-            || (role == ShortcutRole.PasteAgain && chord.Keys.All(Chord.IsModifier)));
+            || (IsPressedOnly(role) && chord.Keys.All(Chord.IsModifier)));
 
         s = s with
         {
             HoldShortcut = Unusable(s.HoldShortcut, ShortcutRole.Hold) ? null : s.HoldShortcut,
             ToggleShortcut = Unusable(s.ToggleShortcut, ShortcutRole.Toggle) ? null : s.ToggleShortcut,
             PasteAgainShortcut = Unusable(s.PasteAgainShortcut, ShortcutRole.PasteAgain) ? null : s.PasteAgainShortcut,
+            MeetingShortcut = Unusable(s.MeetingShortcut, ShortcutRole.Meeting) ? null : s.MeetingShortcut,
         };
         if (s.HoldShortcut is null && s.ToggleShortcut is null)
         {
             s = s with { HoldShortcut = Chord.RightCtrl };
+        }
+
+        // The meeting shortcut goes first in a clash: it is the newest and the least used.
+        if (s.MeetingShortcut is { } meeting
+            && (meeting == s.HoldShortcut || meeting == s.ToggleShortcut || meeting == s.PasteAgainShortcut))
+        {
+            s = s with { MeetingShortcut = null };
         }
 
         if (s.PasteAgainShortcut is { } paste && (paste == s.HoldShortcut || paste == s.ToggleShortcut))

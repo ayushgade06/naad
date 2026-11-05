@@ -10,7 +10,10 @@ namespace Naad.Live;
 /// <param name="pause">How long a quiet stretch ends a piece.</param>
 /// <param name="longest">A piece is cut here at its quietest moment even without a pause.</param>
 /// <param name="target">From this length on, any quiet window ends a piece; null waits for a pause.</param>
-internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest, TimeSpan? target = null)
+/// <param name="turnPause">The shorter pause that ends a piece while <see cref="OtherSpeaking"/>; null for
+/// none.</param>
+internal sealed class SpeechChunker(
+    TimeSpan pause, TimeSpan longest, TimeSpan? target = null, TimeSpan? turnPause = null)
 {
     // 0.1 s windows: short enough to find the gap between words, long enough for a steady level.
     public const int WindowBytes = 3200;
@@ -25,6 +28,7 @@ internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest, TimeSpan? 
     private readonly int _pauseWindows = Windows(pause);
     private readonly int _longestWindows = Windows(longest);
     private readonly int _targetWindows = target is { } t ? Windows(t) : int.MaxValue;
+    private readonly int _turnWindows = turnPause is { } turn ? Windows(turn) : Windows(pause);
     private readonly byte[] _partial = new byte[WindowBytes];
     private readonly List<double> _levels = [];
     private int _partialLength;
@@ -38,6 +42,15 @@ internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest, TimeSpan? 
 
     /// <summary>Where the last finished piece ends, in bytes from the start of the audio.</summary>
     public long Cut => _start;
+
+    /// <summary>Where the last voiced window ends, in bytes from the start of the audio; 0 before any.</summary>
+    public long LastVoiced { get; private set; }
+
+    /// <summary>
+    /// Someone else is talking now, as on a meeting's other track: the turn has passed, so a
+    /// shorter pause ends the piece and each turn becomes its own line.
+    /// </summary>
+    public bool OtherSpeaking { get; set; }
 
     /// <summary>
     /// Adds the next audio and returns the byte offsets, from the start of the audio, where pieces
@@ -79,6 +92,7 @@ internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest, TimeSpan? 
         {
             _voiced++;
             _quietRun = 0;
+            LastVoiced = _position;
         }
 
         // Nothing said yet: the quiet is dropped from the front, so a piece starts near its words.
@@ -91,7 +105,8 @@ internal sealed class SpeechChunker(TimeSpan pause, TimeSpan longest, TimeSpan? 
         }
 
         if (_voiced >= MinVoicedWindows
-            && (_quietRun >= _pauseWindows || (_quietRun > 0 && _levels.Count >= _targetWindows)))
+            && (_quietRun >= (OtherSpeaking ? _turnWindows : _pauseWindows)
+                || (_quietRun > 0 && _levels.Count >= _targetWindows)))
         {
             return Finish(_position);
         }

@@ -69,6 +69,12 @@ internal sealed record AppSettings
     /// <summary>The last chord captured for paste again that isn't a preset.</summary>
     public Chord? CustomPasteAgainShortcut { get; init; }
 
+    /// <summary>Keys that start or stop meeting notes from any app; null (the default) for none.</summary>
+    public Chord? MeetingShortcut { get; init; }
+
+    /// <summary>The last chord captured for meetings that isn't a preset.</summary>
+    public Chord? CustomMeetingShortcut { get; init; }
+
     /// <summary>
     /// How long a shortcut must stay down before recording starts, 0 to 500 ms, so a quick tap
     /// records nothing. Stopping is always immediate.

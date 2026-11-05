@@ -19,7 +19,12 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
 {
     // A pause of 2 s ends a piece; after 10 s any quiet moment does; 15 s is the longest piece.
     // Long enough for Whisper to have context, short enough to finish soon after the meeting.
+    // Once the other track has spoken since a piece began, 0.6 s ends it, so each turn is its own line.
     private static readonly TimeSpan Pause = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan TurnPause = TimeSpan.FromSeconds(0.6);
+
+    // The other side speaking within this long of a piece's start is crosstalk at the turn, not a new turn.
+    private const double TurnGraceSeconds = 0.5;
     private static readonly TimeSpan Target = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan Longest = TimeSpan.FromSeconds(15);
 
@@ -28,6 +33,7 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
     private readonly List<MeetingSegment> _segments = [];
     private readonly Lock _gate = new();
     private Task _work = Task.CompletedTask;
+    private volatile bool _finished;
     private int _pieces;
     private int _failed;
 
@@ -38,12 +44,40 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
     public void Add(Speaker speaker, byte[] pcm, TimeSpan now)
     {
         var track = speaker == Speaker.You ? _you : _others;
+        var other = speaker == Speaker.You ? _others : _you;
         lock (track)
         {
-            foreach (var (start, piece) in track.Add(pcm, now))
+            // A device that delivered after the stop timed out: the meeting is already being saved.
+            if (_finished)
+            {
+                return;
+            }
+
+            foreach (var (start, piece) in track.Add(pcm, now, other.LastVoiceSeconds))
             {
                 Queue(speaker, start, piece);
             }
+        }
+    }
+
+    /// <summary>How many lines have been transcribed so far. Safe from any thread.</summary>
+    public int LineCount
+    {
+        get
+        {
+            lock (_segments)
+            {
+                return _segments.Count;
+            }
+        }
+    }
+
+    /// <summary>The lines transcribed so far, in time order. Safe from any thread.</summary>
+    public IReadOnlyList<MeetingSegment> Lines()
+    {
+        lock (_segments)
+        {
+            return [.. _segments.OrderBy(s => s.Start)];
         }
     }
 
@@ -57,6 +91,7 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
         {
             lock (track)
             {
+                _finished = true;
                 if (track.Flush() is var (start, piece))
                 {
                     Queue(track.Speaker, start, piece);
@@ -143,14 +178,22 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
         private static readonly double BytesPerSecond = AudioRecorder.Format.AverageBytesPerSecond;
 
         private readonly ArrayBufferWriter<byte> _pending = new();
-        private SpeechChunker _chunker = new(Pause, Longest, Target);
+        private SpeechChunker _chunker = NewChunker();
         private long _chunkerStart;
         private long _chunked;
         private long _pendingStart;
+        private double _lastVoice = double.NegativeInfinity;
 
         public Speaker Speaker => speaker;
 
-        public List<(double Start, byte[] Pcm)> Add(byte[] pcm, TimeSpan now)
+        /// <summary>When this track last had voice, in seconds into the meeting. Read from the other track's
+        /// thread.</summary>
+        public double LastVoiceSeconds => Volatile.Read(ref _lastVoice);
+
+        /// <param name="pcm">The next audio.</param>
+        /// <param name="now">When it arrived, from the meeting's start.</param>
+        /// <param name="otherVoice">When the other track last had voice, in seconds into the meeting.</param>
+        public List<(double Start, byte[] Pcm)> Add(byte[] pcm, TimeSpan now, double otherVoice)
         {
             var pieces = new List<(double, byte[])>();
             var lag = now.TotalSeconds - ((_chunkerStart + _chunked + pcm.Length) / BytesPerSecond);
@@ -165,14 +208,26 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
                 _chunkerStart = Math.Max(_pendingStart, (long)((now.TotalSeconds * BytesPerSecond) - pcm.Length) & ~1L);
                 _pendingStart = _chunkerStart;
                 _chunked = 0;
-                _chunker = new(Pause, Longest, Target);
+                _chunker = NewChunker();
             }
 
             _pending.Write(pcm);
             _chunked += pcm.Length;
+            // The other side spoke well after this piece began: the turn has passed. Their last words
+            // overlapping our first don't count.
+            // ponytail: the tracks' clocks agree only to within MaxLagSeconds, more than the turn
+            // pause, so a skewed device can split a turn late or early; compare capture timestamps if
+            // turns are seen merged or split wrongly.
+            _chunker.OtherSpeaking =
+                otherVoice > ((_chunkerStart + _chunker.Cut) / BytesPerSecond) + TurnGraceSeconds;
             foreach (var cut in _chunker.Add(pcm))
             {
                 pieces.Add(Take(_chunkerStart + cut));
+            }
+
+            if (_chunker.LastVoiced > 0)
+            {
+                Volatile.Write(ref _lastVoice, (_chunkerStart + _chunker.LastVoiced) / BytesPerSecond);
             }
 
             // Quiet before anyone speaks is dropped, so a piece starts when its words do.
@@ -187,6 +242,8 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
 
             return pieces;
         }
+
+        private static SpeechChunker NewChunker() => new(Pause, Longest, Target, TurnPause);
 
         public (double Start, byte[] Pcm)? Flush() =>
             _pending.WrittenCount == 0 ? null : Take(_pendingStart + _pending.WrittenCount);

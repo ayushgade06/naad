@@ -162,6 +162,8 @@ internal enum LogEvent
     MeetingMicrophoneRecovered,
     MeetingMicrophoneReopened,
     MeetingMicrophoneReopenFailed,
+    MeetingMicrophoneOpened,
+    MeetingMicrophoneOpenFailed,
     MeetingDetectionUnreadable,
     MeetingOffered,
     MeetingSummarized,

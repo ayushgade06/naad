@@ -19,6 +19,48 @@ public sealed class ShortcutsTests
             StringComparison.Ordinal);
 
     [Fact]
+    public void Problem_MeetingModifierOnly_IsRefused() =>
+        Assert.Contains(
+            "Meeting notes needs a key besides",
+            Shortcuts.Problem(Defaults with { MeetingShortcut = Parse("RightAlt") }),
+            StringComparison.Ordinal);
+
+    [Fact]
+    public void Problem_MeetingSharesHold_NamesBoth() =>
+        Assert.Contains(
+            "Hold to talk and Meeting notes both use F9",
+            Shortcuts.Problem(Defaults with { HoldShortcut = Parse("F9"), MeetingShortcut = Parse("F9") }),
+            StringComparison.Ordinal);
+
+    [Fact]
+    public void Problem_ManualEditKeyInMeetingShortcut_IsAllowed() =>
+        Assert.Null(Shortcuts.Problem(Defaults with
+        {
+            EditMode = EditMode.Manual,
+            MeetingShortcut = Parse("RightShift+M"),
+        }));
+
+    [Fact]
+    public void Repair_MeetingClashesWithPasteAgain_DropsTheMeetingShortcut()
+    {
+        var s = Defaults with { PasteAgainShortcut = Parse("F10"), MeetingShortcut = Parse("F10") };
+
+        var repaired = Shortcuts.Repair(s);
+
+        Assert.Equal((Parse("F10"), (Chord?)null), (repaired.PasteAgainShortcut, repaired.MeetingShortcut));
+    }
+
+    [Fact]
+    public void Choose_CustomMeeting_IsRemembered()
+    {
+        var (next, error) = Shortcuts.Choose(Defaults, ShortcutRole.Meeting, Parse("LeftCtrl+F12"));
+
+        Assert.Null(error);
+        Assert.Equal(
+            (Parse("LeftCtrl+F12"), Parse("LeftCtrl+F12")), (next!.MeetingShortcut, next.CustomMeetingShortcut));
+    }
+
+    [Fact]
     public void Problem_ToggleOnly_IsNone() =>
         Assert.Null(Shortcuts.Problem(Defaults with { HoldShortcut = null, ToggleShortcut = Parse("F9") }));
 

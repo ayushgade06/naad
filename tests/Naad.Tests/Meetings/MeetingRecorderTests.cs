@@ -142,6 +142,51 @@ public sealed class MeetingRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task StopAsync_DeviceRefusesToStop_StillLetsGoAndSaves()
+    {
+        var recorder = Recorder();
+        var changes = new List<bool>();
+        recorder.RecordingChanged += changes.Add;
+        await recorder.StartAsync();
+        _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
+        _capture.StopThrows = new InvalidOperationException("synthetic");
+
+        Assert.Equal(MeetingOutcome.Copied, await recorder.StopAsync());
+
+        Assert.True(_capture.Disposed);
+        Assert.Single(_store.All());
+        Assert.Equal([true, false], changes);
+        Assert.False(recorder.IsBusy);
+    }
+
+    [Fact]
+    public async Task StartAsync_AccessDenied_DisposesTheCapture()
+    {
+        _capture.Throws = new UnauthorizedAccessException("synthetic");
+
+        Assert.Equal(MeetingOutcome.CaptureFailed, await Recorder().StartAsync());
+        Assert.True(_capture.Disposed);
+    }
+
+    [Fact]
+    public async Task Lines_WhileRecording_ShowWhatWasTranscribed()
+    {
+        var recorder = Recorder();
+        await recorder.StartAsync();
+
+        _capture.Send(Speaker.You, [.. SyntheticAudio.Loud(2), .. SyntheticAudio.Quiet(3)]);
+        for (var i = 0; i < 100 && recorder.Lines.Count == 0; i++)
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal("synthetic words", Assert.Single(recorder.Lines).Text);
+        Assert.True(recorder.Level > 0);
+        await recorder.StopAsync();
+        Assert.Empty(recorder.Lines);
+    }
+
+    [Fact]
     public async Task StartAsync_CaptureThrows_DisposesItAndSaysSo()
     {
         _capture.Throws = new InvalidOperationException("synthetic");
@@ -196,7 +241,7 @@ public sealed class MeetingRecorderTests : IDisposable
         _store,
         () => _transcriber,
         () => _idle,
-        () => -1,
+        () => null,
         () => false,
         text =>
         {
@@ -228,12 +273,14 @@ public sealed class MeetingRecorderTests : IDisposable
 
         public Exception? Throws { get; set; }
 
+        public Exception? StopThrows { get; set; }
+
         public MicrophoneFailure? Start() => Throws is null ? Failure : throw Throws;
 
         public Task StopAsync()
         {
             Stopped = true;
-            return Task.CompletedTask;
+            return StopThrows is null ? Task.CompletedTask : Task.FromException(StopThrows);
         }
 
         public void Dispose() => Disposed = true;

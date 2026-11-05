@@ -357,6 +357,8 @@ internal sealed class SettingsStore(string path)
             CustomHoldShortcut = ReadChord(root, "customHoldShortcut", ref repaired),
             CustomToggleShortcut = ReadChord(root, "customToggleShortcut", ref repaired),
             CustomPasteAgainShortcut = ReadChord(root, "customPasteAgainShortcut", ref repaired),
+            MeetingShortcut = ReadChord(root, "meetingShortcut", ref repaired),
+            CustomMeetingShortcut = ReadChord(root, "customMeetingShortcut", ref repaired),
             StartDelayMilliseconds = ReadInt(
                 root, "startDelayMilliseconds", 0, AppSettings.IsValidStartDelay, ref repaired),
             TranscriptionProvider = provider,

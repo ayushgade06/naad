@@ -25,6 +25,8 @@ editor while Naad is closed; such changes apply the next time Naad starts.
   "customHoldShortcut": null,
   "customToggleShortcut": null,
   "customPasteAgainShortcut": null,
+  "meetingShortcut": null,
+  "customMeetingShortcut": null,
   "startDelayMilliseconds": 0,
   "transcriptionProvider": "Local",
   "localModel": "Base",
@@ -100,6 +102,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `vocabulary` | list of text | `[]` | Your dictionary: names and terms you use, such as `["Naad", "Groq", "Priya"]`, each up to 100 characters. Edit it on the **Dictionary** page. They are sent with each recording as Whisper's prompt (the first 500 characters' worth), and to the language model, so they are spelled right. They go to the services you chose but never into the log. |
 | `historyRetention` | `"Off"`, `"Week"`, `"Month"` or `"Forever"` | `"Month"` | How long dictations are kept on the **History** page: not at all, 7 days, 30 days, or until you delete them. They are encrypted; see [History](#history). Choosing a shorter time deletes older ones at once. |
 | `pressEnterCommand` | `true` or `false` | `false` | Saying "press enter" at the end of a dictation presses Enter after the text, for chat boxes. Only if the same window is still in front. |
+| `meetingShortcut` | text or `null` | `null` | Keys, written like `holdShortcut` (for example `"RightAlt+M"`), that start and stop meeting notes from any app, with the start and stop tones (and the error tone when a dictation is running). Like `pasteAgainShortcut` it needs a key besides Ctrl, Shift, Alt or Windows, and can't share keys with another shortcut. `customMeetingShortcut` keeps the last keys captured for it. |
 | `pasteAgainShortcut` | text or `null` | `null` | Keys, written like `holdShortcut` (for example `"RightAlt+V"`), that paste the last dictation again. `null` has none. It needs a key besides Ctrl, Shift, Alt or Windows. |
 | `overlayTimer` | `true` or `false` | `false` | Show the recording time on the overlay. |
 | `overlayStyle` | `"Pill"` or `"Compact"` | `"Pill"` | The overlay's look: the pill with words such as **Transcribing**, or a smaller capsule of bars only. Notices and live words always use the pill, so they stay readable. |
@@ -121,8 +124,8 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `liveModel` | text or `null` | `null` | The streaming model, with suggestions and **Reset** on the Live tab; `null` uses `gpt-4o-mini-transcribe` (OpenAI), `nova-3` (Deepgram), `gemini-live-2.5-flash-preview` (Gemini), `grok-stt` (xAI), or the server's own (Custom). It must suit `liveService`; choosing another service on the Live tab clears it. A model the service refuses makes every dictation fall back to the regular upload. |
 | `keepMeetingAudio` | `true` or `false` | `false` | Keep each meeting's recording, encrypted, with its notes. With `false`, each piece of a meeting's audio is dropped as soon as it is transcribed. See [Meeting notes](#meeting-notes). |
 | `meetingDetection` | `"Notify"` or `"Off"` | `"Notify"` | When a call app (Teams, Zoom, Slack, Discord, Webex, WhatsApp, Skype, Signal, Telegram) or a browser has used the microphone for 3 seconds, offer meeting notes in a notification. Nothing records unless you click it; one offer per call. |
-| `meetingIgnoredApps` | list of text | `[]` | Apps that never get the offer, by the program's file name without `.exe` (such as `"chrome"`) or a Store app's package name without its publisher (such as `"msteams"`); case and `.exe` don't matter. |
-| `recordingFlagFile` | `true` or `false` | `false` | While a dictation records, keep a file `%LOCALAPPDATA%\Naad\is-recording` holding the Unix time it started, for other tools (a stream overlay, a script that pauses music) to check. It is removed when recording stops or Naad quits, and at the next start after a crash. |
+| `meetingIgnoredApps` | list of text | `[]` | Apps that never get the offer, by the program's file name without `.exe` (such as `"chrome"`) or a Store app's package name without its publisher (such as `"msteams"`); case and `.exe` don't matter. Set as **Never offer for** on the General tab. |
+| `recordingFlagFile` | `true` or `false` | `false` | While a dictation records, keep a file `%LOCALAPPDATA%\Naad\is-recording` holding the Unix time it started, for other tools (a stream overlay, a script that pauses music) to check. It is removed when recording stops or Naad quits, and at the next start after a crash. A checkbox on the General tab. |
 | `windowPlacements` | list | `[]` | Where the main window was last on each monitor, newest first, written when it closes: `{ "monitor": "\\\\.\\DISPLAY1", "x": 100, "y": 80, "width": 900, "height": 700 }` in screen pixels, up to 8. It opens on the monitor under the mouse, or else where it last was, moved and shrunk to fit on screen. Not a setting to edit; delete the list to forget. |
 | `microphone` | text or `null` | `null` | The recording device's name, exactly as Windows lists it, for example `"Microphone (USB Audio Device)"`. `null` (or `""`) follows the Windows default recording device. If the named device isn't connected, Naad records from the default instead and logs `MicrophoneFallbackToDefault`. Windows shortens these names to 31 characters, so two devices whose names start the same can't be told apart; Naad then uses the first. |
 | `languageModelProvider` | `"Local"` or `"Cloud"` | `"Local"` | Where AI steps run: `"Local"` on a language model on this PC, offline and free, once it is downloaded; `"Cloud"` through the chat API below. Naad never switches between them by itself. See [The language model](#the-language-model). |
@@ -572,9 +575,12 @@ values, file contents or paths.
 
 Choose **Start meeting notes** in the Naad menu or on the **Meetings** page. Naad records two
 tracks: your microphone, labelled **You**, and the sound your PC plays (the other people on a
-call), labelled **Others**. Naad's own tones are left out of the second track on Windows 10
+call), labelled **Others**. The microphone opens in Windows' communications mode, which removes
+the echo of the call coming out of the speakers where the device supports it (headsets need
+none); where it can't open that way, Naad records it plainly. Naad's own tones are left out of the second track on Windows 10
 version 2004 and later. Each track is split at pauses (a piece ends after a 2-second pause, at
-the first quiet moment after 10 seconds, or at 15 seconds) and transcribed while the meeting
+the first quiet moment after 10 seconds, or at 15 seconds; after only 0.6 seconds once the other
+track has spoken since the piece began, so each turn is its own line) and transcribed while the meeting
 runs, with the transcription you chose, on this PC by default. A piece that can't be
 transcribed shows as `[couldn't transcribe]`.
 
@@ -590,7 +596,13 @@ microphone after 2 seconds of exact silence, then every 4 seconds until it works
 
 With `meetingDetection` on, Naad checks every 2 seconds which apps Windows lists as using the
 microphone (the same records as **Settings > Privacy > Microphone**) and offers notes when a
-call starts. It reads only app names and whether they are in use; nothing is logged or sent.
+call starts, in a small panel at the bottom of the screen that never takes the focus and fades
+after 20 seconds: **Take notes** starts them, **Maybe later** closes it. The apps in **Never
+offer for** on the General tab (`meetingIgnoredApps`) get no offer.
+
+While notes record, the **Meetings** page shows the time, a level meter, the lines as people
+pause, and **Microphone blocked** when the microphone goes silent; after you stop, **Finishing**
+until the last pieces are transcribed. **Delete all meetings** waits until then. It reads only app names and whether they are in use; nothing is logged or sent.
 
 The **Meetings** page lists saved meetings by day ("Today", "Yesterday", "Monday, Oct 20"),
 with a search over titles, summaries and what was said. Open one to rename it, copy its

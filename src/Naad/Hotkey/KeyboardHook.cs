@@ -47,16 +47,18 @@ internal sealed class KeyboardHook : IDisposable
     private Chord? _hold;
     private Chord? _toggle;
     private Chord? _pasteAgain;
+    private Chord? _meeting;
 
     /// <param name="hold">Hold to talk's shortcut, or null for none.</param>
     /// <param name="toggle">The hands-free toggle's shortcut, or null for none.</param>
     /// <param name="pasteAgain">Paste again's shortcut, or null for none.</param>
-    public KeyboardHook(Chord? hold, Chord? toggle, Chord? pasteAgain)
+    /// <param name="meeting">The meeting notes shortcut, or null for none.</param>
+    public KeyboardHook(Chord? hold, Chord? toggle, Chord? pasteAgain, Chord? meeting)
     {
         _ui = SynchronizationContext.Current
             ?? throw new InvalidOperationException("KeyboardHook must be created on a thread with a message loop.");
         _matcher = new ChordMatcher([]);
-        SetShortcuts(hold, toggle, pasteAgain);
+        SetShortcuts(hold, toggle, pasteAgain, meeting);
         _proc = OnKey;
         _mouseProc = OnMouse;
         _handle = Install(User32.WhKeyboardLl, _proc);
@@ -105,6 +107,9 @@ internal sealed class KeyboardHook : IDisposable
     /// <summary>The paste-again shortcut was pressed.</summary>
     public event Action? PasteAgainPressed;
 
+    /// <summary>The meeting notes shortcut was pressed.</summary>
+    public event Action? MeetingPressed;
+
     /// <summary>Whether Esc cancels a dictation; set while one runs. Call on the UI thread.</summary>
     public bool EscapeArmed
     {
@@ -143,10 +148,10 @@ internal sealed class KeyboardHook : IDisposable
     /// the hook. Settings keep them apart (<see cref="Naad.Settings.Shortcuts.Problem"/>). Call on the UI
     /// thread while no dictation runs: a shortcut held right now ends without an event.
     /// </summary>
-    public void SetShortcuts(Chord? hold, Chord? toggle, Chord? pasteAgain)
+    public void SetShortcuts(Chord? hold, Chord? toggle, Chord? pasteAgain, Chord? meeting)
     {
-        (_hold, _toggle, _pasteAgain) = (hold, toggle, pasteAgain);
-        _matcher.SetChords([.. new[] { hold, toggle, pasteAgain }.OfType<Chord>().Distinct()]);
+        (_hold, _toggle, _pasteAgain, _meeting) = (hold, toggle, pasteAgain, meeting);
+        _matcher.SetChords([.. new[] { hold, toggle, pasteAgain, meeting }.OfType<Chord>().Distinct()]);
         SyncMouseHook();
     }
 
@@ -294,7 +299,7 @@ internal sealed class KeyboardHook : IDisposable
             return;
         }
 
-        foreach (var action in ShortcutRouter.Route(events, _hold, _toggle, _pasteAgain))
+        foreach (var action in ShortcutRouter.Route(events, _hold, _toggle, _pasteAgain, _meeting))
         {
             Action? handler = action switch
             {
@@ -304,6 +309,7 @@ internal sealed class KeyboardHook : IDisposable
                 ShortcutAction.TogglePressed => TogglePressed,
                 ShortcutAction.ToggleCancelled => ToggleCancelled,
                 ShortcutAction.PasteAgainPressed => PasteAgainPressed,
+                ShortcutAction.MeetingPressed => MeetingPressed,
                 ShortcutAction.Escape => EscapePressed,
                 ShortcutAction.Latched => Latched,
                 _ => throw new UnreachableException(),

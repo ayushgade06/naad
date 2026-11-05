@@ -52,19 +52,8 @@ internal sealed partial class TrayIcon
         blocked ? ToolTipIcon.Warning : ToolTipIcon.Info,
         clicked: null);
 
-    /// <summary>
-    /// Offers meeting notes for a call in <paramref name="app"/>. The notification fades by itself
-    /// (Maybe later); a click calls <paramref name="takeNotes"/>, the only way recording starts.
-    /// </summary>
-    public void ShowMeetingOffer(string app, Action takeNotes) => Notify(
-        "Want notes for this meeting?",
-        $"{App(app)} is using the microphone. Click here and Naad transcribes the call, then copies the notes " +
-            "when you stop.",
-        ToolTipIcon.Info,
-        clicked: takeNotes);
-
-    // "msteams" reads better as "Teams"; other names are shown with a capital.
-    private static string App(string app) => app switch
+    /// <summary>A call app's name for people: "msteams" reads better as "Teams"; others get a capital.</summary>
+    public static string MeetingAppName(string app) => app switch
     {
         "ms-teams" or "msteams" or "teams" => "Teams",
         "msedge" => "Edge",

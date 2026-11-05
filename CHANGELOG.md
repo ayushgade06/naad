@@ -36,6 +36,16 @@ All notable changes to Naad are listed here. The format follows
   **Add copied words to dictionary**.
 - The main window reopens where it was on each monitor, and a new theme
   applies at once.
+- **Meeting shortcut**: a shortcut of its own (off by default) starts and
+  stops meeting notes from any app, with the start, stop and error tones.
+- **Live meeting card** on the Meetings page: the time, a level meter, the
+  lines as people pause, a **Microphone blocked** banner and **Finishing**
+  while the last pieces are transcribed.
+- **Meeting offer panel**: a small panel at the bottom of the screen, with
+  **Take notes** and **Maybe later**, that never takes the focus from the
+  call and fades on its own after 20 seconds.
+- Settings for the apps that never get the meeting offer, and for the
+  is-recording file.
 
 ### Changed
 
@@ -49,6 +59,19 @@ All notable changes to Naad are listed here. The format follows
 - Esc closes the main window and the setup guide only when you aren't
   typing in a box.
 - Closing the setup guide before **Finish** puts the old shortcuts back.
+- Meeting notes open the microphone in Windows' communications mode, which
+  cancels the echo of the call coming out of the speakers where the device
+  supports it, so the other side is no longer written down as **You**.
+- A meeting piece ends at a 0.6-second pause once the other side has
+  spoken, so each turn is its own line.
+
+### Fixed
+
+- A microphone that refuses to stop no longer leaves the PC's sound
+  recording after a meeting ends, and a meeting can always be stopped.
+- **Delete all meetings** is greyed out while a meeting records or
+  finishes, so it can't come back right after.
+- **Microphone blocked** is no longer shown twice for one problem.
 
 ## [2.1.0] - 2026-11-01
 

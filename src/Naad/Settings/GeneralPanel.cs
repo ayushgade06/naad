@@ -72,6 +72,13 @@ internal sealed class GeneralPanel : TableLayoutPanel
         AutoSize = true,
     };
 
+    private readonly TextBox _ignoredApps = new() { Width = 300 };
+    private readonly CheckBox _flagFile = new()
+    {
+        Text = "Keep an is-recording file while dictating, for other tools to check",
+        AutoSize = true,
+    };
+
     private readonly CheckBox _keepMeetingAudio = new()
     {
         Text = "Keep meeting recordings with their notes (encrypted)",
@@ -104,6 +111,8 @@ internal sealed class GeneralPanel : TableLayoutPanel
         _mute.Checked = current.MuteWhileDictating;
         _keepMeetingAudio.Checked = current.KeepMeetingAudio;
         _detectMeetings.Checked = current.MeetingDetection == Naad.Meetings.MeetingDetection.Notify;
+        _ignoredApps.Text = string.Join(", ", current.MeetingIgnoredApps);
+        _flagFile.Checked = current.RecordingFlagFile;
 
         Row(this, "Theme", _theme);
         Row(this, "", _showTrayIcon);
@@ -117,6 +126,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "", Note("Dictations are kept encrypted for your Windows account, and can be deleted on the " +
             "History page. Off deletes them all."));
         Row(this, "Meetings", _detectMeetings);
+        Row(this, "Never offer for", Flow(_ignoredApps, Note("apps such as chrome, slack; commas between")));
         Row(this, "", _keepMeetingAudio);
         Row(this, "", Note("Meeting notes are kept encrypted until you delete them on the Meetings page. " +
             "Without this, each piece of audio is dropped once it is transcribed."));
@@ -125,6 +135,7 @@ internal sealed class GeneralPanel : TableLayoutPanel
         Row(this, "Overlay", _overlayStyle);
         Row(this, "Show it on", _overlayMonitor);
         Row(this, "", _mute);
+        Row(this, "", _flagFile);
         Row(this, "", Note("Esc cancels a dictation. Pressing Space while holding the hold-to-talk shortcut " +
             "keeps recording after you let go; press a shortcut again to stop."));
         Row(this, "", new Label
@@ -164,8 +175,22 @@ internal sealed class GeneralPanel : TableLayoutPanel
             MeetingDetection = _detectMeetings.Checked
                 ? Naad.Meetings.MeetingDetection.Notify
                 : Naad.Meetings.MeetingDetection.Off,
+            MeetingIgnoredApps = IgnoredApps(_ignoredApps.Text) is var apps
+                && apps.SequenceEqual(chosen.MeetingIgnoredApps) ? chosen.MeetingIgnoredApps : apps,
+            RecordingFlagFile = _flagFile.Checked,
         };
     }
+
+    /// <summary>
+    /// The apps typed in the box, by file name without ".exe" and in lower case, as the detector
+    /// compares them; entries that can't be a name are dropped.
+    /// </summary>
+    public static IReadOnlyList<string> IgnoredApps(string text) =>
+        [.. AppSettings.SplitWords(text)
+            .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name)
+            .Select(name => name.ToLowerInvariant())
+            .Where(AppSettings.IsValidWord)
+            .Distinct()];
 
     private AppSettings Apply(AppSettings chosen) => chosen with
     {

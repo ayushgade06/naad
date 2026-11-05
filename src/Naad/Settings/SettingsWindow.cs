@@ -47,6 +47,7 @@ internal sealed partial class SettingsWindow : Form
     private readonly ShortcutField _hold;
     private readonly ShortcutField _toggle;
     private readonly ShortcutField _pasteAgain;
+    private readonly ShortcutField _meeting;
     private readonly ComboBox _editKey = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
     private readonly NumericUpDown _startDelay = new()
     {
@@ -81,6 +82,7 @@ internal sealed partial class SettingsWindow : Form
         _toggle = new(ShortcutRole.Toggle, current.ToggleShortcut, current.CustomToggleShortcut, FieldWidth);
         _pasteAgain = new(
             ShortcutRole.PasteAgain, current.PasteAgainShortcut, current.CustomPasteAgainShortcut, FieldWidth);
+        _meeting = new(ShortcutRole.Meeting, current.MeetingShortcut, current.CustomMeetingShortcut, FieldWidth);
         _cloud = new(
             CloudServices.ForTranscription,
             current.TranscriptionService,
@@ -132,7 +134,7 @@ internal sealed partial class SettingsWindow : Form
         _testTranscriptionButton.Click += (_, _) => _ = TestTranscriptionAsync();
         _downloadModelButton.Click += (_, _) => _ = DownloadModelAsync();
         _localModel.SelectedIndexChanged += (_, _) => ShowModelStatus();
-        foreach (var field in new[] { _hold, _toggle, _pasteAgain })
+        foreach (var field in new[] { _hold, _toggle, _pasteAgain, _meeting })
         {
             field.CaptureRequested += BeginCapture;
         }
@@ -232,6 +234,7 @@ internal sealed partial class SettingsWindow : Form
         Row(dictation, "Hold to talk", _hold.Box);
         Row(dictation, "Toggle (hands-free)", _toggle.Box);
         Row(dictation, "Paste again", _pasteAgain.Box);
+        Row(dictation, "Meeting notes", Flow(_meeting.Box, Note("starts or stops notes from any app")));
         Row(dictation, "Edit Mode key", Flow(_editKey, Note("held with the shortcut, when Edit Mode is Manual")));
         Row(dictation, "Start delay", Flow(_startDelay, Note("ms before recording starts, so a quick tap " +
             "records nothing")));
@@ -285,6 +288,8 @@ internal sealed partial class SettingsWindow : Form
             HoldShortcut = _hold.Chosen,
             ToggleShortcut = _toggle.Chosen,
             PasteAgainShortcut = _pasteAgain.Chosen,
+            MeetingShortcut = _meeting.Chosen,
+            CustomMeetingShortcut = _meeting.Custom,
             CustomHoldShortcut = _hold.Custom,
             CustomToggleShortcut = _toggle.Custom,
             CustomPasteAgainShortcut = _pasteAgain.Custom,

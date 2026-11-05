@@ -3,7 +3,7 @@ using Naad.Settings;
 
 namespace Naad.Tray;
 
-// The tray's shortcut submenus: hold to talk, the toggle and paste again, each with Off, its
+// The tray's shortcut submenus: hold to talk, the toggle, paste again and meeting notes, each with Off, its
 // presets, its last custom chord and Customize.
 internal sealed partial class TrayIcon
 {

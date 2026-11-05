@@ -1,4 +1,3 @@
-using Naad.Audio;
 using Naad.Dictation;
 using Naad.Meetings;
 using Naad.Settings;
@@ -17,9 +16,9 @@ internal static class MeetingFeatures
     // Often enough that the offer comes a few seconds into a call.
     private static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(2);
 
-    // After an offer, no other for this long: one call that two apps join (a browser and the
+    // After an offer, no other while it shows: one call that two apps join (a browser and the
     // call app, say) gets one offer, not two in a row.
-    private static readonly TimeSpan OfferShown = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan OfferShown = MeetingPrompt.ShownFor;
 
     /// <summary>Wires meeting notes up and returns what the window's Meetings page needs.</summary>
     /// <param name="controller">The dictation.</param>
@@ -28,20 +27,24 @@ internal static class MeetingFeatures
     /// <param name="settings">The settings in use.</param>
     /// <param name="copy">Puts text on the clipboard, out of clipboard history.</param>
     /// <param name="languageModel">The language model in use, for summaries.</param>
+    /// <param name="hook">The keyboard hook, for the meeting shortcut.</param>
+    /// <param name="sounds">The sound cues in use, or null.</param>
     public static MeetingActions Connect(
         DictationController controller,
         TrayIcon tray,
         Func<ITranscriber?> transcriber,
         Func<AppSettings> settings,
         Func<string, Task<bool>> copy,
-        Func<LanguageModel.ILanguageModel?> languageModel)
+        Func<LanguageModel.ILanguageModel?> languageModel,
+        Hotkey.KeyboardHook hook,
+        Func<SoundCues?> sounds)
     {
         var store = new MeetingStore(MeetingStore.DefaultFolder);
         var recorder = new MeetingRecorder(
             store,
             transcriber,
             () => controller.IsIdle,
-            () => AudioRecorder.DeviceNumber(AudioRecorder.ConnectedNames(), settings().Microphone),
+            () => settings().Microphone,
             () => settings().KeepMeetingAudio,
             copy);
         var actions = new MeetingActions(recorder, store, copy, languageModel);
@@ -54,8 +57,50 @@ internal static class MeetingFeatures
         recorder.RecordingChanged += tray.ShowMeetingRecording;
         actions.Finished += tray.ShowMeetingOutcome;
         tray.AddMeetingItem(() => _ = actions.ToggleAsync());
+
+        // The same tones as dictation: start once both tracks are open, stop once they are closed.
+        // ponytail: the PC's-sound track leaves Naad's tones out, but the microphone can hear the
+        // start tone from the speakers; play it before opening the tracks if a beep shows up as text.
+        void Play(bool wanted, Action<SoundCues> play)
+        {
+            if (wanted && sounds() is { } cues)
+            {
+                play(cues);
+            }
+        }
+
+        recorder.RecordingChanged += recording => Play(settings().PlaySounds, recording
+            ? s => s.PlayStart()
+            : s => s.PlayStop());
+        actions.Finished += outcome => Play(
+            settings().ErrorSound && outcome is MeetingOutcome.CaptureFailed or MeetingOutcome.NoTranscriber
+                or MeetingOutcome.DictationRunning or MeetingOutcome.NotSaved,
+            s => s.PlayError());
+
+        // The shortcut starts or stops notes; while a dictation runs, or a meeting is still finishing,
+        // it only plays the error tone.
+        hook.MeetingPressed += () =>
+        {
+            if (recorder.Finishing is not null || (!recorder.IsBusy && !controller.IsIdle))
+            {
+                Play(settings().ErrorSound, s => s.PlayError());
+                return;
+            }
+
+            _ = actions.ToggleAsync();
+        };
+
         // The offer only ever starts notes: clicked late, it must never stop a meeting.
-        WatchForCalls(recorder, tray, settings, () =>
+        var prompt = new MeetingPrompt();
+        Application.ThreadExit += (_, _) => prompt.Dispose();
+        recorder.RecordingChanged += recording =>
+        {
+            if (recording)
+            {
+                prompt.Hide();
+            }
+        };
+        WatchForCalls(recorder, prompt, settings, () =>
         {
             if (!recorder.IsBusy)
             {
@@ -68,7 +113,7 @@ internal static class MeetingFeatures
     // Reads Windows' records of microphone use every couple of seconds, on this thread: a few
     // registry keys, read in well under a millisecond. Only the offer's click starts recording.
     // ponytail: the timer runs for the life of the app; nothing stops it before exit.
-    private static void WatchForCalls(MeetingRecorder recorder, TrayIcon tray, Func<AppSettings> settings,
+    private static void WatchForCalls(MeetingRecorder recorder, MeetingPrompt prompt, Func<AppSettings> settings,
         Action takeNotes)
     {
         var detector = new MeetingDetector();
@@ -93,7 +138,7 @@ internal static class MeetingFeatures
             {
                 offered = now;
                 Log.Info(LogEvent.MeetingOffered);
-                tray.ShowMeetingOffer(app, takeNotes);
+                prompt.Offer(TrayIcon.MeetingAppName(app), takeNotes);
             }
         };
         timer.Start();

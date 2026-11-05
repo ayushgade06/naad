@@ -1184,6 +1184,18 @@ OpenAI-compatible realtime server if one is at hand.
 
 **Status after P46:** M-UI1 to M-UI6 have **not been run** by a person.
 
+## Meeting extras (P47): M-MX1 to M-MX5
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-MX1 | Meeting shortcut and tones | In Settings choose a **Meeting notes** shortcut; with sounds on, press it in another app, speak, press it again. Hold the dictation shortcut and press it meanwhile. | Notes start with the start tone and stop with the stop tone; the focus stays in the app. During a dictation the press only plays the error tone. | **No.** The role rules are unit tested. |
+| M-MX2 | Echo cancellation | Play a podcast through **speakers** (not headphones) and start meeting notes; stay silent for a minute, then talk over it; stop. Check the log for `MeetingMicrophoneOpened`. | The speakers' words are under **Others** and not under **You** (on a device whose driver supports it; the log shows `echo_cancellation=1`). Your words are under **You**. The podcast's volume doesn't drop when notes start (Windows' "reduce other sounds" for calls); if it does, note it: Naad should then open the microphone plainly. | **No.** Needs real speaker playback. |
+| M-MX3 | Turns | On a call, take turns with short answers ("yes", "sure") with about a second between speakers. | Each turn is its own line in the card and the copied transcript, not merged into the long speaker's line. | **No.** The split is unit tested. |
+| M-MX4 | Live card | Start notes, speak, mute the microphone in the call app for 5 seconds, unmute, stop. | The clock runs and the meter moves; lines appear as people pause; **Microphone blocked** shows while muted and goes; **Finishing** shows after stop until the meeting is saved. | **No.** The card's state is unit tested. |
+| M-MX5 | Offer panel and settings | Join a test call in a browser; wait; click **Maybe later**. Next call, click **Take notes**. Add the browser to **Never offer for** and join again. Tick the is-recording option and dictate. | The panel appears at the bottom without taking the focus, fades after 20 seconds or on Maybe later; Take notes starts notes; the ignored app gets no offer; `%LOCALAPPDATA%\Naad\is-recording` exists only while dictating. | **No.** |
+
+**Status after P47:** M-MX1 to M-MX5 have **not been run** by a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical

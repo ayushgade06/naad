@@ -24,6 +24,45 @@ public sealed class MeetingTranscriberTests
     }
 
     [Fact]
+    public async Task Add_OtherSideSpokeDuringAPause_EndsThePieceAtTheShortPause()
+    {
+        var meeting = new MeetingTranscriber(Numbered(), keepAudio: null);
+
+        meeting.Add(Speaker.You, Loud(2), TimeSpan.FromSeconds(2));
+        meeting.Add(Speaker.Others, [.. Loud(1), .. Quiet(3)], TimeSpan.FromSeconds(6));
+        meeting.Add(Speaker.You, [.. Quiet(1), .. Loud(1), .. Quiet(3)], TimeSpan.FromSeconds(7));
+        var segments = await meeting.FinishAsync();
+
+        // A 1 s pause alone keeps one piece; with the other side speaking since, the turn ends it.
+        Assert.Equal(2, segments.Count(s => s.Speaker == Speaker.You));
+    }
+
+    [Fact]
+    public async Task Add_ShortPauseWithNobodyElse_KeepsOnePiece()
+    {
+        var meeting = new MeetingTranscriber(Numbered(), keepAudio: null);
+
+        meeting.Add(Speaker.You, [.. Loud(2), .. Quiet(1), .. Loud(1), .. Quiet(3)], TimeSpan.FromSeconds(7));
+        var segments = await meeting.FinishAsync();
+
+        Assert.Single(segments);
+    }
+
+    [Fact]
+    public async Task Add_AfterFinish_IsDropped()
+    {
+        var saved = 0;
+        var meeting = new MeetingTranscriber(Numbered(), keepAudio: (_, _) => saved++);
+
+        await meeting.FinishAsync();
+        meeting.Add(Speaker.You, [.. Loud(2), .. Quiet(3)], TimeSpan.FromSeconds(5));
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, saved);
+        Assert.Empty(meeting.Lines());
+    }
+
+    [Fact]
     public async Task FinishAsync_LastPieceWithoutPause_IsTranscribed()
     {
         var meeting = new MeetingTranscriber(Numbered(), keepAudio: null);

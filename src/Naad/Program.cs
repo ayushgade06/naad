@@ -207,7 +207,7 @@ internal static class Program
             var ui = SynchronizationContext.Current!;
             recorder.LevelMeasured += (rms, duration) => ui.Post(_ => overlay.ShowLevel(rms, duration), null);
             using var hook = new KeyboardHook(
-                settings.HoldShortcut, settings.ToggleShortcut, settings.PasteAgainShortcut);
+                settings.HoldShortcut, settings.ToggleShortcut, settings.PasteAgainShortcut, settings.MeetingShortcut);
             using var clipboard = new WindowsClipboard();
             var inserter = new TextInserter(
                 clipboard, TextInserter.AnyModifierDown, TextInserter.SendPaste, text => UnicodeTyping.Type(text));
@@ -226,7 +226,7 @@ internal static class Program
                 controller, hook, overlay, tray, clipboard, () => pending ?? settings, () => languageModel is not null,
                 SaveWords);
             meetings = MeetingFeatures.Connect(controller, tray, () => transcriber, () => pending ?? settings,
-                controller.CopyAsync, () => languageModel);
+                controller.CopyAsync, () => languageModel, hook, () => sounds);
             meetings.Finished += _ =>
             {
                 if (pending is { } next)
@@ -458,7 +458,8 @@ internal static class Program
                     _ = Task.Run(() => enforceHistory?.Invoke(retention));
                 }
 
-                hook.SetShortcuts(next.HoldShortcut, next.ToggleShortcut, next.PasteAgainShortcut);
+                hook.SetShortcuts(
+                    next.HoldShortcut, next.ToggleShortcut, next.PasteAgainShortcut, next.MeetingShortcut);
                 tray.SetShortcut(Shortcuts.Primary(next).Shortcut, Shortcuts.Primary(next).HandsFree);
                 controller.UseStartDelay(TimeSpan.FromMilliseconds(next.StartDelayMilliseconds));
                 recorder.UseMicrophone(next.Microphone);

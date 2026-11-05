@@ -129,6 +129,13 @@ while another app holds the clipboard; dictate again once it lets go.
   on the General tab, and the app must be a known call app or browser not
   in `meetingIgnoredApps`. One offer per call.
 - **Write summary is greyed out.** Set up a language model on the AI tab.
+- **The other side's words show up under You.** Their voice reaches your
+  microphone from the speakers. Naad asks Windows to cancel that echo, but
+  not every microphone driver can; the log's `MeetingMicrophoneOpened` says
+  `echo_cancellation=0` then. Use headphones for calls you take notes on.
+- **The meeting shortcut does nothing.** Choose one under **Meeting notes**
+  on the Dictation tab; it is off by default. During a dictation it only
+  plays the error tone.
 
 ## Settings and the key
 
