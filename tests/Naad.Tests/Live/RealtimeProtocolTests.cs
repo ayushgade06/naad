@@ -226,6 +226,16 @@ public sealed class RealtimeProtocolTests
     }
 
     [Fact]
+    public void Setup_GptLiveTranscribe_SendsTheLanguageAsAList()
+    {
+        var setup = JsonNode.Parse(RealtimeProtocol.Setup(LiveService.OpenAI, "gpt-live-transcribe", "en")!)!;
+
+        var transcription = setup["session"]!["audio"]!["input"]!["transcription"]!;
+        Assert.Equal("en", (string?)transcription["languages"]![0]);
+        Assert.Null(transcription["language"]);
+    }
+
+    [Fact]
     public void Setup_Deepgram_IsNone() => Assert.Null(RealtimeProtocol.Setup(LiveService.Deepgram, "nova-3", null));
 
     [Fact]

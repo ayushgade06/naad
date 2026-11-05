@@ -324,7 +324,8 @@ internal sealed class MeetingCapture : IMeetingCapture
         }
     }
 
-    // Swaps in a fresh microphone on the Windows default; one reopen at a time.
+    // Swaps in a fresh microphone, the chosen one if connected, else the Windows default; one
+    // reopen at a time.
     private bool Reopen()
     {
         if (_stopping || Interlocked.Exchange(ref _reopening, 1) == 1)
@@ -337,7 +338,7 @@ internal sealed class MeetingCapture : IMeetingCapture
             lock (_gate)
             {
                 var (old, oldEndpoint) = (_microphone, _endpoint);
-                if (_stopping || !Open(null, out _))
+                if (_stopping || !Open(_chosen, out _))
                 {
                     return false;
                 }

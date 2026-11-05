@@ -120,9 +120,9 @@ internal sealed class LiveTyper(
         }
 
         _allowed = true;
-        _stable = final;
+        _stable = SentenceSpacing.AfterSentence(final);
         TypePending();
-        return !Stopped && Typed.Length == final.Length;
+        return !Stopped && Typed.Length == _stable.Length;
     }
 
     private void Stop(LogEvent reason)

@@ -144,6 +144,23 @@ internal static class CloudServices
     };
 
     /// <summary>
+    /// The model to retry on when <paramref name="main"/> can't answer: the user's
+    /// <paramref name="chosen"/> one, else the other of the service's two suggested models when
+    /// <paramref name="main"/> is one of them, so a rate limit on the defaults doesn't end AI
+    /// cleanup. Null when there is none, or it would be <paramref name="main"/> again.
+    /// </summary>
+    public static string? FallbackModel(CloudService service, string main, string? chosen)
+    {
+        var fallback = chosen;
+        if (string.IsNullOrWhiteSpace(fallback) && For(service).LanguageModels is [var first, var second, ..])
+        {
+            fallback = main == first ? second : main == second ? first : null;
+        }
+
+        return string.IsNullOrWhiteSpace(fallback) || fallback == main ? null : fallback;
+    }
+
+    /// <summary>
     /// The service a base URL belongs to, for settings written before services were chosen by
     /// name: a known host picks its service, anything else is Custom.
     /// </summary>

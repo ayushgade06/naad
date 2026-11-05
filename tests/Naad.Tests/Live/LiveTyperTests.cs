@@ -58,7 +58,16 @@ public sealed class LiveTyperTests
         _keyDown = false;
 
         Assert.True(typer.Finish("synthetic one. synthetic two."));
-        Assert.Equal(["synthetic one. synthetic two."], _typed);
+        Assert.Equal(["synthetic one. synthetic two. "], _typed);
+    }
+
+    [Fact]
+    public void Finish_NoSentenceEnd_AddsNoSpace()
+    {
+        var typer = Typer(allowed: true);
+
+        Assert.True(typer.Finish("synthetic one"));
+        Assert.Equal(["synthetic one"], _typed);
     }
 
     [Fact]

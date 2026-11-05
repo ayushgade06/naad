@@ -65,6 +65,9 @@ internal static class RealtimeProtocol
     private const string GeminiEndpoint = "wss://generativelanguage.googleapis.com/ws/"
         + "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
+    // OpenAI's live model family whose session takes "languages", a list, rather than "language".
+    private const string LanguageListModel = "gpt-live-transcribe";
+
     /// <summary>
     /// Models suggested for each service, the default first. Custom has none: an empty model lets
     /// the server use its own.
@@ -191,7 +194,12 @@ internal static class RealtimeProtocol
             transcription["model"] = model;
         }
 
-        if (language is not null)
+        // gpt-live-transcribe refuses the single "language" and takes a list instead.
+        if (language is not null && model.StartsWith(LanguageListModel, StringComparison.OrdinalIgnoreCase))
+        {
+            transcription["languages"] = new JsonArray(language);
+        }
+        else if (language is not null)
         {
             transcription["language"] = language;
         }

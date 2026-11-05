@@ -140,7 +140,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 | `languageModelTimeoutSeconds` | 2 to 300 | `8` | How long cleanup waits for the language model before pasting the text as said. Raise it for a slow server on this PC. |
 | `languageModelBaseUrl` | text | `"https://api.groq.com/openai/v1"` | Used only with `"Custom"`: the root of any OpenAI-compatible chat API; Naad posts to `<root>/chat/completions`. The same rules as `transcriptionBaseUrl`: `https://`, or `http://` only for a server on this PC such as Ollama (`http://localhost:11434/v1`) or LM Studio. |
 | `languageModelName` | text | `"openai/gpt-oss-20b"` | The cloud provider's chat model id. Up to 100 visible ASCII characters, no spaces. |
-| `languageModelFallbackName` | text or `null` | `null` | A second cloud model on the same endpoint, tried when the first is rate limited, gives a blank reply or answers the dictation instead of tidying it. |
+| `languageModelFallbackName` | text or `null` | `null` | A second cloud model on the same endpoint, tried when the first is rate limited, gives a blank reply or answers the dictation instead of tidying it. With `null`, a service's first or second suggested model retries on the other one. |
 | `cleanup` | `"Off"`, `"Basic"` or `"Ai"` | `"Ai"` | How a transcript is tidied before it is pasted. See [Cleanup](#cleanup). |
 | `cleanupPrompt` | text or `null` | `null` | Your own instructions for the language model, up to 8,000 characters; `null` uses the default. Edit it with **Edit prompt...** on the **AI** tab. |
 | `cleanupPromptVersion` | text or `null` | `null` | The date of the default prompt your instructions were based on, such as `"2026-10-31"`. Naad uses it to tell you when a newer default ships; don't change it. |
@@ -395,7 +395,8 @@ In the cloud, a rate-limited model is skipped until its limit resets, for
 as long as the provider says; a used-up daily quota is remembered across
 restarts in `%LOCALAPPDATA%\Naad\rate-limits.json`, and the **AI** tab
 shows when it resets. Set a **Fallback model** to keep AI cleanup going
-meanwhile.
+meanwhile; with none set, a service's default model falls back to its
+suggested second one.
 
 **Edit prompt...** shows the instructions the model gets. Change them, or
 **Reset to default**; **Test** sends the sample text to the saved model and

@@ -6,6 +6,19 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Text that ends a sentence (`.`, `!` or `?`) is pasted or live-typed with a
+  space after it, so the next dictation doesn't run into it. Not when
+  **Press Enter** follows, and history keeps the text as said.
+- When a meeting's microphone goes quiet or drops out, Naad reopens the
+  microphone chosen in Settings, not the Windows default.
+- Live preview with `gpt-live-transcribe` and a language set: the language
+  is sent as the list that model needs, so the stream isn't refused.
+- AI cleanup on a service's default model now retries on its suggested
+  second model when no fallback is set, instead of pasting the text as
+  said after a rate limit.
+
 ## [2.2.0] - 2026-11-05
 
 Live preview streams to more services, the main window, history, setup

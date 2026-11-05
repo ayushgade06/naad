@@ -46,8 +46,9 @@ internal sealed class TranscriptDelivery(
             return false;
         }
 
+        // Not before Enter: a chat would send the space along.
         var outcome = await inserter.PasteAsync(
-            text,
+            thenEnter ? text : SentenceSpacing.AfterSentence(text),
             canInsert: () => checkTarget(target) == InsertionDecision.Insert,
             pasted: () => Log.Info(
                 LogEvent.Pasted,

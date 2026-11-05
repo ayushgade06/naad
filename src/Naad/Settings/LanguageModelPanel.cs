@@ -169,7 +169,7 @@ internal sealed class LanguageModelPanel : TableLayoutPanel
         Row(this, "", Flow(_modelStatus, _downloadButton));
         _cloud.AddRows((label, control) => Row(this, label, control));
         Row(this, "", Note("Offline, a cloud choice uses the model on this PC if it is downloaded."));
-        foreach (var name in new[] { current.LanguageModelName, current.LanguageModelFallbackName })
+        foreach (var name in new[] { current.LanguageModelName, CleanupSetup.FallbackName(current) })
         {
             if (name is not null && SettingsInput.CooldownMessage(name, cooldownFor(name)) is { } cooling)
             {

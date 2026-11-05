@@ -37,6 +37,10 @@ internal static class CleanupSetup
             ? suggested
             : s.LanguageModelName);
 
+    /// <summary>The cloud model cleanup retries on, or null; see <see cref="CloudServices.FallbackModel"/>.</summary>
+    public static string? FallbackName(AppSettings s) =>
+        CloudServices.FallbackModel(s.LanguageModelService, s.LanguageModelName, s.LanguageModelFallbackName);
+
     /// <summary>
     /// What sums up the user's activity while they speak, or null when no language model runs. In
     /// the cloud it is its own model; on this PC, <paramref name="model"/> itself.
@@ -133,7 +137,7 @@ internal static class CleanupSetup
     public static IReadOnlyList<string> ModelsToTest(AppSettings s) =>
         s.LanguageModelProvider != LanguageModelProvider.Cloud
             ? [LocalModelName]
-            : [.. new[] { s.LanguageModelName, s.LanguageModelFallbackName, ContextModelName(s) }
+            : [.. new[] { s.LanguageModelName, FallbackName(s), ContextModelName(s) }
                 .Where(m => !string.IsNullOrWhiteSpace(m))
                 .Distinct()
                 .Cast<string>()];
@@ -243,7 +247,7 @@ internal static class CleanupSetup
         // Rate limits are per cloud model; a model on this PC has none.
         var cloud = s.LanguageModelProvider == LanguageModelProvider.Cloud;
         var models = new List<NamedModel> { new(cloud ? s.LanguageModelName : "local", model) };
-        if (cloud && s.LanguageModelFallbackName is { } fallback && fallback != s.LanguageModelName)
+        if (cloud && FallbackName(s) is { } fallback)
         {
             var url = CloudServices.For(s.LanguageModelService).BaseUrl ?? s.LanguageModelBaseUrl;
             models.Add(new(fallback, new OpenAiChatLanguageModel(

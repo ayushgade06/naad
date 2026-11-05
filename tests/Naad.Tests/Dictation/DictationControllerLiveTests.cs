@@ -101,7 +101,7 @@ public sealed class DictationControllerLiveTests : IDisposable
         await _h.Ui.RunAsync(_h.Controller.Release);
         await idle.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["synthetic one.", " synthetic two."], typed);
+        Assert.Equal(["synthetic one.", " synthetic two. "], typed);
         Assert.Empty(cleanup.Cleaned);
         Assert.Equal(0, _h.Pastes);
         Assert.Empty(_h.Kept);
