@@ -406,7 +406,7 @@ Since P14, Naad pastes through the clipboard without losing what was on it:
 3. Write the transcript, marked so Windows leaves it out of clipboard
    history (Win+V), cloud clipboard and clipboard monitors.
 4. Send Ctrl+V (`Pasted`).
-5. After 500 ms, which gives the app time to read the clipboard, put the
+5. After a second, which gives the app time to read the clipboard, put the
    original back, but only if nothing else wrote to the clipboard since
    Naad did. If you copied something meanwhile, your copy stays
    (`ClipboardRestoreSkippedChanged`).
@@ -427,8 +427,8 @@ kept by Naad instead and the clipboard isn't touched; see M-F1 to M-F5.
 |---|---|---|---|---|
 | M-I1 | Notepad keeps your clipboard | Copy the word `alpha`. In Notepad, dictate a sentence. Then press Ctrl+V. | The sentence is pasted, then Ctrl+V pastes `alpha`. The log shows `Pasted` and no `Clipboard*` warning. | **No.** It needs physical keys and a microphone. |
 | M-I2 | Chrome | Repeat M-I1 in a Chrome text box. | Same as M-I1. | **No.** |
-| M-I3 | VS Code | Repeat M-I1 in a VS Code editor. | Same as M-I1. Note if VS Code ever pastes `alpha` instead of the sentence: the 500 ms restore delay would be too short. | **No.** |
-| M-I4 | Your newer copy wins | Dictate a long sentence into Notepad. The moment the text appears, select a word and press Ctrl+C (within half a second). Then press Ctrl+V. | Ctrl+V pastes the word you copied, not the original clipboard. The log shows `ClipboardRestoreSkippedChanged`. Retry if you weren't fast enough (the log then shows no such line). | **No.** It needs fast physical input. |
+| M-I3 | VS Code | Repeat M-I1 in a VS Code editor. | Same as M-I1. Note if VS Code ever pastes `alpha` instead of the sentence: the one-second restore delay would be too short. | **No.** |
+| M-I4 | Your newer copy wins | Dictate a long sentence into Notepad. The moment the text appears, select a word and press Ctrl+C (within a second). Then press Ctrl+V. | Ctrl+V pastes the word you copied, not the original clipboard. The log shows `ClipboardRestoreSkippedChanged`. Retry if you weren't fast enough (the log then shows no such line). | **No.** It needs fast physical input. |
 | M-I5 | Not in clipboard history | Turn on Settings > System > Clipboard > Clipboard history. Copy `alpha`, then dictate a sentence into Notepad. Press Win+V. | The history shows `alpha` once, and doesn't show the dictated sentence. | **No.** It needs the Win+V UI. |
 | M-I6 | Images and files come back | 1. Copy a screenshot region (Win+Shift+S), dictate into Notepad, then paste into Paint. 2. Copy a file in Explorer, dictate, then paste into a folder. | 1. The screenshot is pasted into Paint. 2. The file is copied into the folder. | **No.** |
 
@@ -1206,6 +1206,20 @@ OpenAI-compatible realtime server if one is at hand.
 | M-UP4 | Clipboard and microphone settings | Copy a picture; dictate. Untick **Put back what was on the clipboard**, dictate, press Ctrl+V. Untick **Keep dictations out of clipboard history**, dictate, press Win+V. Turn the microphone off in Windows privacy settings, return to Naad's Settings, then click **Open Windows settings**. | The picture comes back with the option on; with it off, Ctrl+V pastes the dictation again; with history allowed, the dictation shows in Win+V. Settings shows the microphone as off after returning, and the button opens the microphone privacy page. | **No.** The restore choices and access words are unit tested. |
 
 **Status after P48:** M-UP1 to M-UP4 have **not been run** by a person.
+
+## Parity fixes after 2.2.0: M-PF1 to M-PF7
+
+All pending.
+
+| ID | Check | Steps | Expected | Automated? |
+|---|---|---|---|---|
+| M-PF1 | Space after a sentence | Dictate "This is one." into Notepad, then dictate "And two." right after; repeat with live typing on. | The text reads "This is one. And two. " with no words run together. With **Press Enter** after a command, no space goes before Enter. | **Partly.** The rule and the live typer are unit tested. |
+| M-PF2 | Meeting mic comes back | Choose a USB or headset microphone, start meeting notes, then mute it in another app for a few seconds and unmute it. | The banner says blocked, then works again, and your words keep coming from the chosen microphone, not the laptop's. | **No.** |
+| M-PF3 | No echo cancellation | Start meeting notes with a microphone whose driver offers no echo cancellation (some USB ones). | The tray warns that it records without echo cancellation and suggests headphones; recording goes on. | **Partly.** The outcome is unit tested. |
+| M-PF4 | Meeting rows and tray item | On the Meetings page, click **Copy** then **Delete** on a row; open the tray menu with a meeting shortcut set and click **Start meeting notes**. | Copy says "Copied" for a moment; Delete asks, then removes the row. The tray item names the shortcut and opens the Meetings page as notes start. | **No.** |
+| M-PF5 | Live failure reason | Set live preview to OpenAI with a wrong key; dictate. Then pull the network cable during a live dictation. | The overlay says "Live failed: key refused", then "Live failed: connection lost"; the text is still pasted each time. | **Partly.** The wording is unit tested. |
+| M-PF6 | Language list and setup key check | Open Settings, pick **Hindi (hi)** in Language, save, reopen; type `haw`, save. In the setup guide, paste a wrong cloud speech key and click **Check key**. | The list shows the saved choice; a typed code is kept as typed. The guide says the key was refused. | **Partly.** Reading the code is unit tested. |
+| M-PF7 | Update offer stays | With an update on offer, dismiss its notification, then open the tray menu. | **Update to version X...** opens the update window; **Skip version X** hides both items. | **No.** |
 
 ## v2.0.0: the automated pass, 2026-11-01
 

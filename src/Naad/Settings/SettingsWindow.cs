@@ -57,7 +57,7 @@ internal sealed partial class SettingsWindow : Form
         Width = 60,
     };
     private readonly ComboBox _microphone = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = FieldWidth };
-    private readonly TextBox _language = new() { Width = 60 };
+    private readonly ComboBox _language = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = FieldWidth };
     private readonly Label _error = Note();
     private ShortcutField? _capturing;
 
@@ -189,7 +189,8 @@ internal sealed partial class SettingsWindow : Form
         _localModel.Items.AddRange(["Base: fast on any PC", "Large v3 Turbo: more accurate, needs a GPU"]);
         _localModel.SelectedIndex = (int)_current.LocalModel;
         ShowModelStatus();
-        _language.Text = _current.Language ?? "";
+        _language.Items.AddRange([.. LanguageChoices.All]);
+        _language.Text = LanguageChoices.Label(_current.Language);
         _editKey.Items.AddRange(["Shift", "Ctrl"]);
         _editKey.SelectedIndex = (int)_current.EditModeKey;
         _startDelay.Value = _current.StartDelayMilliseconds;
@@ -239,7 +240,7 @@ internal sealed partial class SettingsWindow : Form
         Row(dictation, "Start delay", Flow(_startDelay, Note("ms before recording starts, so a quick tap " +
             "records nothing")));
         Row(dictation, "Microphone", _microphone);
-        Row(dictation, "Language", Flow(_language, Note("Code such as en or hi; blank detects it.")));
+        Row(dictation, "Language", Flow(_language, Note("Or type a code such as haw.")));
         Row(dictation, "Vocabulary", Note("Names and terms to spell right are on the Dictionary page."));
         _cloud.AddRows((label, control) => Row(dictation, label, control));
         Row(dictation, "Wait up to", Flow(_timeout, Note("seconds for the cloud service")));
@@ -306,7 +307,8 @@ internal sealed partial class SettingsWindow : Form
             return;
         }
 
-        if (!SettingsInput.TryBuild(chosen, _language.Text, null, out var settings, out var error)
+        var language = LanguageChoices.Code(_language.Text);
+        if (!SettingsInput.TryBuild(chosen, language, null, out var settings, out var error)
             || !_cloud.TryRead(out var transcription, out error)
             || !_languageModel.TryApply(settings, out settings, out var languageModel, out error))
         {
@@ -446,7 +448,8 @@ internal sealed partial class SettingsWindow : Form
         _testTranscriptionResult.Text = "Sending a second of silence...";
         try
         {
-            if (!SettingsInput.TryBuild(_current, _language.Text, null, out var settings, out var error)
+            var language = LanguageChoices.Code(_language.Text);
+            if (!SettingsInput.TryBuild(_current, language, null, out var settings, out var error)
                 || !_cloud.TryRead(out var cloud, out error))
             {
                 _testTranscriptionResult.Text = error;

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Naad.Meetings;
 using Button = System.Windows.Controls.Button;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -16,6 +17,9 @@ namespace Naad.Window;
 /// </summary>
 internal sealed class MeetingsPage : DockPanel, IDisposable
 {
+    // Long enough to read "Copied", short enough that the button is soon ready again.
+    private static readonly TimeSpan CopiedFor = TimeSpan.FromSeconds(1.5);
+
     private readonly MeetingActions _meetings;
     private readonly Palette _palette;
     private readonly Button _toggle = new() { Padding = new Thickness(12, 4, 12, 4) };
@@ -170,11 +174,21 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
         var open = Small("Open");
         open.Click += (_, _) => _content.Content = new MeetingView(meeting, _meetings, _palette, Reload);
         var copy = Small("Copy");
+        var copied = new DispatcherTimer { Interval = CopiedFor };
+        copied.Tick += (_, _) =>
+        {
+            copied.Stop();
+            copy.Content = "Copy";
+        };
         copy.Click += async (_, _) =>
         {
             try
             {
-                await _meetings.CopyAsync(MeetingTranscript.ClipboardText(meeting.Segments));
+                copy.Content = await _meetings.CopyAsync(MeetingTranscript.ClipboardText(meeting.Segments))
+                    ? "Copied"
+                    : "Clipboard busy";
+                copied.Stop();
+                copied.Start();
             }
             catch (Exception e)
             {
@@ -187,8 +201,19 @@ internal sealed class MeetingsPage : DockPanel, IDisposable
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
         };
+        var delete = Small("Delete");
+        delete.Click += (_, _) =>
+        {
+            if (System.Windows.MessageBox.Show("Delete this meeting? This can't be undone.", "Naad",
+                MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+            {
+                _meetings.Delete(meeting);
+                Reload();
+            }
+        };
         buttons.Children.Add(open);
         buttons.Children.Add(copy);
+        buttons.Children.Add(delete);
         var row = new DockPanel();
         SetDock(buttons, Dock.Right);
         row.Children.Add(buttons);

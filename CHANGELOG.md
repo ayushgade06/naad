@@ -6,8 +6,24 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The tray keeps **Update to version X...** beside **Skip version X** while
+  an update is offered, so the offer isn't lost with its notification.
+- Meeting list rows have **Delete**, and **Copy** says "Copied". The tray's
+  meeting item names its shortcut and opens the Meetings page.
+- Settings lists spoken languages by name; any code can still be typed.
+- The setup guide can check a cloud speech key, as it does an AI key.
+- The overlay says why live failed: key refused, no connection, connection
+  lost, service error or no reply.
+- Meeting notes warn when the microphone has no echo cancellation.
+
 ### Fixed
 
+- The keyboard hook is reinstalled every minute, so a hook Windows dropped
+  without notice no longer leaves the shortcut dead until sleep or unlock.
+- The clipboard is put back after a second rather than half a second, so a
+  slow app doesn't paste the old clipboard.
 - Text that ends a sentence (`.`, `!` or `?`) is pasted or live-typed with a
   space after it, so the next dictation doesn't run into it. Not when
   **Press Enter** follows, and history keeps the text as said.

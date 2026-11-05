@@ -192,7 +192,7 @@ internal static class DictationFeatures
     {
         Live.ILiveSession? current = null;
 
-        controller.LiveFellBack += () => overlay.ShowNotice("Live failed: transcribed after");
+        controller.LiveFellBack += why => overlay.ShowNotice("Live failed: " + (why ?? "transcribed after"));
 
         // Raised on the capture thread; a recording without a live transcript ignores it.
         recorder.PcmRecorded += pcm => Volatile.Read(ref current)?.Add(pcm);

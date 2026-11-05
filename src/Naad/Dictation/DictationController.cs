@@ -310,7 +310,7 @@ internal sealed partial class DictationController(
             if (live?.Session.FellBack == true)
             {
                 report = report with { LiveFellBack = true };
-                LiveFellBack?.Invoke();
+                LiveFellBack?.Invoke(live.Session.FailedBecause);
             }
 
             if (result.Failure is { } failure)

@@ -101,7 +101,7 @@ internal sealed class UpdatePrompt : IDisposable
             {
                 // Nothing (or nothing trustworthy) on offer any more.
                 _offered = null;
-                _tray.ShowSkipUpdate(null, null);
+                _tray.ShowUpdateOffer(null, null, null);
                 if (manual)
                 {
                     Tell(check);
@@ -113,16 +113,16 @@ internal sealed class UpdatePrompt : IDisposable
             if (!UpdatePolicy.Offer(state, found.Version, found.Published, now, manual))
             {
                 _offered = null;
-                _tray.ShowSkipUpdate(null, null);
+                _tray.ShowUpdateOffer(null, null, null);
                 Log.Info(LogEvent.UpdateWaiting);
                 return;
             }
 
-            _tray.ShowSkipUpdate(found.Version, () =>
+            _tray.ShowUpdateOffer(found.Version, () => OpenWindow(found, install: false), () =>
             {
                 var skipped = UpdateState.Load(UpdateState.DefaultPath) with { Skipped = found.Version };
                 skipped.Save(UpdateState.DefaultPath);
-                _tray.ShowSkipUpdate(null, null);
+                _tray.ShowUpdateOffer(null, null, null);
                 _offered = null;
                 Log.Info(LogEvent.UpdateSkipped);
             });

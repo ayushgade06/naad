@@ -14,9 +14,9 @@ internal sealed partial class DictationController
 
     /// <summary>
     /// Live transcription failed, so the recording was transcribed in one pass instead. Raised on
-    /// the UI thread.
+    /// the UI thread, with a few words on why, or null.
     /// </summary>
-    public event Action? LiveFellBack;
+    public event Action<string?>? LiveFellBack;
 
     /// <summary>
     /// Transcribes each recording while it runs, with what <paramref name="start"/> returns for

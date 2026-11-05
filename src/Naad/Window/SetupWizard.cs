@@ -340,6 +340,7 @@ internal sealed partial class SetupWizard : System.Windows.Window
             "Settings has the rest, including keys for AI.",
             service,
             key,
+            CheckKey(() => _newKey, () => (_settings.TranscriptionService, _settings.TranscriptionBaseUrl), note),
             note);
     }
 

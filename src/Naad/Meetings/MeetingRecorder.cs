@@ -151,7 +151,7 @@ internal sealed class MeetingRecorder(
             (tracks, pieces, pieces, id, DateTimeOffset.Now, startedAt);
         Log.Info(LogEvent.MeetingStarted, ("keep_audio", keep ? 1 : 0));
         RecordingChanged?.Invoke(true);
-        return MeetingOutcome.Started;
+        return tracks.EchoCancelled ? MeetingOutcome.Started : MeetingOutcome.StartedWithoutEchoCancellation;
     }
 
     /// <summary>

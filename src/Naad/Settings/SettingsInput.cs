@@ -30,7 +30,7 @@ internal static class SettingsInput
         var languageCode = language.Trim().ToLowerInvariant();
         var terms = vocabulary?.Trim() ?? "";
         error = languageCode.Length > 0 && !AppSettings.IsValidLanguage(languageCode)
-                ? "The language must be a two-letter code such as en or hi, or blank to detect it."
+                ? "Pick a language from the list, or type a code such as en or haw."
             : terms.Length > 0 && !AppSettings.IsValidVocabulary(terms)
                 ? "The vocabulary must be one line of up to 500 characters."
             : null;

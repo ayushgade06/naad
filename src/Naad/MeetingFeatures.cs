@@ -56,7 +56,7 @@ internal static class MeetingFeatures
         controller.RefusedWhileBusy += tray.ShowDictationRefusedDuringMeeting;
         recorder.RecordingChanged += tray.ShowMeetingRecording;
         actions.Finished += tray.ShowMeetingOutcome;
-        tray.AddMeetingItem(() => _ = actions.ToggleAsync());
+        tray.AddMeetingItem(() => _ = actions.ToggleAsync(), () => settings().MeetingShortcut);
 
         // The same tones as dictation: start once both tracks are open, stop once they are closed.
         // ponytail: the PC's-sound track leaves Naad's tones out, but the microphone can hear the

@@ -39,6 +39,8 @@ internal sealed class MeetingCapture : IMeetingCapture
     private int _reopening;
     private int _blocked;
 
+    public bool EchoCancelled { get; private set; }
+
     private MeetingCapture(
         WasapiRecorder speakers, string? microphone, Action<Speaker, byte[]> captured, Action<bool> microphoneBlocked)
     {
@@ -181,6 +183,9 @@ internal sealed class MeetingCapture : IMeetingCapture
                 microphone = Microphone(endpoint, communications, done);
                 (_microphone, _endpoint, _microphoneDone) = (microphone, endpoint, done);
                 microphone.StartRecording();
+                // Communications mode cancels echo in the driver's processing whether or not Windows
+                // exposes the control (Windows 11 22H2+ only); only the plain fallback has none.
+                EchoCancelled = communications || microphone.AcousticEchoCancellationControl is not null;
                 Log.Info(
                     LogEvent.MeetingMicrophoneOpened,
                     ("communications", communications ? 1 : 0),

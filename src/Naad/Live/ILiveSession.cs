@@ -23,6 +23,9 @@ internal interface ILiveSession : IDisposable
     /// </summary>
     bool FellBack { get; }
 
+    /// <summary>When <see cref="FellBack"/>, a few words on why, for the overlay; otherwise null.</summary>
+    string? FailedBecause { get; }
+
     /// <summary>The next audio from the microphone. Called on the capture thread.</summary>
     void Add(byte[] pcm);
 

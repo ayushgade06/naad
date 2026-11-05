@@ -1,5 +1,6 @@
 using Naad.Dictation;
 using Naad.Hotkey;
+using Naad.Meetings;
 using Naad.Tray;
 
 namespace Naad.Tests.Tray;
@@ -65,4 +66,8 @@ public sealed class TrayStatusTests
 
         Assert.Equal(["a", "b", "a"], errors.Select(e => e.Title));
     }
+
+    [Fact]
+    public void MeetingMessage_NoEchoCancellation_Warns() =>
+        Assert.Contains("echo cancellation", TrayIcon.MeetingMessage(MeetingOutcome.StartedWithoutEchoCancellation)!);
 }

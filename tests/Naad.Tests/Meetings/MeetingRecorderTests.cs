@@ -31,6 +31,17 @@ public sealed class MeetingRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task StartAsync_NoEchoCancellation_RecordsAndSaysSo()
+    {
+        _capture.EchoCancelled = false;
+        var recorder = Recorder();
+
+        Assert.Equal(MeetingOutcome.StartedWithoutEchoCancellation, await recorder.StartAsync());
+        Assert.True(recorder.IsRecording);
+        await recorder.StopAsync();
+    }
+
+    [Fact]
     public async Task StopAsync_AfterSpeech_SavesEncryptedAndCopies()
     {
         var recorder = Recorder();
@@ -266,6 +277,8 @@ public sealed class MeetingRecorderTests : IDisposable
         public Action<Speaker, byte[]>? Captured { get; set; }
 
         public MicrophoneFailure? Failure { get; set; }
+
+        public bool EchoCancelled { get; set; } = true;
 
         public bool Stopped { get; private set; }
 

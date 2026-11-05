@@ -50,12 +50,18 @@ internal sealed class RealtimeTranscript(
     private readonly Lock _gate = new();
     private readonly ClientWebSocket _socket = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // Written on the stream's task, read after FinishAsync has waited for it.
+    private volatile bool _connected;
+    private volatile bool _dropped;
     private Task? _run;
     private long _lastMessage;
     private string _shownPreview = "";
 
     /// <inheritdoc/>
     public bool FellBack { get; private set; }
+
+    public string? FailedBecause { get; private set; }
 
     public event Action<string>? TextChanged;
 
@@ -108,6 +114,11 @@ internal sealed class RealtimeTranscript(
 
         // A stream that ended well but heard nothing didn't fail; the upload only double-checks it.
         FellBack = !complete;
+        if (FellBack)
+        {
+            FailedBecause = LiveFailure.Describe((int)_socket.HttpStatusCode, _connected, _dropped, Failed);
+        }
+
         return await upload.TranscribeAsync(Wav.Encode(pcm, AudioRecorder.Format), cancellationToken);
     }
 
@@ -161,6 +172,7 @@ internal sealed class RealtimeTranscript(
         catch (Exception e)
         {
             // Any failure, even one from a socket aborted mid-call, means the recording is uploaded.
+            _dropped = _connected && !_stop.IsCancellationRequested;
             Fail();
 
             // A short tap or Esc disposes the stream on purpose. Otherwise the type only: a
@@ -222,6 +234,8 @@ internal sealed class RealtimeTranscript(
             connect.CancelAfter(ConnectTimeout);
             await _socket.ConnectAsync(endpoint, connect.Token);
         }
+
+        _connected = true;
 
         var receiving = ReceiveAsync();
         if (RealtimeProtocol.Setup(service, model, language) is { } setup)

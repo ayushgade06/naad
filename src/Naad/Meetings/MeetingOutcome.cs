@@ -5,6 +5,12 @@ internal enum MeetingOutcome
 {
     Started,
 
+    /// <summary>
+    /// Started, but Windows offers no echo cancellation on this microphone: the other side's
+    /// voice from the speakers may be noted as the user's.
+    /// </summary>
+    StartedWithoutEchoCancellation,
+
     /// <summary>Nothing changed: a start or stop was already under way.</summary>
     Unchanged,
 

@@ -30,6 +30,8 @@ internal sealed class LiveTranscript(ITranscriber transcriber, SpeechChunker chu
     /// <inheritdoc/>
     public bool FellBack { get; private set; }
 
+    public string? FailedBecause => FellBack ? "local model failed" : null;
+
     public void Add(byte[] pcm)
     {
         lock (_gate)

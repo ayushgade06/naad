@@ -76,6 +76,7 @@ internal sealed partial class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _checkForUpdates = new(CheckForUpdatesText) { Visible = false };
     private readonly ToolStripMenuItem _status = new() { Enabled = false };
     private readonly ToolStripMenuItem _toggleDictation = new("Start dictating") { Visible = false };
+    private Action<string>? _openWindow;
     private readonly Func<Task<bool>> _copy;
     private Func<Task>? _checkUpdates;
     private readonly Action _openSettings;
@@ -173,6 +174,7 @@ internal sealed partial class TrayIcon : IDisposable
         Action<string> openWindow,
         Action rerunSetup)
     {
+        _openWindow = openWindow;
         _toggleDictation.Click += (_, _) => toggleDictation();
         _toggleDictation.Visible = true;
         var devices = new ToolStripMenuItem("Microphone");

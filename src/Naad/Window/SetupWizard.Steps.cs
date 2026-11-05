@@ -50,6 +50,38 @@ internal sealed partial class SetupWizard
         _refillShortcuts?.Invoke();
     }
 
+    // Asks the service whether the typed key works, and says so in the note.
+    private Button CheckKey(Func<string?> key, Func<(CloudService Service, Uri BaseUrl)> target, TextBlock note)
+    {
+        var check = new Button { Content = "Check key", HorizontalAlignment = HorizontalAlignment.Left };
+        check.Click += async (_, _) =>
+        {
+            if (key() is not { } typed)
+            {
+                note.Text = "Paste a key first.";
+                return;
+            }
+
+            check.IsEnabled = false;
+            note.Text = "Checking...";
+            try
+            {
+                var (service, baseUrl) = target();
+                var result = await _actions.TestKey(service, typed, baseUrl, _closing.Token);
+                note.Text = SettingsInput.KeyTestMessage(result);
+            }
+            catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+            {
+                // The guide closed during the check.
+            }
+            finally
+            {
+                check.IsEnabled = true;
+            }
+        };
+        return check;
+    }
+
     private StackPanel AiKey()
     {
         var services = CloudServices.ForLanguageModel;
@@ -59,7 +91,8 @@ internal sealed partial class SetupWizard
             index => _settings = _settings with { LanguageModelService = services[index] });
         var key = new PasswordBox { Margin = new Thickness(0, 0, 0, 12) };
         var note = Muted("");
-        var check = new Button { Content = "Check key", HorizontalAlignment = HorizontalAlignment.Left };
+        var check = CheckKey(
+            () => _aiKey, () => (_settings.LanguageModelService, _settings.LanguageModelBaseUrl), note);
         // A key typed earlier isn't shown again; the note says one will be saved.
         if (_aiKey is not null)
         {
@@ -71,31 +104,6 @@ internal sealed partial class SetupWizard
             var typed = key.Password.Trim();
             _aiKey = SecretStore.IsValidKey(typed) ? typed : null;
             note.Text = typed.Length > 0 && _aiKey is null ? SettingsInput.KeyError(typed) ?? "" : "";
-        };
-        check.Click += async (_, _) =>
-        {
-            if (_aiKey is not { } typed)
-            {
-                note.Text = "Paste a key first.";
-                return;
-            }
-
-            check.IsEnabled = false;
-            note.Text = "Checking...";
-            try
-            {
-                var result = await _actions.TestKey(
-                    _settings.LanguageModelService, typed, _settings.LanguageModelBaseUrl, _closing.Token);
-                note.Text = SettingsInput.KeyTestMessage(result);
-            }
-            catch (OperationCanceledException) when (_closing.IsCancellationRequested)
-            {
-                // The guide closed during the check.
-            }
-            finally
-            {
-                check.IsEnabled = true;
-            }
         };
         return Page(
             "An AI key (optional)",

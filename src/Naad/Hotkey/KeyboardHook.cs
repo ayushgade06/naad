@@ -34,6 +34,10 @@ internal sealed class KeyboardHook : IDisposable
     // nothing while no key is held.
     private const int HealthCheckMilliseconds = 2000;
 
+    // Windows drops a hook whose callback once ran too long, with no notice, and there is no way
+    // to ask whether it still works; reinstalling every minute bounds a dead shortcut to that.
+    private const int ReinstallEveryChecks = 30;
+
     // Held in fields: Windows keeps only raw pointers, so the GC must not collect the delegates.
     private readonly User32.HookProc _proc;
     private readonly User32.HookProc _mouseProc;
@@ -43,6 +47,8 @@ internal sealed class KeyboardHook : IDisposable
     private readonly ChordMatcher _matcher;
     private nint _mouseHandle;
     private bool _disposed;
+    private int _checks;
+    private bool _reinstallFailing;
 
     private Chord? _hold;
     private Chord? _toggle;
@@ -67,7 +73,17 @@ internal sealed class KeyboardHook : IDisposable
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         }
 
-        _healthCheck.Tick += (_, _) => Resync();
+        _healthCheck.Tick += (_, _) =>
+        {
+            if (++_checks % ReinstallEveryChecks == 0)
+            {
+                Replace(announce: false);
+            }
+            else
+            {
+                Resync();
+            }
+        };
         _healthCheck.Start();
 
         // Windows can drop a low-level hook across sleep or a locked session without telling the
@@ -232,9 +248,10 @@ internal sealed class KeyboardHook : IDisposable
     /// Replaces the keyboard hook with a new one and forgets keys whose key-up was missed. Keeps
     /// the old hook if a new one can't be installed. Call on the UI thread.
     /// </summary>
-    // ponytail: reinstalls on resume and unlock only; Windows can also drop a hook whose callback
-    // timed out, with no notice. A periodic reinstall would cover that if users report a dead shortcut.
-    public void Reinstall()
+    public void Reinstall() => Replace(announce: true);
+
+    // The minute's routine reinstall isn't logged: it would fill the log with the same line.
+    private void Replace(bool announce)
     {
         if (_disposed)
         {
@@ -244,16 +261,28 @@ internal sealed class KeyboardHook : IDisposable
         var replacement = Install(User32.WhKeyboardLl, _proc);
         if (replacement == 0)
         {
-            Log.Error(LogEvent.HookReinstallFailed, ("win32_error", Marshal.GetLastPInvokeError()));
+            // Once per failing run: a routine reinstall that keeps failing would log every minute.
+            if (announce || !_reinstallFailing)
+            {
+                Log.Error(LogEvent.HookReinstallFailed, ("win32_error", Marshal.GetLastPInvokeError()));
+            }
+
+            _reinstallFailing = true;
             return;
         }
+
+        _reinstallFailing = false;
 
         // The new hook goes in before the old one comes out, so no key goes unwatched. Hooks are
         // only called while this thread pumps messages, which it doesn't do in between, so no key
         // is seen twice either.
         User32.UnhookWindowsHookEx(_handle);
         _handle = replacement;
-        Log.Info(LogEvent.HookReinstalled);
+        if (announce)
+        {
+            Log.Info(LogEvent.HookReinstalled);
+        }
+
         Resync();
     }
 

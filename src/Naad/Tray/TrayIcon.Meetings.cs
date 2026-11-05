@@ -9,11 +9,20 @@ internal sealed partial class TrayIcon
     private const string MeetingTooltip = "Naad: recording meeting notes";
     private ToolStripMenuItem? _meeting;
 
-    /// <summary>Adds Start meeting notes / Stop meeting notes after the dictation item. Call once.</summary>
-    public void AddMeetingItem(Action toggle)
+    /// <summary>
+    /// Adds Start meeting notes / Stop meeting notes after the dictation item, naming
+    /// <paramref name="shortcut"/> when there is one. A click also opens the Meetings page, where
+    /// the live card shows. Call once.
+    /// </summary>
+    public void AddMeetingItem(Action toggle, Func<Hotkey.Chord?> shortcut)
     {
-        _meeting = new ToolStripMenuItem("Start meeting notes", null, (_, _) => toggle());
+        _meeting = new ToolStripMenuItem("Start meeting notes", null, (_, _) =>
+        {
+            _openWindow?.Invoke(Window.Pages.Meetings);
+            toggle();
+        });
         _menu.Items.Insert(_menu.Items.IndexOf(_toggleDictation) + 1, _meeting);
+        _menu.Opening += (_, _) => _meeting.ShortcutKeyDisplayString = shortcut()?.Describe();
     }
 
     /// <summary>
@@ -74,6 +83,9 @@ internal sealed partial class TrayIcon
     /// <summary>What to say for <paramref name="outcome"/>, or null for nothing.</summary>
     public static string? MeetingMessage(MeetingOutcome outcome) => outcome switch
     {
+        MeetingOutcome.StartedWithoutEchoCancellation =>
+            "Recording without echo cancellation on this microphone. Use headphones, or the other side's " +
+            "voice may be noted as yours.",
         MeetingOutcome.DictationRunning => "Finish the dictation first, then start meeting notes.",
         MeetingOutcome.NoTranscriber => "Set up transcription in Settings first.",
         MeetingOutcome.CaptureFailed =>

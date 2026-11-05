@@ -71,8 +71,9 @@ internal sealed class TextInserter(
 {
     // The target reads the clipboard when it handles the Ctrl+V, not when it is sent, and
     // Electron apps (VS Code) read it asynchronously. Restoring earlier would paste the old text.
+    // A second leaves room for a busy app; Ctrl+V pressed again within it pastes the dictation.
     // ponytail: a fixed delay, not a signal; raise it if a slow app pastes the old clipboard.
-    public static readonly TimeSpan DefaultRestoreDelay = TimeSpan.FromMilliseconds(500);
+    public static readonly TimeSpan DefaultRestoreDelay = TimeSpan.FromSeconds(1);
 
     // The user normally lets go within a few hundred ms of releasing the dictation key.
     private static readonly TimeSpan ModifierReleaseTimeout = TimeSpan.FromSeconds(1);

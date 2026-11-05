@@ -8,6 +8,9 @@ internal interface IMeetingCapture : IDisposable
     /// <summary>Starts both tracks, or returns why the microphone can't open.</summary>
     MicrophoneFailure? Start();
 
+    /// <summary>Whether Windows cancels the speakers' echo on the microphone, once started.</summary>
+    bool EchoCancelled { get; }
+
     /// <summary>Stops both tracks once their last buffers have been delivered.</summary>
     Task StopAsync();
 }
