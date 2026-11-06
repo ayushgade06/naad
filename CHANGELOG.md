@@ -4,38 +4,7 @@ All notable changes to Naad are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Added
-
-- The tray keeps **Update to version X...** beside **Skip version X** while
-  an update is offered, so the offer isn't lost with its notification.
-- Meeting list rows have **Delete**, and **Copy** says "Copied". The tray's
-  meeting item names its shortcut and opens the Meetings page.
-- Settings lists spoken languages by name; any code can still be typed.
-- The setup guide can check a cloud speech key, as it does an AI key.
-- The overlay says why live failed: key refused, no connection, connection
-  lost, service error or no reply.
-- Meeting notes warn when the microphone has no echo cancellation.
-
-### Fixed
-
-- The keyboard hook is reinstalled every minute, so a hook Windows dropped
-  without notice no longer leaves the shortcut dead until sleep or unlock.
-- The clipboard is put back after a second rather than half a second, so a
-  slow app doesn't paste the old clipboard.
-- Text that ends a sentence (`.`, `!` or `?`) is pasted or live-typed with a
-  space after it, so the next dictation doesn't run into it. Not when
-  **Press Enter** follows, and history keeps the text as said.
-- When a meeting's microphone goes quiet or drops out, Naad reopens the
-  microphone chosen in Settings, not the Windows default.
-- Live preview with `gpt-live-transcribe` and a language set: the language
-  is sent as the list that model needs, so the stream isn't refused.
-- AI cleanup on a service's default model now retries on its suggested
-  second model when no fallback is set, instead of pasting the text as
-  said after a rate limit.
-
-## [2.2.0] - 2026-11-05
+## [2.2.0] - 2026-11-07
 
 Live preview streams to more services, the main window, history, setup
 guide and tray feel finished, meeting notes get a shortcut, a live card and
@@ -94,6 +63,15 @@ echo cancellation, and Naad installs only updates signed by its publisher.
   before.
 - Settings shows whether Windows lets Naad use the microphone, with **Open
   Windows settings**.
+- The tray keeps **Update to version X...** beside **Skip version X** while
+  an update is offered, so the offer isn't lost with its notification.
+- Meeting list rows have **Delete**, and **Copy** says "Copied". The tray's
+  meeting item names its shortcut and opens the Meetings page.
+- Settings lists spoken languages by name; any code can still be typed.
+- The setup guide can check a cloud speech key, as it does an AI key.
+- The overlay says why live failed: key refused, no connection, connection
+  lost, service error or no reply.
+- Meeting notes warn when the microphone has no echo cancellation.
 
 ### Changed
 
@@ -134,6 +112,20 @@ echo cancellation, and Naad installs only updates signed by its publisher.
   retried; a retry that comes to nothing never replaces text that went in.
 - Closing the main window no longer reloads the speech model.
 - Home shows the shortcut's keycap even when Windows has no name for you.
+- The keyboard hook is reinstalled every minute, so a hook Windows dropped
+  without notice no longer leaves the shortcut dead until sleep or unlock.
+- The clipboard is put back after a second rather than half a second, so a
+  slow app doesn't paste the old clipboard.
+- Text that ends a sentence (`.`, `!` or `?`) is pasted or live-typed with a
+  space after it, so the next dictation doesn't run into it. Not when
+  **Press Enter** follows, and history keeps the text as said.
+- When a meeting's microphone goes quiet or drops out, Naad reopens the
+  microphone chosen in Settings, not the Windows default.
+- Live preview with `gpt-live-transcribe` and a language set: the language
+  is sent as the list that model needs, so the stream isn't refused.
+- AI cleanup on a service's default model now retries on its suggested
+  second model when no fallback is set, instead of pasting the text as
+  said after a rate limit.
 
 ## [2.1.0] - 2026-11-01
 
