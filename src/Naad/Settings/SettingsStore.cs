@@ -203,8 +203,12 @@ internal sealed class SettingsStore(string path)
         try
         {
             root = JsonNode.Parse(json, NodeOptions, DocumentOptions) as JsonObject;
+
+            // The object reads its properties lazily: a name given twice, in any casing, only
+            // throws on first use. Force that here, or a hand-edited file stops Naad starting.
+            _ = root?.Count;
         }
-        catch (JsonException)
+        catch (Exception e) when (e is JsonException or ArgumentException)
         {
             root = null;
         }

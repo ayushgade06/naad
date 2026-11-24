@@ -109,6 +109,8 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("""{ "version": "1" }""")]
     [InlineData("""{ "version": 1.5 }""")]
     [InlineData("""{ "version": -1 }""")]
+    [InlineData("""{ "version": 5, "theme": "Dark", "theme": "Light" }""")]
+    [InlineData("""{ "version": 5, "theme": "Dark", "Theme": "Light" }""")]
     public void Load_EmptyMalformedOrBadVersion_ReturnsDefaultsAsCorrupt(string json)
     {
         var result = LoadFrom(json);
