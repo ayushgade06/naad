@@ -114,8 +114,21 @@ internal static partial class CleanupReplyCheck
     }
 
     // One pair of straight or curly double quotes around the whole reply.
-    private static string Unquote(string text) =>
-        text.Length >= 2 && text[0] is '"' or '“' && text[^1] is '"' or '”' ? text[1..^1].Trim() : text;
+    private static string Unquote(string text)
+    {
+        // Small models sometimes copy the prompt's data markers around their answer.
+        if (text.StartsWith(DataStart, StringComparison.Ordinal) && text.EndsWith(DataEnd, StringComparison.Ordinal)
+            && text.Length >= DataStart.Length + DataEnd.Length)
+        {
+            text = text[DataStart.Length..^DataEnd.Length].Trim();
+        }
+
+        return text.Length >= 2 && text[0] is '"' or '“' && text[^1] is '"' or '”' ? text[1..^1].Trim() : text;
+    }
+
+    // The markers CleanupPrompt puts around the dictated text and the selection.
+    private const string DataStart = "<<<";
+    private const string DataEnd = ">>>";
 
     // A whole phrase: "Sure, …" but not "Surely" or "Suresh".
     private static bool StartsWithPreamble(string text) => Preambles.Any(p =>

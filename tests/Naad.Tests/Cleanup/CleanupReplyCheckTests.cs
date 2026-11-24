@@ -8,6 +8,8 @@ public sealed class CleanupReplyCheckTests
     [InlineData("um we should meet on tuesday", "We should meet on Tuesday.", "We should meet on Tuesday.")]
     [InlineData("we should meet", "\"We should meet.\"", "We should meet.")]
     [InlineData("we should meet", "“We should meet.”", "We should meet.")]
+    [InlineData("we should meet", "<<<\nWe should meet.\n>>>", "We should meet.")]
+    [InlineData("we should meet", "<<< \"We should meet.\" >>>", "We should meet.")]
     [InlineData("sure that works for me", "Sure, that works for me.", "Sure, that works for me.")]
     [InlineData("write an email to priya about the launch", "Write an email to Priya about the launch.",
         "Write an email to Priya about the launch.")]
