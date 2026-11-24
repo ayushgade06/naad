@@ -21,6 +21,11 @@ public sealed class RateLimitHeadersTests
     [InlineData("soon")]
     [InlineData("5x")]
     [InlineData("-3")]
+    [InlineData("1e20")]
+    [InlineData("Infinity")]
+    [InlineData("NaN")]
+    [InlineData("99999999999999999999h")]
+    [InlineData("25h")]
     public void Duration_Other_IsNull(string? text)
     {
         Assert.Null(RateLimitHeaders.Duration(text));

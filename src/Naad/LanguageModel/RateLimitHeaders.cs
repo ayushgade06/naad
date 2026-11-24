@@ -34,9 +34,13 @@ internal static partial class RateLimitHeaders
         return (Duration(Get("retry-after")) ?? Duration(Get("x-ratelimit-reset-tokens")) ?? DefaultWait, false);
     }
 
+    // No provider asks for a longer wait in one header; a bigger number is garbage, and past
+    // TimeSpan's range it would throw.
+    private static readonly TimeSpan LongestWait = TimeSpan.FromDays(1);
+
     /// <summary>
     /// "30" (seconds), "7.66s", "120ms", "2m59.56s" or "1h2m", as providers write them; null
-    /// for anything else.
+    /// for anything else, or for a wait over a day.
     /// </summary>
     public static TimeSpan? Duration(string? text)
     {
@@ -47,7 +51,7 @@ internal static partial class RateLimitHeaders
 
         if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
         {
-            return seconds >= 0 ? TimeSpan.FromSeconds(seconds) : null;
+            return Within(seconds);
         }
 
         var parts = Part().Matches(text);
@@ -56,21 +60,25 @@ internal static partial class RateLimitHeaders
             return null;
         }
 
-        var total = TimeSpan.Zero;
+        var total = 0.0;
         foreach (Match part in parts)
         {
             var amount = double.Parse(part.Groups[1].Value, CultureInfo.InvariantCulture);
-            total += part.Groups[2].Value switch
+            total += amount * part.Groups[2].Value switch
             {
-                "h" => TimeSpan.FromHours(amount),
-                "m" => TimeSpan.FromMinutes(amount),
-                "ms" => TimeSpan.FromMilliseconds(amount),
-                _ => TimeSpan.FromSeconds(amount),
+                "h" => 3600,
+                "m" => 60,
+                "ms" => 0.001,
+                _ => 1,
             };
         }
 
-        return total;
+        return Within(total);
     }
+
+    // NaN fails both comparisons.
+    private static TimeSpan? Within(double seconds) =>
+        seconds >= 0 && seconds <= LongestWait.TotalSeconds ? TimeSpan.FromSeconds(seconds) : null;
 
     [GeneratedRegex(@"(\d+(?:\.\d+)?)(ms|h|m|s)")]
     private static partial Regex Part();
