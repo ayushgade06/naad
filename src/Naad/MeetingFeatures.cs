@@ -110,7 +110,18 @@ internal static class MeetingFeatures
             {
                 _ = actions.ToggleAsync();
             }
-        });
+        }, reason => _ = actions.StopOnItsOwnAsync(reason));
+        actions.StoppedOnItsOwn += tray.ShowMeetingStoppedOnItsOwn;
+
+        // Raised on SystemEvents' own thread; the stop runs on this one.
+        // ponytail: the handler stays for the life of the app, like the call watcher's timer.
+        Microsoft.Win32.SystemEvents.PowerModeChanged += (_, e) =>
+        {
+            if (e.Mode == Microsoft.Win32.PowerModes.Suspend)
+            {
+                ui.Post(_ => _ = actions.StopOnItsOwnAsync(AutoStopReason.Sleep), null);
+            }
+        };
         return actions;
     }
 
@@ -118,14 +129,29 @@ internal static class MeetingFeatures
     // registry keys, read in well under a millisecond. Only the offer's click starts recording.
     // ponytail: the timer runs for the life of the app; nothing stops it before exit.
     private static void WatchForCalls(MeetingRecorder recorder, MeetingPrompt prompt, Func<AppSettings> settings,
-        Action takeNotes)
+        Action takeNotes, Action<AutoStopReason> stop)
     {
         var detector = new MeetingDetector();
+        MeetingAutoStop? autoStop = null;
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         TimeSpan? offered = null;
         var timer = new System.Windows.Forms.Timer { Interval = (int)PollEvery.TotalMilliseconds };
         timer.Tick += (_, _) =>
         {
+            var uses = MicrophoneUsage.Read();
+
+            // Whatever the offer setting: a meeting someone forgot to stop must not record for hours.
+            if (!recorder.IsRecording)
+            {
+                autoStop = null;
+            }
+            else if ((autoStop ??= new()).Update(
+                recorder.Elapsed, MeetingDetector.CallInProgress(uses), recorder.LastSpeech) is { } reason)
+            {
+                autoStop = null;
+                stop(reason);
+            }
+
             var s = settings();
             if (s.MeetingDetection == MeetingDetection.Off)
             {
@@ -134,7 +160,7 @@ internal static class MeetingFeatures
 
             var now = System.Diagnostics.Stopwatch.GetElapsedTime(started);
             var app = detector.Next(
-                MicrophoneUsage.Read(),
+                uses,
                 now,
                 busy: recorder.IsBusy || now - offered < OfferShown,
                 s.MeetingIgnoredApps);

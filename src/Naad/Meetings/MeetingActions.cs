@@ -20,6 +20,39 @@ internal sealed class MeetingActions(
     /// <summary>A start or stop finished, with how it went; also when a meeting finished saving.</summary>
     public event Action<MeetingOutcome>? Finished;
 
+    /// <summary>Notes stopped on their own and were saved, for this reason.</summary>
+    public event Action<AutoStopReason>? StoppedOnItsOwn;
+
+    /// <summary>
+    /// Stops the meeting recording because of <paramref name="reason"/>, saving it without copying
+    /// it. Does nothing when none records.
+    /// </summary>
+    public async Task StopOnItsOwnAsync(AutoStopReason reason)
+    {
+        if (!recorder.IsRecording)
+        {
+            return;
+        }
+
+        Log.Info(LogEvent.MeetingStoppedOnItsOwn, ("reason", (int)reason));
+        MeetingOutcome outcome;
+        try
+        {
+            outcome = await recorder.StopAsync(copyTranscript: false);
+        }
+        catch (Exception e)
+        {
+            Log.Error(LogEvent.MeetingCaptureFailed, e);
+            outcome = MeetingOutcome.NotSaved;
+        }
+
+        Finished?.Invoke(outcome);
+        if (outcome == MeetingOutcome.Saved)
+        {
+            StoppedOnItsOwn?.Invoke(reason);
+        }
+    }
+
     /// <summary>Starts meeting notes, or stops and saves them when they are recording.</summary>
     public async Task ToggleAsync()
     {

@@ -18,6 +18,10 @@ internal sealed class MeetingDetector
         "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "arc",
     };
 
+    /// <summary>Whether a call app or browser holds the microphone in <paramref name="uses"/>.</summary>
+    public static bool CallInProgress(IEnumerable<MicrophoneUse> uses) =>
+        uses.Any(u => u.InUse && KnownApps.Contains(u.App));
+
     private readonly Dictionary<string, TimeSpan> _since = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _handled = new(StringComparer.OrdinalIgnoreCase);
 

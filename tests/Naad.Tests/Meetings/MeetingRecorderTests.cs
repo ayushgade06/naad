@@ -107,6 +107,18 @@ public sealed class MeetingRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task StopAsync_OnItsOwn_SavesWithoutCopying()
+    {
+        var recorder = Recorder();
+        await recorder.StartAsync();
+        _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
+
+        Assert.Equal(MeetingOutcome.Saved, await recorder.StopAsync(copyTranscript: false));
+        Assert.Empty(_copied);
+        Assert.Single(_store.All());
+    }
+
+    [Fact]
     public async Task StopAsync_NothingSaid_SavesNothing()
     {
         var recorder = Recorder();

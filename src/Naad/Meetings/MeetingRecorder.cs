@@ -76,6 +76,9 @@ internal sealed class MeetingRecorder(
     /// <summary>The microphone is silent or away right now.</summary>
     public bool MicrophoneIsBlocked => IsRecording && _blocked;
 
+    /// <summary>When anyone last spoke in the meeting recording, from its start; null before anyone did.</summary>
+    public TimeSpan? LastSpeech => _transcriber?.LastSpeech;
+
     /// <summary>The lines of the meeting recording or finishing, in time order; none otherwise.</summary>
     public IReadOnlyList<MeetingSegment> Lines => _shown?.Lines() ?? [];
 
@@ -174,7 +177,9 @@ internal sealed class MeetingRecorder(
     /// transcript. The last piece is never dropped: each track's rest is transcribed too. A stop
     /// while one is finishing returns that one.
     /// </summary>
-    public Task<MeetingOutcome> StopAsync()
+    /// <param name="copyTranscript">False for a stop the user didn't ask for: the clipboard may
+    /// hold something they copied since.</param>
+    public Task<MeetingOutcome> StopAsync(bool copyTranscript = true)
     {
         if (Finishing is { } finishing)
         {
@@ -191,7 +196,7 @@ internal sealed class MeetingRecorder(
         _transcriber = null;
         _stopDrafts?.TrySetResult();
         _stopDrafts = null;
-        var stop = FinishAsync(tracks, pieces, _id, _started, _ran, _drafting);
+        var stop = FinishAsync(tracks, pieces, _id, _started, _ran, _drafting, copyTranscript);
 
         // A stop that finished at once has already cleared Finishing; it must stay clear.
         Finishing = stop.IsCompleted ? null : stop;
@@ -256,7 +261,8 @@ internal sealed class MeetingRecorder(
         Guid id,
         DateTimeOffset started,
         TimeSpan duration,
-        Task drafting)
+        Task drafting,
+        bool copyTranscript)
     {
         try
         {
@@ -290,6 +296,11 @@ internal sealed class MeetingRecorder(
             if (segments.All(s => s.Text == MeetingSegment.Failed))
             {
                 return saved ? MeetingOutcome.TranscriptionFailed : MeetingOutcome.NotSaved;
+            }
+
+            if (!copyTranscript)
+            {
+                return saved ? MeetingOutcome.Saved : MeetingOutcome.NotSaved;
             }
 
             bool copied;

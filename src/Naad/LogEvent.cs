@@ -198,4 +198,5 @@ internal enum LogEvent
     MeetingSpeakersReopened,
     MeetingSpeakersReopenFailed,
     MeetingDraftSaved,
+    MeetingStoppedOnItsOwn,
 }

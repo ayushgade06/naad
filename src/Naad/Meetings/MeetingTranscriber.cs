@@ -60,6 +60,13 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
         }
     }
 
+    /// <summary>When anyone last spoke, from the meeting's start; null before anyone did. Safe from any
+    /// thread.</summary>
+    public TimeSpan? LastSpeech =>
+        Math.Max(_you.LastVoiceSeconds, _others.LastVoiceSeconds) is var last && double.IsFinite(last)
+            ? TimeSpan.FromSeconds(last)
+            : null;
+
     /// <summary>How many lines have been transcribed so far. Safe from any thread.</summary>
     public int LineCount
     {

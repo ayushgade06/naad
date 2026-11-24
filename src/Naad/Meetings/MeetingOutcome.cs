@@ -35,6 +35,9 @@ internal enum MeetingOutcome
     /// <summary>Stopped; saved, but the clipboard was busy.</summary>
     SavedNotCopied,
 
+    /// <summary>Stopped on its own; saved, and on purpose not copied over what the user may have copied.</summary>
+    Saved,
+
     /// <summary>Stopped with no speech heard: nothing was saved.</summary>
     NothingHeard,
 

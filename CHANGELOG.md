@@ -6,6 +6,15 @@ All notable changes to Naad are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Meeting notes stop on their own 30 seconds after the call app lets go of
+  the microphone, after 10 minutes with no one speaking, when the PC goes
+  to sleep, or after 4 hours. They are saved but not copied, and the tray
+  says why they stopped. The call rule applies only when a call app was
+  seen during the meeting, so notes for a meeting in the room aren't cut
+  off.
+
 ### Fixed
 
 - A meeting is saved every 30 seconds while it records, and at once when

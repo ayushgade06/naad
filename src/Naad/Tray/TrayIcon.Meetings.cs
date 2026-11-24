@@ -52,6 +52,19 @@ internal sealed partial class TrayIcon
         }
     }
 
+    /// <summary>Notes stopped on their own and were saved; says why.</summary>
+    public void ShowMeetingStoppedOnItsOwn(AutoStopReason reason) => Notify(
+        MeetingTitle, StoppedOnItsOwnMessage(reason), ToolTipIcon.Info, clicked: null);
+
+    /// <summary>What to say when notes stopped on their own for <paramref name="reason"/>.</summary>
+    public static string StoppedOnItsOwnMessage(AutoStopReason reason) => reason switch
+    {
+        AutoStopReason.CallEnded => "The call ended, so meeting notes stopped.",
+        AutoStopReason.Silence => "No one spoke for 10 minutes, so meeting notes stopped.",
+        AutoStopReason.Sleep => "The PC went to sleep, so meeting notes stopped.",
+        _ => "Meeting notes stopped after 4 hours.",
+    } + " They're saved on the Meetings page and weren't copied.";
+
     /// <summary>The microphone went silent or away mid-meeting, or works again.</summary>
     public void ShowMeetingMicrophoneBlocked(bool blocked) => Notify(
         MeetingTitle,
