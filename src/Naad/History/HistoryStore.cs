@@ -72,6 +72,13 @@ internal sealed class HistoryStore(string folder, TimeProvider time)
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or CryptographicException)
             {
                 Log.Error(LogEvent.HistoryWriteFailed, e);
+
+                // A new recording without its record is never listed, so retention would never
+                // delete it: it would outlast the user's choice. An update keeps the old record.
+                if (!File.Exists(Path.Combine(folder, record.Id + RecordExtension)))
+                {
+                    TryDelete(Path.Combine(folder, record.Id + AudioExtension));
+                }
                 return false;
             }
         }
@@ -183,8 +190,17 @@ internal sealed class HistoryStore(string folder, TimeProvider time)
     {
         // Write then swap, so a crash mid-write never leaves half a record.
         var temp = file + ".tmp";
-        File.WriteAllBytes(temp, ProtectedData.Protect(content, Entropy, DataProtectionScope.CurrentUser));
-        File.Move(temp, file, overwrite: true);
+        try
+        {
+            File.WriteAllBytes(temp, ProtectedData.Protect(content, Entropy, DataProtectionScope.CurrentUser));
+            File.Move(temp, file, overwrite: true);
+        }
+        catch
+        {
+            // Nothing lists or expires a leftover temp file.
+            TryDelete(temp);
+            throw;
+        }
     }
 
     private static byte[] Read(string file) =>

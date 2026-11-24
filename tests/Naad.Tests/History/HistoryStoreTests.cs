@@ -33,6 +33,19 @@ public sealed class HistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public void Add_RecordCannotBeWritten_LeavesNoRecordingBehind()
+    {
+        var store = new HistoryStore(_folder, _clock);
+        var record = Record(_clock.Now, "synthetic dictation");
+
+        // A folder where the record file goes makes its write fail after the audio's.
+        Directory.CreateDirectory(Path.Combine(_folder, record.Id + ".record"));
+
+        Assert.False(store.Add(record, wav: [1, 2, 3]));
+        Assert.Empty(Directory.GetFiles(_folder));
+    }
+
+    [Fact]
     public void Add_FilesOnDisk_HoldNoPlainText()
     {
         var store = new HistoryStore(_folder, _clock);
