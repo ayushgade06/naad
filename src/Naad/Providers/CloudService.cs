@@ -71,7 +71,7 @@ internal static class CloudServices
             "Groq",
             new("https://api.groq.com/openai/v1"),
             ["whisper-large-v3-turbo", "whisper-large-v3"],
-            ["openai/gpt-oss-20b", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"],
+            ["openai/gpt-oss-20b", "openai/gpt-oss-120b"],
             new("https://api.groq.com/openai/v1/models"),
             KeyHeader.Bearer,
             "console.groq.com/keys"),
@@ -133,8 +133,9 @@ internal static class CloudServices
     /// </summary>
     public static IReadOnlyList<string> ContextModels(CloudService service) => service switch
     {
-        CloudService.Groq =>
-            ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"],
+        // Groq retired its Llama models that read images. These read text only: a screenshot is
+        // refused and the summary is asked again without it.
+        CloudService.Groq => ["openai/gpt-oss-20b", "openai/gpt-oss-120b"],
         CloudService.OpenAI => ["gpt-4.1-nano", "gpt-4.1-mini"],
         CloudService.Gemini => ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
         CloudService.XAI => ["grok-4-fast-non-reasoning"],
