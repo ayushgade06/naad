@@ -274,7 +274,8 @@ internal static class Program
                     history,
                     controller.CopyAsync,
                     controller.PasteAsync,
-                    record => DictationFeatures.RetryAsync(record, transcriber, cleanup, history, controller),
+                    record => DictationFeatures.RetryAsync(
+                        record, transcriber, cleanup, history, controller, finished: ApplyPending),
                     () => (pending ?? settings).Words,
                     SaveWords,
                     snippetStore,
@@ -406,11 +407,11 @@ internal static class Program
                 return problem;
             }
 
-            // A dictation or meeting keeps the settings and transcriber it started with: during one,
+            // A dictation, meeting or retry keeps the settings and transcriber it started with: during one,
             // the change waits until it is done.
             void Apply(AppSettings next, bool languageModelKeyChanged = false)
             {
-                if (!controller.IsIdle || meetings?.Recorder.IsBusy == true)
+                if (!controller.IsIdle || meetings?.Recorder.IsBusy == true || DictationFeatures.Retrying)
                 {
                     pending = next;
                     replaceLanguageModel |= languageModelKeyChanged;

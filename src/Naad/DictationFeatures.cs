@@ -257,13 +257,47 @@ internal static class DictationFeatures
         return stream;
     }
 
+    private static int _retries;
+
+    /// <summary>
+    /// Whether a History retry is running. Like a dictation, it holds the transcriber it started
+    /// with, so new settings wait for it: replacing it would free a local model mid-run.
+    /// </summary>
+    public static bool Retrying => Volatile.Read(ref _retries) > 0;
+
     /// <summary>
     /// Transcribes a kept recording again with the settings in use and the context it had (summary,
     /// selection, how an edit was asked for), updates its record and copies the new text; null when
     /// nothing came of it. A run that ends empty or with a failed edit is saved as such, so it can be
     /// tried again.
     /// </summary>
+    /// <param name="record">The record whose recording to transcribe.</param>
+    /// <param name="transcriber">The transcriber in use, or null when none is set up.</param>
+    /// <param name="cleanup">The cleanup in use, or null.</param>
+    /// <param name="history">Where the record is updated.</param>
+    /// <param name="controller">Copies the new text.</param>
+    /// <param name="finished">Called when it ends either way, so settings saved meanwhile apply.</param>
     public static async Task<string?> RetryAsync(
+        HistoryRecord record,
+        Transcription.ITranscriber? transcriber,
+        Cleanup.ITranscriptCleanup? cleanup,
+        HistoryRecorder history,
+        DictationController controller,
+        Action finished)
+    {
+        Interlocked.Increment(ref _retries);
+        try
+        {
+            return await RetryCoreAsync(record, transcriber, cleanup, history, controller);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _retries);
+            finished();
+        }
+    }
+
+    private static async Task<string?> RetryCoreAsync(
         HistoryRecord record,
         Transcription.ITranscriber? transcriber,
         Cleanup.ITranscriptCleanup? cleanup,
