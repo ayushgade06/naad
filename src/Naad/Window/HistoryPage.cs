@@ -36,7 +36,9 @@ internal sealed class HistoryPage : DockPanel, IDisposable
     private readonly Palette _palette;
     private readonly StackPanel _list = new();
     private readonly TextBox _search = new() { Width = 280, Margin = new Thickness(0, 0, 8, 0) };
-    private readonly HashSet<Guid> _retrying = [];
+    // Shared by every page the window builds: leaving History and coming back must not let a
+    // second retry of the same record start. Used on the UI thread only.
+    private static readonly HashSet<Guid> Retrying = [];
     private SoundPlayer? _player;
     private DispatcherTimer? _progress;
     private Action? _resetPlaying;
@@ -72,6 +74,9 @@ internal sealed class HistoryPage : DockPanel, IDisposable
     public void Dispose()
     {
         _actions.History.Changed -= Fill;
+
+        // A recording still being decrypted must not start playing once the page is gone.
+        _playRequests++;
         StopPlaying();
     }
 
@@ -156,7 +161,7 @@ internal sealed class HistoryPage : DockPanel, IDisposable
             buttons.Children.Add(play);
             Button retry = null!;
             retry = Action("Retry", () => RetryAsync(record, retry, text));
-            retry.IsEnabled = !_retrying.Contains(record.Id);
+            retry.IsEnabled = !Retrying.Contains(record.Id);
             buttons.Children.Add(retry);
         }
 
@@ -278,7 +283,7 @@ internal sealed class HistoryPage : DockPanel, IDisposable
     private async Task RetryAsync(HistoryRecord record, Button button, TextBox text)
     {
         // One retry per record at a time: a second click would transcribe and save it twice.
-        if (!_retrying.Add(record.Id))
+        if (!Retrying.Add(record.Id))
         {
             return;
         }
@@ -291,12 +296,13 @@ internal sealed class HistoryPage : DockPanel, IDisposable
         }
         finally
         {
-            _retrying.Remove(record.Id);
+            Retrying.Remove(record.Id);
             button.IsEnabled = true;
-        }
 
-        // The update rebuilt the list while the id was still guarded, with Retry greyed out.
-        Fill();
+            // The update rebuilt the list while the id was still guarded, with Retry greyed out;
+            // after a failure, the row would still say it is transcribing.
+            Fill();
+        }
     }
 
     // Play and Stop share the button. SoundPlayer has no "finished" event, so the bar runs on the
