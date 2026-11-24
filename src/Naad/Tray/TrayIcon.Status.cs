@@ -23,6 +23,9 @@ internal sealed partial class TrayIcon
     private Icon? _checkImage;
     private System.Windows.Forms.Timer? _checkFlash;
 
+    // Meeting notes record: the icon keeps its dot until they stop.
+    private bool _meetingRecording;
+
     /// <summary>The menu's first line: what Naad is doing, and its version.</summary>
     public static string StatusLine(DictationState state, string idleTooltip, string version) => state switch
     {
@@ -61,10 +64,13 @@ internal sealed partial class TrayIcon
         }
     }
 
-    // A green check for two seconds; never over the recording or transcribing dot.
+    // Nothing records or transcribes, so the icon is the plain one.
+    private bool ShowsPlainIcon => _state == DictationState.Idle && !_meetingRecording;
+
+    // A green check for two seconds; never over the recording or transcribing dot, a meeting's included.
     private void FlashCheck()
     {
-        if (_state != DictationState.Idle)
+        if (!ShowsPlainIcon)
         {
             return;
         }
@@ -77,7 +83,7 @@ internal sealed partial class TrayIcon
         {
             _checkFlash?.Dispose();
             _checkFlash = null;
-            if (_state == DictationState.Idle)
+            if (ShowsPlainIcon)
             {
                 _icon.Icon = _image;
             }

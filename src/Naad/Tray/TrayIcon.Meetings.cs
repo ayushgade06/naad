@@ -36,6 +36,7 @@ internal sealed partial class TrayIcon
             _meeting.Text = recording ? "Stop meeting notes" : "Start meeting notes";
         }
 
+        _meetingRecording = recording;
         _toggleDictation.Enabled = !recording;
         _icon.Icon = recording ? _recordingImage : _image;
         _icon.Text = recording ? MeetingTooltip : _idleTooltip;
