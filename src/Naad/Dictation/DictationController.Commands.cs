@@ -134,6 +134,14 @@ internal sealed partial class DictationController
     }
 
     /// <summary>
+    /// Whether Esc does anything in <paramref name="state"/>, so the hook takes it from the app.
+    /// While the text goes in, which includes the wait before the clipboard is put back, Esc is
+    /// the user's again: it may close a popup the paste opened.
+    /// </summary>
+    public static bool EscapeCancels(DictationState state) =>
+        state is DictationState.Recording or DictationState.Transcribing;
+
+    /// <summary>
     /// Esc during a dictation: a recording is thrown away, and a transcription or cleanup in
     /// flight is cancelled, with nothing pasted. Call on the UI thread.
     /// </summary>

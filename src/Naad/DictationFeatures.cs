@@ -78,10 +78,15 @@ internal static class DictationFeatures
                     DateTimeOffset.UtcNow);
             }
 
-            hook.EscapeArmed = state != DictationState.Idle;
+            hook.EscapeArmed = DictationController.EscapeCancels(state);
             hook.LatchArmed = state == DictationState.Recording;
         };
-        controller.StartPending += pending => hook.EscapeArmed = pending || controller.State != DictationState.Idle;
+        controller.StartPending += pending =>
+        {
+            // The controller latches a start that is still waiting out its delay, too.
+            hook.EscapeArmed = pending || DictationController.EscapeCancels(controller.State);
+            hook.LatchArmed = pending || controller.State == DictationState.Recording;
+        };
         // The hook raises these on the UI thread. Disposing the controller first makes later events
         // no-ops, and the hook is unhooked right after.
         hook.TriggerPressed += controller.Press;
