@@ -13,7 +13,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "fileLogging": true,
   "playSounds": false,
   "errorSound": false,
@@ -84,7 +84,7 @@ editor while Naad is closed; such changes apply the next time Naad starts.
 
 | Setting | Type | Default | Meaning |
 |---|---|---|---|
-| `version` | integer | `4` | The file's schema version. Naad manages it; don't change it. |
+| `version` | integer | `5` | The file's schema version. Naad manages it; don't change it. |
 | `fileLogging` | `true` or `false` | `true` | Write the diagnostic log to `%LOCALAPPDATA%\Naad\logs`. The log never contains what you said (see `docs/manual-tests.md`, M-L1). With `false`, Naad writes no log file at all. |
 | `playSounds` | `true` or `false` | `false` | Play a short, soft tone once Naad is listening and once it has stopped. Off by default: on a PC whose speakers go idle, waking them takes a second or more, so the start tone comes that long after the press; speak after it. |
 | `errorSound` | `true` or `false` | `false` | Play a low tone when a dictation fails. |
@@ -555,7 +555,7 @@ A setting is added only when the app actually reads it.
 | Wrong-typed or invalid value, e.g. `"fileLogging": "no"` or `"holdShortcut": "Ctrl"` | Uses that setting's default, backs up the original as `invalid`, then rewrites it. | `SettingsRepaired` |
 | Empty file, invalid JSON, or an invalid `version` | Uses defaults, backs up the original as `corrupt`, then writes defaults. | `SettingsCorrupt` |
 | Newer `version` than supported | Uses defaults in memory. The file is left exactly as it is. | `SettingsFutureVersion` |
-| File can't be read (locked, access denied) | Uses defaults in memory. Doesn't retry or write. | `SettingsReadFailed` |
+| File can't be read (locked, access denied) | Uses defaults in memory. Doesn't retry or write, even when settings are changed: changes last until Naad exits. | `SettingsReadFailed` |
 | Backup or write fails | Keeps the previous file intact and uses the new values in memory. | `SettingsWriteFailed` |
 
 Naad always starts in all of these cases.

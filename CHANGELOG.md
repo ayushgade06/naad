@@ -4,6 +4,48 @@ All notable changes to Naad are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Live typing no longer ends the dictation while the shortcut is still
+  held: the last words were cut off about two seconds after the first
+  phrase was typed.
+- With Groq, the context summary works again and a rate limit falls back to
+  another model: Naad suggested Groq models Groq has retired. The
+  suggestions are now `openai/gpt-oss-20b` and `openai/gpt-oss-120b`.
+- With cleanup on Basic or Off, the language model on this PC is no longer
+  loaded at every dictation, which held over a gigabyte of memory.
+- A small model's `<<<` and `>>>` around its reply are no longer pasted.
+- Basic cleanup no longer drops real words that sound like English fillers
+  in other languages, such as Portuguese "um" or German "er".
+- A full stop after a snippet trigger in the middle of a sentence is kept.
+- A dictation that finishes while Paste again is still putting the
+  clipboard back is kept and reported instead of being lost.
+- Esc right after a paste reaches the app again, and Space during the
+  start delay switches to hands-free instead of cancelling.
+- A microphone that fails to open also stops the live stream and the
+  context summary started with it.
+- Saving settings during a History retry waits for the retry, instead of
+  freeing the speech model it runs on.
+- A History retry can't run twice for one record after leaving the page
+  and coming back, and a recording no longer starts playing after the
+  window closed.
+- A meeting in which nothing could be transcribed says so and copies
+  nothing, instead of reporting the notes as saved and copied.
+- **Never offer for** accepts the app name the offer shows, such as
+  "Teams".
+- Adding copied words to the dictionary during meeting notes keeps the
+  recording dot on the tray icon.
+- A recording whose history record can't be written is removed rather than
+  kept where retention never deletes it.
+- A rate-limit header with an absurd wait no longer skips the fallback
+  model and the cooldown.
+- A name given twice in settings.json no longer stops Naad from starting;
+  the file is backed up and replaced like any corrupt one.
+- When settings.json can't be read at start, Naad no longer writes
+  defaults over it later; changes last until Naad exits.
+
 ## [2.2.0] - 2026-11-07
 
 Live preview streams to more services, the main window, history, setup

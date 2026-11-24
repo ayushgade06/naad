@@ -1221,6 +1221,51 @@ All pending.
 | M-PF6 | Language list and setup key check | Open Settings, pick **Hindi (hi)** in Language, save, reopen; type `haw`, save. In the setup guide, paste a wrong cloud speech key and click **Check key**. | The list shows the saved choice; a typed code is kept as typed. The guide says the key was refused. | **Partly.** Reading the code is unit tested. |
 | M-PF7 | Update offer stays | With an update on offer, dismiss its notification, then open the tray menu. | **Update to version X...** opens the update window; **Skip version X** hides both items. | **No.** |
 
+## After 2.2.0: the automated pass, 2026-11-24
+
+Run on the development PC while the maintainer was away, at their request,
+with key input and the microphone allowed.
+
+| | |
+|---|---|
+| Windows | 11, build 26300, not elevated; RTX 3050 laptop GPU |
+| Voice | Windows text-to-speech through the laptop speakers, picked up by the built-in microphone array |
+| Keys | `SendInput` from a normal-integrity process, which the hook treats as physical |
+| Reading results | `naad.log`, UI Automation (Notepad, a plain Win32 text box, Naad's window and setup guide), the clipboard and the files Naad writes |
+| Build | Release, framework-dependent, then a self-contained package made with the release workflow's commands |
+
+The pass found and fixed the bugs listed under **Unreleased** in the
+changelog. Three came from the live run itself: live typing ending the
+dictation while the key was held, Groq's retired models, and the model's
+`<<<`/`>>>` being pasted. The rest came from a review of the code.
+
+| Check | Result | Notes |
+|---|---|---|
+| `dotnet build`, `dotnet format --verify-no-changes`, `dotnet test` (Debug and Release) | Pass | 1,666 tests, 0 failed |
+| The 8 explicit tests | Pass | Clipboard, focus guard, overlay, Base on the GPU, live accuracy (also replayed on two recorded dictations), the Small language model and the meeting summary |
+| Hold to talk, local Base | Pass | `release_to_text_ms` 0.6 to 1.7 s |
+| Short tap, Esc while recording, silence | Pass | Nothing pasted; silence logs `TranscriptionEmpty` |
+| Focus changed before release | Pass | `PasteSkippedFocusChanged`; the clipboard kept the user's content |
+| Clipboard put back | Pass | After a dictation and after an edit |
+| AI cleanup on this PC (Small) | Pass once warm | 1.0 to 2.4 s. The first dictation after start fell back at the 8 s limit while the model warmed up |
+| Edit Mode | Pass | Selection replaced in place; the Small model's edits are weak, which is the model's quality |
+| Toggle (F9), Paste again, "press enter" | Pass | |
+| Snippets added on the page, said alone and mid-sentence | Pass | A snippet that doesn't end in `.`, `!` or `?` gets no space after it, by the rule |
+| Cloud: Groq transcription, Groq AI cleanup with the context summary | Pass | After the model fix; 0.3 to 0.5 s per request |
+| A cloud service with no key | Pass | `DictationNeedsApiKey`, Settings opens |
+| Live preview and live typing, local | Pass | From the second dictation, once the model is on the GPU, by design. Notepad 11 garbles fast typed input from any program (known); a plain Win32 box got every phrase |
+| Mute other sound while dictating | Pass | Muted after the start, restored, nothing left in `muted-output.json` |
+| History Off | Pass | No records; lifetime stats still grow |
+| Meeting notes by shortcut | Pass | Saved and copied; without echo cancellation the speakers' words also appear under **You**, as M-PF3 warns |
+| Startup with a missing, duplicated-key, future-version settings.json; a second start | Pass | Setup guide; backed up as corrupt; left untouched; the window opens and the second copy exits |
+| Every page, Diagnostics' Copy, Settings save, setup guide to Finish, History Copy/Details/Retry, Quit | Pass | Diagnostics holds no user content; a second Retry click is refused while the first runs |
+| Release package: publish, `vpk pack`, silent install, dictation, uninstall | Pass | Installed 2.2.1 dictated on the GPU; uninstall removed the app, shortcut and Apps entry and kept user data |
+
+Not run: the Large language model (the PC had about 2.6 GB free), the
+five-minute limit, meeting detection's offer, a second monitor, sleep and
+lock, an update from GitHub Releases, and anything needing a different
+microphone. The manual checks above stay pending for a person.
+
 ## v2.0.0: the automated pass, 2026-11-01
 
 Run on the development PC (Windows 11, RTX 3050 laptop GPU, 12 logical
