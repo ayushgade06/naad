@@ -193,4 +193,5 @@ internal enum LogEvent
     OutputMuteFailed,
     OutputMuteFileFailed,
     SettingsSaveSkippedUnreadFile,
+    PasteSkippedBusy,
 }

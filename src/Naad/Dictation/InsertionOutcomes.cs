@@ -34,7 +34,9 @@ internal static class InsertionOutcomes
         InsertionOutcome.ClipboardUnavailable => new(TranscriptKeptReason.NotInserted, LogEvent.ClipboardUnavailable),
         InsertionOutcome.TypedPartially => new(TranscriptKeptReason.NotInserted, LogEvent.TypingIncomplete),
 
-        // The session allows one insertion at a time, so the inserter is never busy here.
+        // Paste again runs between dictations and holds the inserter while it restores the
+        // clipboard, so a quick dictation or a second Paste again can find it busy.
+        InsertionOutcome.Busy => new(TranscriptKeptReason.NotInserted, LogEvent.PasteSkippedBusy),
         _ => throw new UnreachableException($"Unexpected insertion outcome {outcome}."),
     };
 }
