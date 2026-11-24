@@ -12,7 +12,9 @@ namespace Naad.Meetings;
 /// stream where it doesn't. The PC's sound is a process loopback of every app except Naad, so its
 /// own tones are never transcribed as the other side. Both arrive as 16 kHz mono PCM16 on their
 /// capture threads. A microphone another app silences, or one that is unplugged, is reopened on the
-/// Windows default until it works again. Audio stays in memory. Create with <see cref="CreateAsync"/>.
+/// Windows default until it works again; so is the PC's sound when its stream stops (the audio
+/// service restarted, the output device changed). Audio stays in memory. Create with
+/// <see cref="CreateAsync"/>.
 /// </summary>
 internal sealed class MeetingCapture : IMeetingCapture
 {
@@ -24,14 +26,13 @@ internal sealed class MeetingCapture : IMeetingCapture
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
 
     private readonly Lock _gate = new();
-    private readonly WasapiRecorder _speakers;
-    private readonly PcmConverter _converter;
     private readonly MicrophoneWatchdog _watchdog = new();
     private readonly Action<Speaker, byte[]> _captured;
     private readonly Action<bool> _microphoneBlocked;
     private readonly string? _chosen;
     private readonly long _created = System.Diagnostics.Stopwatch.GetTimestamp();
-    private readonly TaskCompletionSource _speakersDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private WasapiRecorder _speakers;
+    private TaskCompletionSource _speakersDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private WasapiRecorder? _microphone;
     private MMDevice? _endpoint;
     private TaskCompletionSource _microphoneDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -45,21 +46,35 @@ internal sealed class MeetingCapture : IMeetingCapture
         WasapiRecorder speakers, string? microphone, Action<Speaker, byte[]> captured, Action<bool> microphoneBlocked)
     {
         _speakers = speakers;
-        _converter = new(speakers.WaveFormat);
         _captured = captured;
         _microphoneBlocked = microphoneBlocked;
         _chosen = microphone;
+        Attach(speakers, _speakersDone);
+    }
 
+    // Wires one loopback stream; a reopened one gets its own converter and stop signal.
+    private void Attach(WasapiRecorder speakers, TaskCompletionSource done)
+    {
         // Raised only on the loopback's own capture thread, so the converter has one caller.
-        _speakers.DataAvailable += (buffer, _, _, _) =>
+        var converter = new PcmConverter(speakers.WaveFormat);
+        speakers.DataAvailable += (buffer, _, _, _) =>
         {
-            var pcm = _converter.Convert(buffer);
+            var pcm = converter.Convert(buffer);
             if (pcm.Length > 0)
             {
-                captured(Speaker.Others, pcm);
+                _captured(Speaker.Others, pcm);
             }
         };
-        _speakers.RecordingStopped += (_, _) => _speakersDone.TrySetResult();
+        speakers.RecordingStopped += (_, _) =>
+        {
+            done.TrySetResult();
+            if (!_stopping && ReferenceEquals(speakers, _speakers))
+            {
+                // Without this, the other side would be missing from the rest of the meeting.
+                Log.Warn(LogEvent.MeetingSpeakersStopped);
+                _ = RetrySpeakersAsync(speakers);
+            }
+        };
     }
 
     /// <summary>Opens the PC's sound, ready to <see cref="Start"/> with the microphone.</summary>
@@ -72,16 +87,7 @@ internal sealed class MeetingCapture : IMeetingCapture
     public static async Task<IMeetingCapture> CreateAsync(
         string? microphone, Action<Speaker, byte[]> captured, Action<bool> microphoneBlocked)
     {
-        // Process loopback has no mix format of its own, so it is asked for Whisper's directly;
-        // the converter still handles whatever arrives. Windows 10 before 2004 lacks it, and
-        // captures the whole mix, Naad's tones included.
-        var builder = new WasapiRecorderBuilder();
-        builder = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041)
-            ? builder.WithProcessLoopback(
-                (uint)Environment.ProcessId, ProcessLoopbackMode.ExcludeTargetProcessTree)
-                .WithFormat(AudioRecorder.Format)
-            : builder.WithLoopbackCapture();
-        var speakers = await builder.BuildAsync();
+        var speakers = await SpeakersAsync();
         try
         {
             return new MeetingCapture(speakers, microphone, captured, microphoneBlocked);
@@ -91,6 +97,74 @@ internal sealed class MeetingCapture : IMeetingCapture
             speakers.Dispose();
             throw;
         }
+    }
+
+    // Process loopback has no mix format of its own, so it is asked for Whisper's directly; the
+    // converter still handles whatever arrives. Windows 10 before 2004 lacks it, and captures the
+    // whole mix, Naad's tones included.
+    private static Task<WasapiRecorder> SpeakersAsync()
+    {
+        var builder = new WasapiRecorderBuilder();
+        builder = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041)
+            ? builder.WithProcessLoopback(
+                (uint)Environment.ProcessId, ProcessLoopbackMode.ExcludeTargetProcessTree)
+                .WithFormat(AudioRecorder.Format)
+            : builder.WithLoopbackCapture();
+        return builder.BuildAsync();
+    }
+
+    // Until the PC's sound records again or the meeting stops, off the capture thread.
+    private async Task RetrySpeakersAsync(WasapiRecorder gone)
+    {
+        while (!_stopping)
+        {
+            await Task.Delay(MicrophoneWatchdog.RetryEvery).ConfigureAwait(false);
+            WasapiRecorder? fresh = null;
+            try
+            {
+                fresh = await SpeakersAsync().ConfigureAwait(false);
+                lock (_gate)
+                {
+                    if (_stopping || !ReferenceEquals(_speakers, gone))
+                    {
+                        fresh.Dispose();
+                        return;
+                    }
+
+                    // Started before it becomes current, so a failed start leaves the old one in place.
+                    var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    (_speakers, _speakersDone) = (fresh, done);
+                    Attach(fresh, done);
+                    try
+                    {
+                        fresh.StartRecording();
+                    }
+                    catch
+                    {
+                        (_speakers, _speakersDone) = (gone, CompletedSignal());
+                        throw;
+                    }
+                }
+
+                gone.Dispose();
+                Log.Info(LogEvent.MeetingSpeakersReopened);
+                return;
+            }
+            catch (Exception e)
+            {
+                // Logged and tried again: a dead loopback would lose the rest of the meeting.
+                fresh?.Dispose();
+                Log.Error(LogEvent.MeetingSpeakersReopenFailed, e);
+            }
+        }
+    }
+
+    // The stream it stands for has already stopped, so a stop never waits on it.
+    private static TaskCompletionSource CompletedSignal()
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        done.SetResult();
+        return done;
     }
 
     // ponytail: opening runs on the UI thread, up to twice (communications, then plain); a slow
@@ -107,7 +181,10 @@ internal sealed class MeetingCapture : IMeetingCapture
 
         try
         {
-            _speakers.StartRecording();
+            lock (_gate)
+            {
+                _speakers.StartRecording();
+            }
         }
         catch
         {
@@ -128,23 +205,25 @@ internal sealed class MeetingCapture : IMeetingCapture
     {
         _stopping = true;
         Task microphoneDone;
-        try
+        Task speakersDone;
+        lock (_gate)
         {
-            lock (_gate)
+            speakersDone = _speakersDone.Task;
+            try
             {
                 microphoneDone = _microphone is null ? Task.CompletedTask : _microphoneDone.Task;
                 _microphone?.StopRecording();
             }
-        }
-        finally
-        {
-            // The PC's sound stops even when the microphone refused to.
-            _speakers.StopRecording();
+            finally
+            {
+                // The PC's sound stops even when the microphone refused to.
+                _speakers.StopRecording();
+            }
         }
 
         try
         {
-            await Task.WhenAll(microphoneDone, _speakersDone.Task).WaitAsync(StopTimeout);
+            await Task.WhenAll(microphoneDone, speakersDone).WaitAsync(StopTimeout);
         }
         catch (TimeoutException)
         {
@@ -159,9 +238,8 @@ internal sealed class MeetingCapture : IMeetingCapture
         {
             _microphone?.Dispose();
             _endpoint?.Dispose();
+            _speakers.Dispose();
         }
-
-        _speakers.Dispose();
     }
 
     // Under _gate. Starts a microphone, echo-cancelled where Windows can and plain otherwise, and
