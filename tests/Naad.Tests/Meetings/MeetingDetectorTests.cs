@@ -47,6 +47,18 @@ public sealed class MeetingDetectorTests
         Assert.Null(_detector.Next(uses, TimeSpan.FromSeconds(10), busy: false, ["Chrome.exe"]));
     }
 
+    [Theory]
+    [InlineData("Teams")]
+    [InlineData(" teams ")]
+    [InlineData("msteams")]
+    public void Next_IgnoredByTheNameTheOfferShows_IsNeverOffered(string entry)
+    {
+        var call = Snapshot((Teams, true, 200, 0));
+
+        Assert.Null(_detector.Next(call, TimeSpan.Zero, busy: false, [entry]));
+        Assert.Null(_detector.Next(call, TimeSpan.FromSeconds(10), busy: false, [entry]));
+    }
+
     [Fact]
     public void Next_WhileBusy_TheCallCountsAsHandled()
     {

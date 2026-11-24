@@ -62,16 +62,7 @@ internal sealed partial class TrayIcon
         clicked: null);
 
     /// <summary>A call app's name for people: "msteams" reads better as "Teams"; others get a capital.</summary>
-    public static string MeetingAppName(string app) => app switch
-    {
-        "ms-teams" or "msteams" or "teams" => "Teams",
-        "msedge" => "Edge",
-        "whatsapp" or "whatsappdesktop" => "WhatsApp",
-        "webex" or "ciscowebexstart" or "ciscocollabhost" => "Webex",
-        "skypeapp" => "Skype",
-        "telegramdesktop" => "Telegram",
-        _ => char.ToUpperInvariant(app[0]) + app[1..],
-    };
+    public static string MeetingAppName(string app) => MeetingDetector.DisplayName(app);
 
     /// <summary>A press of the dictation shortcut was refused while a meeting records.</summary>
     public void ShowDictationRefusedDuringMeeting() => Notify(

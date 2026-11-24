@@ -33,7 +33,7 @@ internal sealed class MeetingDetector
     {
         var active = uses
             .Where(u => u.InUse && KnownApps.Contains(u.App)
-                && !ignored.Any(i => MicrophoneUsage.AppName(i, packaged: false) == u.App))
+                && !ignored.Any(i => IsNamed(u.App, i)))
             .Select(u => u.App)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -66,4 +66,22 @@ internal sealed class MeetingDetector
 
         return ready;
     }
+
+    /// <summary>A call app's name for people: "msteams" reads better as "Teams"; others get a capital.</summary>
+    public static string DisplayName(string app) => app switch
+    {
+        "ms-teams" or "msteams" or "teams" => "Teams",
+        "msedge" => "Edge",
+        "whatsapp" or "whatsappdesktop" => "WhatsApp",
+        "webex" or "ciscowebexstart" or "ciscocollabhost" => "Webex",
+        "skypeapp" => "Skype",
+        "telegramdesktop" => "Telegram",
+        _ => char.ToUpperInvariant(app[0]) + app[1..],
+    };
+
+    // The user may type the program's name ("msteams", "Chrome.exe") or the one the offer showed
+    // them ("Teams").
+    private static bool IsNamed(string app, string entry) =>
+        MicrophoneUsage.AppName(entry, packaged: false) == app
+        || string.Equals(DisplayName(app), entry.Trim(), StringComparison.OrdinalIgnoreCase);
 }
