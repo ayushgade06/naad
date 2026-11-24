@@ -37,4 +37,10 @@ internal enum MeetingOutcome
 
     /// <summary>Stopped with no speech heard: nothing was saved.</summary>
     NothingHeard,
+
+    /// <summary>
+    /// Stopped, but no piece could be transcribed (offline, a refused key, a rate limit): the
+    /// meeting is saved with its gaps and nothing is copied.
+    /// </summary>
+    TranscriptionFailed,
 }

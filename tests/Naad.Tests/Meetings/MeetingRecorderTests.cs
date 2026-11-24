@@ -75,6 +75,23 @@ public sealed class MeetingRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task StopAsync_EveryPieceFailed_SavesTheGapsButSaysSoAndCopiesNothing()
+    {
+        _transcriber = new FakeTranscriber
+        {
+            Respond = _ => Task.FromResult(new TranscriptionResult("", new(TranscriptionError.LocalFailed))),
+        };
+        var recorder = Recorder();
+        await recorder.StartAsync();
+
+        _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
+
+        Assert.Equal(MeetingOutcome.TranscriptionFailed, await recorder.StopAsync());
+        Assert.Empty(_copied);
+        Assert.Single(_store.All());
+    }
+
+    [Fact]
     public async Task StartAsync_DuringADictation_IsRefused()
     {
         _idle = false;

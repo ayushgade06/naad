@@ -95,6 +95,8 @@ internal sealed partial class TrayIcon
         MeetingOutcome.SavedNotCopied => "The meeting is saved on the Meetings page; the clipboard was busy.",
         MeetingOutcome.NotSaved => "Naad couldn't save or copy this meeting.",
         MeetingOutcome.NothingHeard => "No speech was picked up, so nothing was saved.",
+        MeetingOutcome.TranscriptionFailed =>
+            "Naad couldn't transcribe this meeting. Check the connection and the key in Settings.",
         _ => null,
     };
 }

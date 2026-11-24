@@ -210,6 +210,11 @@ internal sealed class MeetingRecorder(
             var meeting = new MeetingRecord(
                 id, MeetingRecord.DefaultTitle(started.LocalDateTime), started, duration, segments);
             var saved = store.Save(meeting);
+            if (segments.All(s => s.Text == MeetingSegment.Failed))
+            {
+                return saved ? MeetingOutcome.TranscriptionFailed : MeetingOutcome.NotSaved;
+            }
+
             bool copied;
             try
             {

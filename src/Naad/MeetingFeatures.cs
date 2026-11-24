@@ -74,7 +74,7 @@ internal static class MeetingFeatures
             : s => s.PlayStop());
         actions.Finished += outcome => Play(
             settings().ErrorSound && outcome is MeetingOutcome.CaptureFailed or MeetingOutcome.NoTranscriber
-                or MeetingOutcome.DictationRunning or MeetingOutcome.NotSaved,
+                or MeetingOutcome.DictationRunning or MeetingOutcome.NotSaved or MeetingOutcome.TranscriptionFailed,
             s => s.PlayError());
 
         // The shortcut starts or stops notes; while a dictation runs, or a meeting is still finishing,
