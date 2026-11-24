@@ -194,4 +194,8 @@ internal enum LogEvent
     OutputMuteFileFailed,
     SettingsSaveSkippedUnreadFile,
     PasteSkippedBusy,
+    MeetingSpeakersStopped,
+    MeetingSpeakersReopened,
+    MeetingSpeakersReopenFailed,
+    MeetingDraftSaved,
 }

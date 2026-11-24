@@ -8,6 +8,12 @@ All notable changes to Naad are listed here. The format follows
 
 ### Fixed
 
+- A meeting is saved every 30 seconds while it records, and at once when
+  Windows signs out or shuts down, so a crash or a forced restart keeps
+  the notes so far instead of losing the whole meeting.
+- When the PC's sound stops recording mid-meeting (the audio service
+  restarted, the output changed), Naad reopens it, so the other side isn't
+  missing from the rest of the notes.
 - Live typing no longer ends the dictation while the shortcut is still
   held: the last words were cut off about two seconds after the first
   phrase was typed.

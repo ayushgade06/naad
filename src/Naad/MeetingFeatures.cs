@@ -51,6 +51,10 @@ internal static class MeetingFeatures
 
         // Busy from opening the tracks until the last piece is saved, not only while recording.
         controller.UseBusy(() => recorder.IsBusy);
+
+        // A sign-out, restart or shutdown may end Naad mid-meeting: what is transcribed is kept.
+        // ponytail: the handler stays for the life of the app, like the call watcher's timer.
+        Microsoft.Win32.SystemEvents.SessionEnding += (_, _) => recorder.SaveNow();
         var ui = SynchronizationContext.Current!;
         recorder.MicrophoneBlocked += blocked => ui.Post(_ => tray.ShowMeetingMicrophoneBlocked(blocked), null);
         controller.RefusedWhileBusy += tray.ShowDictationRefusedDuringMeeting;

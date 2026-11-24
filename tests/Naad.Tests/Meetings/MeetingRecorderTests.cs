@@ -62,6 +62,51 @@ public sealed class MeetingRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task Recording_SavesTheMeetingSoFar_AndStopReplacesIt()
+    {
+        var recorder = Recorder(saveEvery: TimeSpan.FromMilliseconds(50));
+        await recorder.StartAsync();
+
+        // A pause ends the first piece, so it is transcribed while the meeting still records.
+        _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
+        _capture.Send(Speaker.You, SyntheticAudio.Quiet(3));
+        MeetingRecord? draft = null;
+        for (var waited = 0; draft is null && waited < 100; waited++)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+            draft = _store.All().SingleOrDefault();
+        }
+
+        Assert.NotNull(draft);
+        Assert.Single(draft.Segments);
+        Assert.True(recorder.IsRecording);
+
+        _capture.Send(Speaker.Others, SyntheticAudio.Loud(2));
+        Assert.Equal(MeetingOutcome.Copied, await recorder.StopAsync());
+        var saved = Assert.Single(_store.All());
+        Assert.Equal(draft.Id, saved.Id);
+        Assert.Equal(2, saved.Segments.Count);
+    }
+
+    [Fact]
+    public async Task SaveNow_WhileRecording_KeepsWhatIsTranscribed()
+    {
+        var recorder = Recorder(saveEvery: TimeSpan.FromHours(1));
+        await recorder.StartAsync();
+        _capture.Send(Speaker.You, SyntheticAudio.Loud(2));
+        _capture.Send(Speaker.You, SyntheticAudio.Quiet(3));
+        for (var waited = 0; recorder.LineCount == 0 && waited < 100; waited++)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        recorder.SaveNow();
+
+        Assert.Single(Assert.Single(_store.All()).Segments);
+        await recorder.StopAsync();
+    }
+
+    [Fact]
     public async Task StopAsync_NothingSaid_SavesNothing()
     {
         var recorder = Recorder();
@@ -265,7 +310,7 @@ public sealed class MeetingRecorderTests : IDisposable
         return (actions, _store.All().Single(), reply);
     }
 
-    private MeetingRecorder Recorder() => new(
+    private MeetingRecorder Recorder(TimeSpan? saveEvery = null) => new(
         _store,
         () => _transcriber,
         () => _idle,
@@ -280,7 +325,8 @@ public sealed class MeetingRecorderTests : IDisposable
         {
             _capture.Captured = captured;
             return Task.FromResult<IMeetingCapture>(_capture);
-        });
+        },
+        saveEvery);
 
     private sealed class PendingModel(TaskCompletionSource<Naad.LanguageModel.CompletionResult> reply)
         : Naad.LanguageModel.ILanguageModel

@@ -17,6 +17,7 @@ namespace Naad.Meetings;
 /// <param name="keepAudio">Whether to keep each meeting's recording (keepMeetingAudio).</param>
 /// <param name="copy">Puts text on the clipboard; false if it was busy.</param>
 /// <param name="capture">Opens the two tracks; tests replace it.</param>
+/// <param name="saveEvery">How often the meeting so far is saved; tests shorten it.</param>
 internal sealed class MeetingRecorder(
     MeetingStore store,
     Func<ITranscriber?> transcriber,
@@ -24,8 +25,19 @@ internal sealed class MeetingRecorder(
     Func<string?> microphone,
     Func<bool> keepAudio,
     Func<string, Task<bool>> copy,
-    Func<string?, Action<Speaker, byte[]>, Action<bool>, Task<IMeetingCapture>>? capture = null)
+    Func<string?, Action<Speaker, byte[]>, Action<bool>, Task<IMeetingCapture>>? capture = null,
+    TimeSpan? saveEvery = null)
 {
+    /// <summary>
+    /// How often the meeting so far is saved while it records, so a crash, a forced restart or a
+    /// power cut loses at most this much of it. Saving is one small encrypted write.
+    /// </summary>
+    public static readonly TimeSpan SaveEvery = TimeSpan.FromSeconds(30);
+
+    private readonly Lock _draftGate = new();
+    private TaskCompletionSource? _stopDrafts;
+    private Task _drafting = Task.CompletedTask;
+    private int _draftLines;
     private IMeetingCapture? _capture;
     private MeetingTranscriber? _transcriber;
     private MeetingTranscriber? _shown;
@@ -149,6 +161,9 @@ internal sealed class MeetingRecorder(
 
         (_capture, _transcriber, _shown, _id, _started, _startedAt) =
             (tracks, pieces, pieces, id, DateTimeOffset.Now, startedAt);
+        _draftLines = 0;
+        _stopDrafts = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _drafting = SaveDraftsAsync(pieces, id, _started, startedAt, _stopDrafts.Task);
         Log.Info(LogEvent.MeetingStarted, ("keep_audio", keep ? 1 : 0));
         RecordingChanged?.Invoke(true);
         return tracks.EchoCancelled ? MeetingOutcome.Started : MeetingOutcome.StartedWithoutEchoCancellation;
@@ -174,18 +189,80 @@ internal sealed class MeetingRecorder(
         _ran = Stopwatch.GetElapsedTime(_startedAt);
         _capture = null;
         _transcriber = null;
-        var stop = FinishAsync(tracks, pieces, _id, _started, _ran);
+        _stopDrafts?.TrySetResult();
+        _stopDrafts = null;
+        var stop = FinishAsync(tracks, pieces, _id, _started, _ran, _drafting);
 
         // A stop that finished at once has already cleared Finishing; it must stay clear.
         Finishing = stop.IsCompleted ? null : stop;
         return stop;
     }
 
+    /// <summary>
+    /// Saves the meeting recording now as far as it is transcribed, as Windows signs out or shuts
+    /// down. Does nothing when no meeting records. Call on the UI thread.
+    /// </summary>
+    public void SaveNow()
+    {
+        if (_transcriber is { } pieces)
+        {
+            SaveDraft(pieces, _id, _started, _startedAt);
+        }
+    }
+
+    // Every SaveEvery while the meeting records; the final save at stop replaces the draft.
+    private async Task SaveDraftsAsync(
+        MeetingTranscriber pieces, Guid id, DateTimeOffset started, long startedAt, Task stopped)
+    {
+        while (await Task.WhenAny(Task.Delay(saveEvery ?? SaveEvery), stopped).ConfigureAwait(false) != stopped)
+        {
+            SaveDraft(pieces, id, started, startedAt);
+        }
+    }
+
+    // Only when new lines came in: a quiet stretch writes nothing. One draft write at a time.
+    private void SaveDraft(MeetingTranscriber pieces, Guid id, DateTimeOffset started, long startedAt)
+    {
+        lock (_draftGate)
+        {
+            var lines = pieces.Lines();
+            if (lines.Count == _draftLines)
+            {
+                return;
+            }
+
+            var draft = new MeetingRecord(
+                id, MeetingRecord.DefaultTitle(started.LocalDateTime), started, Stopwatch.GetElapsedTime(startedAt),
+                lines);
+            try
+            {
+                if (store.Save(draft))
+                {
+                    _draftLines = lines.Count;
+                    Log.Info(LogEvent.MeetingDraftSaved, ("segments", lines.Count));
+                }
+            }
+            catch (Exception e)
+            {
+                // A draft that can't be written must never stop the meeting or its final save.
+                Log.Error(LogEvent.MeetingWriteFailed, e);
+            }
+        }
+    }
+
     private async Task<MeetingOutcome> FinishAsync(
-        IMeetingCapture tracks, MeetingTranscriber pieces, Guid id, DateTimeOffset started, TimeSpan duration)
+        IMeetingCapture tracks,
+        MeetingTranscriber pieces,
+        Guid id,
+        DateTimeOffset started,
+        TimeSpan duration,
+        Task drafting)
     {
         try
         {
+            // A draft written after the final save would replace it.
+            await drafting;
+
             try
             {
                 await tracks.StopAsync();
