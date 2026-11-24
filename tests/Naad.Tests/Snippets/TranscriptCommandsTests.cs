@@ -22,6 +22,8 @@ public sealed class TranscriptCommandsTests
     [InlineData("addressing my addresses", "addressing my addresses")]
     [InlineData("sig", "Thanks, $name")]
     [InlineData("nothing here", "nothing here")]
+    [InlineData("Send it to my address. Then call me.", "Send it to 1 Example Street, Testville. Then call me.")]
+    [InlineData("Is that my email? Yes.", "Is that someone@example.test? Yes.")]
     public void Expand_Triggers_MatchWholePhrasesLongestFirst(string text, string expected)
     {
         Assert.Equal(expected, TranscriptCommands.Expand(text, Snippets));

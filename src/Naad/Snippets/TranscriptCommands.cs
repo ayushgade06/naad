@@ -38,10 +38,11 @@ internal static partial class TranscriptCommands
         }
 
         // Words in order, with any spaces or punctuation between them; a full stop the cleanup
-        // added right after the trigger goes with it.
+        // added right after a trigger that ends the text goes with it. Mid-text it ends a
+        // sentence, so it stays.
         var alternatives = usable.Select((s, i) =>
             $"(?<s{i}>{string.Join(@"[\s\p{P}]+", s.Words.Select(Regex.Escape))})");
-        var pattern = @"(?<![\p{L}\p{N}])(?:" + string.Join('|', alternatives) + @")(?![\p{L}\p{N}])[.!?]?";
+        var pattern = @"(?<![\p{L}\p{N}])(?:" + string.Join('|', alternatives) + @")(?![\p{L}\p{N}])(?:[.!?](?=\s*$))?";
         try
         {
             return Regex.Replace(
