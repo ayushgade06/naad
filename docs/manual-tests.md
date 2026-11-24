@@ -1234,7 +1234,7 @@ with key input and the microphone allowed.
 | Reading results | `naad.log`, UI Automation (Notepad, a plain Win32 text box, Naad's window and setup guide), the clipboard and the files Naad writes |
 | Build | Release, framework-dependent, then a self-contained package made with the release workflow's commands |
 
-The pass found and fixed the bugs listed under **Unreleased** in the
+The pass found and fixed the bugs listed under **2.3.0** in the
 changelog. Three came from the live run itself: live typing ending the
 dictation while the key was held, Groq's retired models, and the model's
 `<<<`/`>>>` being pasted. The rest came from a review of the code.

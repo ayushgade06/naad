@@ -4,7 +4,12 @@ All notable changes to Naad are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.3.0] - 2026-11-24
+
+Meeting notes stop on their own, keep what was said if Naad stops
+unexpectedly, and leave out the other side's voice echoed into the
+microphone. A full automated pass on a real PC fixed live typing ending
+dictations early, Groq's retired models, and many smaller bugs.
 
 ### Added
 
