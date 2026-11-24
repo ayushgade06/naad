@@ -294,6 +294,31 @@ public sealed class ChordMatcherTests
     }
 
     [Fact]
+    public void Resync_KeyNaadLiftedToType_StaysHeld()
+    {
+        // Live typing let go of the held Right Ctrl so the letters aren't shortcuts; Windows now
+        // reports it up while the user still holds it.
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnKey(Key.RControlKey, down: true);
+        matcher.OnOwnKeyUp(Key.RControlKey);
+
+        Assert.Empty(matcher.Resync(isDown: _ => false));
+        Assert.True(matcher.IsActive);
+        Assert.Equal(ChordEventKind.Released, Assert.Single(matcher.OnKey(Key.RControlKey, down: false).Events).Kind);
+    }
+
+    [Fact]
+    public void Resync_AfterTheUsersOwnPress_AsksAgain()
+    {
+        var matcher = new ChordMatcher([Chord.RightCtrl]);
+        matcher.OnOwnKeyUp(Key.RControlKey);
+        matcher.OnKey(Key.RControlKey, down: true);
+
+        // A lift of a key that wasn't held is forgotten, so a lost key-up is still found.
+        Assert.Equal(ChordEventKind.Released, Assert.Single(matcher.Resync(isDown: _ => false)).Kind);
+    }
+
+    [Fact]
     public void Resync_SwallowedKey_IsNeverAskedAbout()
     {
         // Windows doesn't mark a swallowed key down, so asking would end the dictation early.

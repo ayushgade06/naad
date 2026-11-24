@@ -190,8 +190,11 @@ internal sealed class KeyboardHook : IDisposable
     /// lower-integrity process such as a sandbox, which must not be able to start a recording.
     /// </summary>
     public static bool ShouldIgnore(uint flags, nuint extraInfo) =>
-        (flags & User32.LlkhfLowerIlInjected) != 0
-        || ((flags & User32.LlkhfInjected) != 0 && extraInfo == OwnInputMarker);
+        (flags & User32.LlkhfLowerIlInjected) != 0 || IsOwnInput(flags, extraInfo);
+
+    /// <summary>Whether the key event is Naad's own synthetic input.</summary>
+    public static bool IsOwnInput(uint flags, nuint extraInfo) =>
+        (flags & User32.LlkhfInjected) != 0 && extraInfo == OwnInputMarker;
 
     /// <summary>Mouse messages that cancel a held shortcut: button presses and wheel turns.</summary>
     public static bool IsButtonOrWheel(nint message) => message is User32.WmLButtonDown or User32.WmRButtonDown
@@ -205,6 +208,11 @@ internal sealed class KeyboardHook : IDisposable
         if (code >= 0)
         {
             var info = Marshal.PtrToStructure<User32.KbdLlHookStruct>(lParam);
+            if (IsOwnInput(info.Flags, info.ExtraInfo) && wParam is not (User32.WmKeyDown or User32.WmSysKeyDown))
+            {
+                _matcher.OnOwnKeyUp((Keys)info.VkCode);
+            }
+
             if (!ShouldIgnore(info.Flags, info.ExtraInfo)
                 && OnKeyEvent(info.VkCode, wParam is User32.WmKeyDown or User32.WmSysKeyDown))
             {

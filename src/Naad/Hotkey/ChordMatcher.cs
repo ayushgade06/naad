@@ -64,6 +64,10 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     // Keys whose key-down was swallowed. Their repeats and key-up are swallowed too, even after
     // the chord ends, so an app never sees half of a key press.
     private readonly HashSet<Key> _swallowed = [];
+
+    // Held keys Naad let go of itself, to type while the shortcut is held. Windows now reports
+    // them up, though the user still holds them, until the user's own key-up or a new press.
+    private readonly HashSet<Key> _lifted = [];
     private Chord? _active;
     private ChordCapture? _capture;
 
@@ -102,7 +106,24 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     public void CancelCapture() => _capture = null;
 
     /// <summary>Feeds one physical key event.</summary>
-    public KeyOutcome OnKey(Key key, bool down) => down ? OnKeyDown(key) : OnKeyUp(key);
+    public KeyOutcome OnKey(Key key, bool down)
+    {
+        _lifted.Remove(key);
+        return down ? OnKeyDown(key) : OnKeyUp(key);
+    }
+
+    /// <summary>
+    /// Naad sent a key-up of its own, as live typing does for a held Ctrl or Shift so the letters
+    /// aren't shortcuts. It changes no chord, but <see cref="Resync"/> must not take it for the
+    /// user letting go and end the dictation.
+    /// </summary>
+    public void OnOwnKeyUp(Key key)
+    {
+        if (_held.Contains(key))
+        {
+            _lifted.Add(key);
+        }
+    }
 
     /// <summary>
     /// Forgets held keys that Windows says are up: their key-up was lost, as happens while the
@@ -113,10 +134,11 @@ internal sealed class ChordMatcher(IReadOnlyList<Chord> chords)
     /// <param name="isDown">Whether Windows reports the key down now.</param>
     // ponytail: swallowed keys (Space in Left Ctrl+Space) are skipped, because Windows never
     // records a key the hook swallowed as down; a lost key-up of one still needs a fresh press.
+    // Keys Naad lifted are skipped for the same reason.
     public IReadOnlyList<ChordEvent> Resync(Func<Key, bool> isDown)
     {
         var events = new List<ChordEvent>();
-        foreach (var key in _held.Where(k => !_swallowed.Contains(k) && !isDown(k)).ToList())
+        foreach (var key in _held.Where(k => !_swallowed.Contains(k) && !_lifted.Contains(k) && !isDown(k)).ToList())
         {
             events.AddRange(OnKeyUp(key).Events);
         }
