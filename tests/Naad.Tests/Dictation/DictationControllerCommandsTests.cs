@@ -1,3 +1,4 @@
+using Naad.Audio;
 using Naad.Cleanup;
 using Naad.Context;
 using Naad.Dictation;
@@ -297,6 +298,33 @@ public sealed class DictationControllerCommandsTests : IDisposable
 
         await stopped.Task.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
         Assert.Equal(1, _h.Pastes);
+    }
+
+    [Fact]
+    public async Task Press_MicrophoneFailsWhileHeld_StopsTheSummary()
+    {
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Recorder.Failure = new MicrophoneFailure(MicrophoneError.InUse, 4);
+        _h.Controller.UseContextSummary(async (_, token) =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            catch (OperationCanceledException)
+            {
+                stopped.TrySetResult();
+            }
+
+            return ContextSummary.None;
+        });
+
+        var idle = _h.NextIdle();
+        await _h.Ui.RunAsync(_h.Controller.Press);
+        await idle.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
+
+        await stopped.Task.WaitAsync(Harness.Wait, TestContext.Current.CancellationToken);
+        await _h.Ui.RunAsync(_h.Controller.Release);
     }
 
     [Fact]

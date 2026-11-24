@@ -1,4 +1,5 @@
 using Naad.Audio;
+using Naad.Context;
 
 namespace Naad.Dictation;
 
@@ -27,6 +28,15 @@ internal sealed partial class DictationController
         if (failure is { } f)
         {
             DictationLog.Microphone(f);
+            if (_session.Job == job)
+            {
+                // As for a discarded recording: a live stream, a summary request and what was
+                // read from the app, a screenshot included, go with it rather than linger.
+                TakeLive()?.Dispose();
+                _context = Task.FromResult(DictationContext.None);
+                StopSummary();
+            }
+
             Apply(DictationEvent.RecordingFailed, job);
             MicrophoneFailed?.Invoke(f.Error);
             return false;
