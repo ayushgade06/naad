@@ -14,6 +14,10 @@ All notable changes to Naad are listed here. The format follows
   says why they stopped. The call rule applies only when a call app was
   seen during the meeting, so notes for a meeting in the room aren't cut
   off.
+- On speakers without echo cancellation, the other side's voice picked up
+  by the microphone no longer appears a second time under **You**: a You
+  line whose words were mostly just said under **Others** is left out.
+  Short replies such as "okay" are always kept.
 
 ### Fixed
 

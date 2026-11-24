@@ -84,7 +84,7 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
     {
         lock (_segments)
         {
-            return [.. _segments.OrderBy(s => s.Start)];
+            return MeetingEcho.Without([.. _segments.OrderBy(s => s.Start)]);
         }
     }
 
@@ -116,7 +116,7 @@ internal sealed class MeetingTranscriber(ITranscriber transcriber, Action<int, b
         Log.Info(LogEvent.MeetingTranscribed, ("pieces", _pieces), ("failed", _failed));
         lock (_segments)
         {
-            return [.. _segments.OrderBy(s => s.Start)];
+            return MeetingEcho.Without([.. _segments.OrderBy(s => s.Start)]);
         }
     }
 
