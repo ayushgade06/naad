@@ -66,7 +66,7 @@ internal sealed class AiCleanup(IReadOnlyList<NamedModel> models, RateLimitCoold
     public async Task<(CleanupResult Result, FallbackReason Reason)> CleanAsync(
         string transcript, DictationContext context, CancellationToken token)
     {
-        var basic = BasicCleanup.Clean(transcript);
+        var basic = BasicCleanup.Clean(transcript, options.SpokenLanguage);
         if (basic.Length == 0)
         {
             return (new("", CleanupOutcome.Empty), FallbackReason.None);

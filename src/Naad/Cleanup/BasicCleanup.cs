@@ -13,9 +13,14 @@ internal static partial class BasicCleanup
     // words separated by a comma ("no, no, no") are never collapsed.
     private static readonly HashSet<string> Doubled = new(StringComparer.OrdinalIgnoreCase) { "had", "that" };
 
-    public static string Clean(string transcript)
+    /// <param name="transcript">What was said.</param>
+    /// <param name="language">
+    /// The spoken language's code, or null when Whisper detects it. The hesitation sounds are
+    /// English ones, and real words elsewhere: "um" in Portuguese, "er" in German and Dutch.
+    /// </param>
+    public static string Clean(string transcript, string? language = null)
     {
-        var text = Filler().Replace(transcript, " ");
+        var text = HasEnglishFillers(language) ? Filler().Replace(transcript, " ") : transcript;
         text = RepeatedWord().Replace(text, m => Doubled.Contains(m.Groups[1].Value) ? m.Value : m.Groups[1].Value);
         text = Spaces().Replace(text, " ");
         text = SpaceBeforePunctuation().Replace(text, "$1");
@@ -49,6 +54,9 @@ internal static partial class BasicCleanup
 
         return result.ToString();
     }
+
+    private static bool HasEnglishFillers(string? language) =>
+        language is null || language.StartsWith("en", StringComparison.OrdinalIgnoreCase);
 
     // Hesitation sounds as whole words, with a comma or ellipsis Whisper put after them.
     [GeneratedRegex(@"\b(?:u+m+|u+h+m*|e+r+m+|e+r+|a+h+|h+m+|m{2,})\b[,.…]*", RegexOptions.IgnoreCase)]

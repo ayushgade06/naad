@@ -27,6 +27,18 @@ public sealed class BasicCleanupTests
     }
 
     [Theory]
+    [InlineData("Eu tenho um carro", "pt", "Eu tenho um carro.")]
+    [InlineData("Er ist heute nicht da", "de", "Er ist heute nicht da.")]
+    [InlineData("er zijn drie problemen", "nl", "Er zijn drie problemen.")]
+    [InlineData("um so we meet", "en", "So we meet.")]
+    [InlineData("um so we meet", null, "So we meet.")]
+    public void Clean_OtherLanguage_KeepsWordsThatSoundLikeEnglishFillers(
+        string transcript, string? language, string expected)
+    {
+        Assert.Equal(expected, BasicCleanup.Clean(transcript, language));
+    }
+
+    [Theory]
     [InlineData("we should meet", "We should meet.")]
     [InlineData("Dear team,\n\nthanks um", "Dear team,\n\nthanks um.")]
     [InlineData("Done?", "Done?")]

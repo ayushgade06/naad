@@ -29,12 +29,14 @@ internal enum CleanupLevel
 /// <param name="budget">How long the model may take; the app passes its setting.</param>
 /// <param name="snippets">Spoken triggers to expand, after cleanup.</param>
 /// <param name="pressEnterCommand">Whether a trailing "press enter" presses Enter after the paste.</param>
+/// <param name="language">The spoken language's code, or null when it is detected.</param>
 internal sealed class TranscriptCleanup(
     CleanupLevel level,
     AiCleanup? ai,
     TimeSpan? budget = null,
     IReadOnlyList<Snippet>? snippets = null,
-    bool pressEnterCommand = false) : ITranscriptCleanup
+    bool pressEnterCommand = false,
+    string? language = null) : ITranscriptCleanup
 {
     /// <summary>
     /// The longest a dictation waits for the language model by default: about twice the large
@@ -123,7 +125,7 @@ internal sealed class TranscriptCleanup(
     private async Task<(CleanupResult, FallbackReason)> RunAsync(
         string transcript, DictationContext context, CancellationToken cancellationToken)
     {
-        var text = level == CleanupLevel.Off ? transcript : BasicCleanup.Clean(transcript);
+        var text = level == CleanupLevel.Off ? transcript : BasicCleanup.Clean(transcript, language);
         var outcome = level == CleanupLevel.Off ? CleanupOutcome.Unchanged : CleanupOutcome.Basic;
         if (!UsesModel)
         {

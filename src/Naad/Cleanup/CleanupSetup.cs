@@ -241,7 +241,7 @@ internal static class CleanupSetup
         var budget = TimeSpan.FromSeconds(s.LanguageModelTimeoutSeconds);
         if (model is null)
         {
-            return new(s.Cleanup, ai: null, budget, snippets, s.PressEnterCommand);
+            return new(s.Cleanup, ai: null, budget, snippets, s.PressEnterCommand, s.Language);
         }
 
         // Rate limits are per cloud model; a model on this PC has none.
@@ -256,7 +256,8 @@ internal static class CleanupSetup
 
         var options = new CleanupOptions(
             s.CleanupPrompt, s.Vocabulary, s.OutputLanguage, s.InstructionGuard, SpokenLanguage: s.Language);
-        return new(s.Cleanup, new AiCleanup(models, cooldowns, options), budget, snippets, s.PressEnterCommand);
+        return new(
+            s.Cleanup, new AiCleanup(models, cooldowns, options), budget, snippets, s.PressEnterCommand, s.Language);
     }
 
     /// <summary>
