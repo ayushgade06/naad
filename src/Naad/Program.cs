@@ -164,9 +164,6 @@ internal static class Program
         var snippetStore = new SnippetStore(SnippetStore.DefaultPath);
         var snippets = snippetStore.Load();
 
-        // A newer Naad wrote settings.json; this build never replaces it (docs/settings.md).
-        var canSave = loaded.Status != SettingsStatus.FutureVersion;
-
         // Offline, a cloud choice falls back to this PC; the user is told once per session.
         var offlineNoticeShown = false;
         Action? offline = null;
@@ -222,7 +219,7 @@ internal static class Program
                 TextInserter.SendEnter);
             dictation = controller;
             var startup = StartupEntry.ForThisApp();
-            var actions = new SettingsActions(store, keys, startup, canSave, http);
+            var actions = new SettingsActions(store, keys, startup, loaded.Status, http);
             using var history = DictationFeatures.Connect(
                 controller, hook, overlay, tray, clipboard, () => pending ?? settings, () => languageModel is not null,
                 SaveWords);

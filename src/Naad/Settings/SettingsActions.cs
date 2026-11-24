@@ -13,13 +13,14 @@ namespace Naad.Settings;
 /// <param name="store">settings.json.</param>
 /// <param name="keys">The API keys, one per service.</param>
 /// <param name="startup">The start-at-login entry.</param>
-/// <param name="canSave">False when a newer Naad wrote settings.json, which this build never replaces.</param>
+/// <param name="loaded">How settings.json loaded at start. A file a newer Naad wrote, or one that
+/// couldn't be read, is never replaced: this session holds defaults, not what the file says.</param>
 /// <param name="http">Shared and owned by the caller.</param>
 internal sealed class SettingsActions(
     SettingsStore store,
     ServiceKeys keys,
     StartupEntry startup,
-    bool canSave,
+    SettingsStatus loaded,
     HttpClient http)
 {
     /// <summary>
@@ -65,10 +66,16 @@ internal sealed class SettingsActions(
             }
         }
 
-        if (!canSave)
+        if (loaded == SettingsStatus.FutureVersion)
         {
             Log.Warn(LogEvent.SettingsSaveSkippedNewerFile);
             problem += "A newer version of Naad wrote settings.json, so these changes apply only until Naad exits.";
+        }
+        else if (loaded == SettingsStatus.ReadFailed)
+        {
+            Log.Warn(LogEvent.SettingsSaveSkippedUnreadFile);
+            problem += "settings.json couldn't be read when Naad started, so these changes apply only until "
+                + "Naad exits. Restart Naad to load it.";
         }
         else if (store.Save(change.Settings) is { } writeError)
         {
