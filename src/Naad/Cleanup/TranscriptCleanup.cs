@@ -46,7 +46,19 @@ internal sealed class TranscriptCleanup(
 
     public bool UsesModel => ai is not null && (level == CleanupLevel.Ai || ai.Translates);
 
-    public void Prepare() => ai?.Prepare();
+    /// <summary>
+    /// Whether to load the model now: only when this dictation will ask it. Loading it for Basic or
+    /// Off would hold over a gigabyte of memory for nothing.
+    /// </summary>
+    public bool ShouldPrepare(bool edit) => ai is not null && (edit || UsesModel);
+
+    public void Prepare(bool edit)
+    {
+        if (ShouldPrepare(edit))
+        {
+            ai!.Prepare();
+        }
+    }
 
     public async Task<CleanupResult> CleanAsync(
         string transcript, DictationContext context, CancellationToken cancellationToken)

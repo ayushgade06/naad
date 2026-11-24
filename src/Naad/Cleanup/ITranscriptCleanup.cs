@@ -50,8 +50,12 @@ internal interface ITranscriptCleanup
     /// <summary>Whether a language model runs, so the user is told it is cleaning up.</summary>
     bool UsesModel { get; }
 
-    /// <summary>A dictation started: a model on this PC may start loading while the user speaks.</summary>
-    void Prepare();
+    /// <summary>
+    /// A dictation started, or it turned out to be an edit: a model on this PC may start loading
+    /// while the user speaks.
+    /// </summary>
+    /// <param name="edit">Whether text is selected, so the model runs whatever the cleanup level.</param>
+    void Prepare(bool edit);
 
     /// <param name="transcript">What was said.</param>
     /// <param name="context">What was read from the app; its selection makes this an edit.</param>

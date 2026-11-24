@@ -345,7 +345,7 @@ public sealed class DictationControllerCommandsTests : IDisposable
 
         public bool UsesModel => true;
 
-        public void Prepare()
+        public void Prepare(bool edit)
         {
         }
 

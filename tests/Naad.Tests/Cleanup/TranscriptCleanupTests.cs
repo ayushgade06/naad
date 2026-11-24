@@ -171,6 +171,19 @@ public sealed class TranscriptCleanupTests : IDisposable
         Assert.Empty(model.Prompts);
     }
 
+    [Theory]
+    [InlineData(CleanupLevel.Ai, false, true)]
+    [InlineData(CleanupLevel.Basic, false, false)]
+    [InlineData(CleanupLevel.Off, false, false)]
+    [InlineData(CleanupLevel.Basic, true, true)]
+    internal void ShouldPrepare_LoadsTheModelOnlyWhenThisDictationAsksIt(CleanupLevel level, bool edit, bool expected)
+    {
+        var cleanup = new TranscriptCleanup(level, Ai([new("m", new FakeModel("unused"))]));
+
+        Assert.Equal(expected, cleanup.ShouldPrepare(edit));
+        Assert.False(new TranscriptCleanup(level, ai: null).ShouldPrepare(edit));
+    }
+
     [Fact]
     public async Task Clean_Cancelled_Throws()
     {

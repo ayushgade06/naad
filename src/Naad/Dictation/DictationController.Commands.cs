@@ -259,6 +259,7 @@ internal sealed partial class DictationController
         {
             if ((await context).IsEdit && _session.Job == job && _session.State == DictationState.Recording)
             {
+                _cleanup?.Prepare(edit: true);
                 EditRecording?.Invoke();
             }
         }

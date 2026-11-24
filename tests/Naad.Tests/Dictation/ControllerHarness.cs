@@ -205,7 +205,7 @@ internal sealed class FakeCleanup(CleanupResult result) : ITranscriptCleanup
 
     public List<Naad.Context.DictationContext> Contexts { get; } = [];
 
-    public void Prepare() => Prepared++;
+    public void Prepare(bool edit) => Prepared++;
 
     public Task<CleanupResult> CleanAsync(
         string transcript, Naad.Context.DictationContext context, CancellationToken cancellationToken)

@@ -217,7 +217,7 @@ internal sealed partial class DictationController(
                 _context = _preread ?? _readContext?.Invoke(_target) ?? Task.FromResult(DictationContext.None);
                 _ = ReportEditAsync(_context, step.Job);
                 StartSummary();
-                _cleanup?.Prepare();
+                _cleanup?.Prepare(edit: false);
                 StartLive();
                 _starting = StartRecordingAsync(step.Job, _stopped, time.GetTimestamp());
                 _ = StopAtMaxDurationAsync(step.Job, _shutdown.Token);
